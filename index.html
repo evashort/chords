@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Chords</title>
+    <meta name="viewport" content="width=device-width">
+    <script src="envelope.js"></script>
+    <script src="voice.js"></script>
+    <script src="synth.js"></script>
+    <script src="script.js"></script>
+    <script src="elm.js"></script>
+  </head>
+  <body>
+    <div id="main"></div>
+    <script>
+      var app = Elm.Main.fullscreen();
+
+      app.ports.timeRequest.subscribe(function() {
+          let now = getCurrentTime();
+          app.ports.currentTime.send(now);
+      });
+
+      app.ports.playNote.subscribe(playNote);
+    </script>
+  </body>
+</html>
