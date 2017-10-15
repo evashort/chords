@@ -87,6 +87,9 @@ type alias BatchUpdateResult =
   , changeLists : List (List AudioChange)
   }
 
+quantizationLeniency : Float
+quantizationLeniency = 0.2
+
 audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
 audioUpdate t msg model =
   case msg of
@@ -96,15 +99,19 @@ audioUpdate t msg model =
           case model.chordStart of
             Nothing -> t
             Just oldStart ->
-              oldStart + 0.15 * toFloat (ceiling ((t - oldStart) / 0.15))
+              let
+                quant =
+                  ceiling ((t - oldStart) / 0.15 - quantizationLeniency)
+              in
+                oldStart + 0.15 * toFloat quant
       in
         { model = { model | chordStart = Just start }
-        , cmd = setCheckpoint (start + 2.4)
+        , cmd = setCheckpoint (start + 2.4 + 0.15 * quantizationLeniency)
         , changes =
-            CancelFutureNotes start ::
+            CancelFutureNotes (max t start) ::
               List.map
                 NewNote
-                (offsetsToNotes start 48 <| majorArpeggio ++ majorArpeggio)
+                (offsetsToNotes t start 48 <| majorArpeggio ++ majorArpeggio)
         }
 
 type alias AudioUpdateResult =
@@ -122,12 +129,12 @@ mtof m =
 majorArpeggio : List Int
 majorArpeggio = [ 12, 4, 7, 0, 4, 7, 0, 4 ]
 
-offsetsToNotes : Float -> Int -> List Int -> List Note
-offsetsToNotes t root offsets =
+offsetsToNotes : Float -> Float -> Int -> List Int -> List Note
+offsetsToNotes tMin t root offsets =
   List.map2
     Note
     ( List.map
-        ((+) t << (*) 0.15 << toFloat)
+        (max tMin << (+) t << (*) 0.15 << toFloat)
         (List.range 0 <| List.length offsets)
     )
     (List.map (mtof << (+) root) offsets)
