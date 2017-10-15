@@ -64,7 +64,7 @@ update msg model =
     CheckpointReached t ->
       case model.chordStart of
         Just start ->
-          if t >= start + 2.4 then
+          if t >= start + noteLength * (8 + quantizationLeniency) then
             ( { model | chordStart = Nothing }, Cmd.none )
           else
             ( model, Cmd.none )
@@ -90,6 +90,9 @@ type alias BatchUpdateResult =
 quantizationLeniency : Float
 quantizationLeniency = 0.2
 
+noteLength : Float
+noteLength = 0.5
+
 audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
 audioUpdate t msg model =
   case msg of
@@ -101,17 +104,21 @@ audioUpdate t msg model =
             Just oldStart ->
               let
                 quant =
-                  ceiling ((t - oldStart) / 0.15 - quantizationLeniency)
+                  ceiling ((t - oldStart) / noteLength - quantizationLeniency)
               in
-                oldStart + 0.15 * toFloat quant
+                oldStart + noteLength * toFloat quant
       in
         { model = { model | chordStart = Just start }
-        , cmd = setCheckpoint (start + 2.4 + 0.15 * quantizationLeniency)
+        , cmd =
+            setCheckpoint (start + noteLength * (8 + quantizationLeniency))
         , changes =
             CancelFutureNotes (max t start) ::
-              List.map
-                NewNote
-                (offsetsToNotes t start 48 <| majorArpeggio ++ majorArpeggio)
+              ( offsetsToNotes
+                  t
+                  start
+                  (if model.chordStart == Nothing then 48 else 50)
+                  majorArpeggio
+              )
         }
 
 type alias AudioUpdateResult =
@@ -129,15 +136,22 @@ mtof m =
 majorArpeggio : List Int
 majorArpeggio = [ 12, 4, 7, 0, 4, 7, 0, 4 ]
 
-offsetsToNotes : Float -> Float -> Int -> List Int -> List Note
+offsetsToNotes : Float -> Float -> Int -> List Int -> List AudioChange
 offsetsToNotes tMin t root offsets =
   List.map2
-    Note
+    (toNote tMin)
     ( List.map
-        (max tMin << (+) t << (*) 0.15 << toFloat)
+        ((+) t << (*) noteLength << toFloat)
         (List.range 0 <| List.length offsets)
     )
     (List.map (mtof << (+) root) offsets)
+
+toNote : Float -> Float -> Float -> AudioChange
+toNote tMin t f =
+  if t >= tMin then
+    NewNote <| Note t f
+  else
+    Glide <| Note tMin f
 
 -- SUBSCRIPTIONS
 
@@ -158,6 +172,12 @@ audioChangeToJson change =
         , ( "t", Json.Encode.float note.t )
         , ( "f", Json.Encode.float note.f )
         ]
+    Glide note ->
+      Json.Encode.object
+        [ ( "type", Json.Encode.string "glide" )
+        , ( "t", Json.Encode.float note.t )
+        , ( "f", Json.Encode.float note.f )
+        ]
     MuteAllNotes t ->
       Json.Encode.object
         [ ( "type", Json.Encode.string "mute" )
@@ -171,6 +191,7 @@ audioChangeToJson change =
 
 type AudioChange
   = NewNote Note
+  | Glide Note
   | MuteAllNotes Float
   | CancelFutureNotes Float
 

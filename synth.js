@@ -53,3 +53,16 @@ Synth.prototype.ringOutAt = function(t) {
     this.voices[i].ringOutAt(t);
   }
 }
+Synth.prototype.glideAt = function(t, f) {
+  let maxGain = -Infinity;
+  let loudestVoice = null;
+  for (let i = 0; i < this.voices.length; i++) {
+    let gain = this.voices[i].getGainAt(t, true);
+    if (gain > maxGain) {
+      maxGain = gain;
+      loudestVoice = this.voices[i];
+    }
+  }
+
+  loudestVoice.glideAt(t, f);
+}

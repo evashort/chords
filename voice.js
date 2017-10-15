@@ -38,6 +38,10 @@ Voice.prototype.ringOutAt = function(t) {
   this.env.curve(t, t + 1.5, 0, true);
 }
 
+Voice.prototype.glideAt = function(t, f) {
+  this.fEnv.line(t, t + 0.2, f);
+}
+
 Voice.prototype.getGainAt = function(t, ignoreJumps = false) {
   return this.env.getValueAt(t, ignoreJumps);
 }
