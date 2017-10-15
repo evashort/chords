@@ -94,7 +94,7 @@ audioUpdate t msg model =
       { model = { model | chordStopsAt = Just (t + 2.4) }
       , cmd = setCheckpoint (t + 2.4)
       , changes =
-          MuteAllNotes t ::
+          CancelFutureNotes t ::
             List.map
               NewNote
               (offsetsToNotes t 48 <| majorArpeggio ++ majorArpeggio)
@@ -149,8 +149,16 @@ audioChangeToJson change =
         [ ( "type", Json.Encode.string "mute" )
         , ( "t", Json.Encode.float t )
         ]
+    CancelFutureNotes t ->
+      Json.Encode.object
+        [ ( "type", Json.Encode.string "cancel" )
+        , ( "t", Json.Encode.float t )
+        ]
 
-type AudioChange = NewNote Note | MuteAllNotes Float
+type AudioChange
+  = NewNote Note
+  | MuteAllNotes Float
+  | CancelFutureNotes Float
 
 type alias Note =
   { t : Float

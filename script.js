@@ -18,6 +18,8 @@ function changeAudio(changes) {
       synth.noteAt(changes[i].t, changes[i].f);
     } else if (changes[i].type == "mute") {
       synth.muteAt(changes[i].t);
+    } else if (changes[i].type == "cancel") {
+      synth.ringOutAt(changes[i].t);
     }
   }
 }

@@ -47,3 +47,9 @@ Synth.prototype.muteAt = function(t) {
     this.voices[i].muteAt(t);
   }
 }
+
+Synth.prototype.ringOutAt = function(t) {
+  for (let i = 0; i < this.voices.length; i++) {
+    this.voices[i].ringOutAt(t);
+  }
+}

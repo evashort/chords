@@ -32,6 +32,11 @@ Voice.prototype.muteAt = function(t) {
   this.env.line(t, t + 0.002, 0);
 }
 
+Voice.prototype.ringOutAt = function(t) {
+  this.fEnv.truncateAt(t);
+  this.env.curve(t, t + 1.5, 0);
+}
+
 Voice.prototype.getGainAt = function(t) {
   return this.env.getValueAt(t);
 }
