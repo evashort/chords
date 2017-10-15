@@ -17,13 +17,13 @@ main =
 
 type alias Model =
   { audioMsgs : List AudioMsg
-  , chordStopsAt : Maybe Float
+  , chordStart : Maybe Float
   }
 
 init : ( Model, Cmd Msg )
 init =
   ( { audioMsgs = []
-    , chordStopsAt = Nothing
+    , chordStart = Nothing
     }
   , Cmd.none
   )
@@ -62,10 +62,10 @@ update msg model =
         )
 
     CheckpointReached t ->
-      case model.chordStopsAt of
-        Just cutoff ->
-          if t >= cutoff then
-            ( { model | chordStopsAt = Nothing }, Cmd.none )
+      case model.chordStart of
+        Just start ->
+          if t >= start + 2.4 then
+            ( { model | chordStart = Nothing }, Cmd.none )
           else
             ( model, Cmd.none )
         Nothing ->
@@ -91,14 +91,21 @@ audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
 audioUpdate t msg model =
   case msg of
     PlayChord ->
-      { model = { model | chordStopsAt = Just (t + 2.4) }
-      , cmd = setCheckpoint (t + 2.4)
-      , changes =
-          CancelFutureNotes t ::
-            List.map
-              NewNote
-              (offsetsToNotes t 48 <| majorArpeggio ++ majorArpeggio)
-      }
+      let
+        start =
+          case model.chordStart of
+            Nothing -> t
+            Just oldStart ->
+              oldStart + 0.15 * toFloat (ceiling ((t - oldStart) / 0.15))
+      in
+        { model = { model | chordStart = Just start }
+        , cmd = setCheckpoint (start + 2.4)
+        , changes =
+            CancelFutureNotes start ::
+              List.map
+                NewNote
+                (offsetsToNotes start 48 <| majorArpeggio ++ majorArpeggio)
+        }
 
 type alias AudioUpdateResult =
   { model : Model
@@ -183,7 +190,7 @@ view model =
     [ button
         [ onMouseDown <| NeedsTime PlayChord
         , style
-            ( case model.chordStopsAt of
+            ( case model.chordStart of
                 Just _ -> [ ( "color", "#ff0000" ) ]
                 Nothing -> []
             )

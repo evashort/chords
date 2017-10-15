@@ -31,6 +31,14 @@ function Envelope(param, audioContext) {
   this.segments = [new Line(-Infinity, param.value, 0)];
 }
 
+Envelope.prototype.countSegmentsStartedBefore = function(t) {
+  let i = 0;
+  while (i < this.segments.length && this.segments[i].t < t) {
+    i++;
+  }
+  return i;
+}
+
 Envelope.prototype.countStartedSegmentsAt = function(t) {
   let i = 0;
   while (i < this.segments.length && this.segments[i].t <= t) {
@@ -39,15 +47,19 @@ Envelope.prototype.countStartedSegmentsAt = function(t) {
   return i;
 }
 
-Envelope.prototype.truncateAt = function(t) {
-  this.segments.length = this.countStartedSegmentsAt(t);
+Envelope.prototype.truncateAt = function(t, cancelJump = false) {
+  if (cancelJump) {
+    this.segments.length = this.countSegmentsStartedBefore(t);
+  } else {
+    this.segments.length = this.countStartedSegmentsAt(t);
+  }
 
   // just garbage collection
   this.segments.splice(
     1,
     Math.max(
       0,
-      this.countStartedSegmentsAt(this.audioContext.currentTime) - 2
+      this.countSegmentsStartedBefore(this.audioContext.currentTime) - 2
     )
   );
 
@@ -76,8 +88,8 @@ Envelope.prototype.getValueAt = function(t) {
   return this.segments[this.countStartedSegmentsAt(t) - 1].getValueAt(t);
 }
 
-Envelope.prototype.line = function(t1, t2, v2) {
-  this.truncateAt(t1);
+Envelope.prototype.line = function(t1, t2, v2, cancelJump = false) {
+  this.truncateAt(t1, cancelJump);
   let v1 = this.segments[this.segments.length - 1].v;
   let slope = (v2 - v1) / (t2 - t1);
   this.segments[this.segments.length - 1] = new Line(t1, v1, slope);
@@ -85,8 +97,8 @@ Envelope.prototype.line = function(t1, t2, v2) {
   this.param.linearRampToValueAtTime(v2, t2);
 };
 
-Envelope.prototype.curve = function(t1, t2, target) {
-  this.truncateAt(t1);
+Envelope.prototype.curve = function(t1, t2, target, cancelJump = false) {
+  this.truncateAt(t1, cancelJump);
   let v1 = this.segments[this.segments.length - 1].v;
   let timeConstant = 0.2 * (t2 - t1);
   this.segments[this.segments.length - 1] = new Curve(t1, v1, target, timeConstant);
