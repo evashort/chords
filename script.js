@@ -12,6 +12,12 @@ function getCurrentTime() {
   return ac.currentTime;
 }
 
-function playNote(note) {
-  synth.noteAt(note.t, note.f);
+function changeAudio(changes) {
+  for (let i = 0; i < changes.length; i++) {
+    if (changes[i].type == "note") {
+      synth.noteAt(changes[i].t, changes[i].f);
+    } else if (changes[i].type == "mute") {
+      synth.muteAt(changes[i].t);
+    }
+  }
 }
