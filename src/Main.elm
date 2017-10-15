@@ -2,7 +2,7 @@ port module Main exposing (..)
 
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (style)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onMouseDown)
 import Json.Encode
 
 main =
@@ -181,7 +181,7 @@ view : Model -> Html Msg
 view model =
   div []
     [ button
-        [ onClick <| NeedsTime PlayChord
+        [ onMouseDown <| NeedsTime PlayChord
         , style
             ( case model.chordStopsAt of
                 Just _ -> [ ( "color", "#ff0000" ) ]
