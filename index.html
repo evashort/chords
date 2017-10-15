@@ -21,6 +21,9 @@
       });
 
       app.ports.changeAudioUsingJson.subscribe(changeAudio);
+
+      startMonitoringCheckpoints(app.ports.checkpointReached.send);
+      app.ports.setCheckpoint.subscribe(setCheckpoint);
     </script>
   </body>
 </html>

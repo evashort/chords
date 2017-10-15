@@ -1,6 +1,7 @@
 port module Main exposing (..)
 
 import Html exposing (Html, button, div, text)
+import Html.Attributes exposing (style)
 import Html.Events exposing (onClick)
 import Json.Encode
 
@@ -16,11 +17,13 @@ main =
 
 type alias Model =
   { audioMsgs : List AudioMsg
+  , chordStopsAt : Maybe Float
   }
 
 init : ( Model, Cmd Msg )
 init =
   ( { audioMsgs = []
+    , chordStopsAt = Nothing
     }
   , Cmd.none
   )
@@ -30,6 +33,7 @@ init =
 type Msg
   = NeedsTime AudioMsg
   | CurrentTime Float
+  | CheckpointReached Float
 
 type AudioMsg = PlayChord
 
@@ -41,29 +45,66 @@ update msg model =
 
     CurrentTime t ->
       let
-        ( newModel, changes ) =
+        new =
           List.foldr
             (batchUpdate <| audioUpdate t)
-            ( { model | audioMsgs = [] }, [ [] ] )
+            { model = { model | audioMsgs = [] }
+            , cmds = []
+            , changeLists = []
+            }
             model.audioMsgs
+      in let
+        cmds = List.reverse new.cmds
+        changes = List.concat <| List.reverse new.changeLists
       in
-        ( newModel, changeAudio <| List.concat <| List.reverse changes )
+        ( new.model
+        , Cmd.batch <| (changeAudio changes) :: cmds
+        )
 
-batchUpdate : (m -> Model -> ( Model, c )) -> m -> ( Model, List c ) -> ( Model, List c )
-batchUpdate update msg ( model, cmds ) =
-  let ( newModel, cmd ) = update msg model in
-    ( newModel, cmd :: cmds )
+    CheckpointReached t ->
+      case model.chordStopsAt of
+        Just cutoff ->
+          if t >= cutoff then
+            ( { model | chordStopsAt = Nothing }, Cmd.none )
+          else
+            ( model, Cmd.none )
+        Nothing ->
+          ( model, Cmd.none )
 
-audioUpdate : Float -> AudioMsg -> Model -> ( Model, List AudioChange )
+batchUpdate :
+  (AudioMsg -> Model -> AudioUpdateResult) ->
+    AudioMsg -> BatchUpdateResult -> BatchUpdateResult
+batchUpdate f msg old =
+  let { model, cmd, changes } = f msg old.model in
+    { model = model
+    , cmds = cmd :: old.cmds
+    , changeLists = changes :: old.changeLists
+    }
+
+type alias BatchUpdateResult =
+  { model : Model
+  , cmds : List (Cmd Msg)
+  , changeLists : List (List AudioChange)
+  }
+
+audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
 audioUpdate t msg model =
   case msg of
     PlayChord ->
-      ( model
-      , MuteAllNotes t ::
-          List.map
-            NewNote
-            (offsetsToNotes t 48 <| majorArpeggio ++ majorArpeggio)
-      )
+      { model = { model | chordStopsAt = Just (t + 2.4) }
+      , cmd = setCheckpoint (t + 2.4)
+      , changes =
+          MuteAllNotes t ::
+            List.map
+              NewNote
+              (offsetsToNotes t 48 <| majorArpeggio ++ majorArpeggio)
+      }
+
+type alias AudioUpdateResult =
+  { model : Model
+  , cmd : Cmd Msg
+  , changes : List AudioChange
+  }
 
 mtof : Int -> Float
 mtof m =
@@ -116,10 +157,14 @@ type alias Note =
   , f : Float
   }
 
+port setCheckpoint : Float -> Cmd msg
+port checkpointReached : (Float -> msg) -> Sub msg
+
 subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
     [ currentTime CurrentTime
+    , checkpointReached CheckpointReached
     ]
 
 -- VIEW
@@ -127,5 +172,13 @@ subscriptions model =
 view : Model -> Html Msg
 view model =
   div []
-    [ button [ onClick <| NeedsTime PlayChord ] [ text "do it" ]
+    [ button
+        [ onClick <| NeedsTime PlayChord
+        , style
+            ( case model.chordStopsAt of
+                Just _ -> [ ( "color", "#ff0000" ) ]
+                Nothing -> []
+            )
+        ]
+        [ text "do it" ]
     ]
