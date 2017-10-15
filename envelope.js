@@ -84,8 +84,14 @@ Envelope.prototype.truncateAt = function(t, cancelJump = false) {
   }
 }
 
-Envelope.prototype.getValueAt = function(t) {
-  return this.segments[this.countStartedSegmentsAt(t) - 1].getValueAt(t);
+Envelope.prototype.getValueAt = function(t, ignoreJumps = false) {
+  let segmentCount;
+  if (ignoreJumps) {
+    segmentCount = this.countSegmentsStartedBefore(t);
+  } else {
+    segmentCount = this.countStartedSegmentsAt(t);
+  }
+  return this.segments[segmentCount - 1].getValueAt(t);
 }
 
 Envelope.prototype.line = function(t1, t2, v2, cancelJump = false) {

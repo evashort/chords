@@ -20,7 +20,7 @@ Synth.prototype.start = function() {
 
 Synth.prototype.noteAt = function(t, f, peak = 0.5) {
   for (let i = 0; i < this.voices.length; i++) {
-    if (this.voices[i].getFrequencyAt(t) == f) {
+    if (this.voices[i].getFrequencyAt(t, true) == f) {
       this.voices[i].noteAt(t, f, peak);
       return;
     }
@@ -29,7 +29,7 @@ Synth.prototype.noteAt = function(t, f, peak = 0.5) {
   let minGain = Infinity;
   let quietestVoice = null;
   for (let i = 0; i < this.voices.length; i++) {
-    let gain = this.voices[i].getGainAt(t);
+    let gain = this.voices[i].getGainAt(t, true);
     if (gain < minGain) {
       minGain = gain;
       quietestVoice = this.voices[i];

@@ -30,7 +30,7 @@ Voice.prototype.noteAt = function(t, f, peak = 0.5) {
 
 Voice.prototype.muteAt = function(t) {
   this.fEnv.truncateAt(t, true);
-  this.env.line(t, t + 0.002, 0);
+  this.env.line(t, t + 0.002, 0, true);
 }
 
 Voice.prototype.ringOutAt = function(t) {
@@ -38,10 +38,10 @@ Voice.prototype.ringOutAt = function(t) {
   this.env.curve(t, t + 1.5, 0, true);
 }
 
-Voice.prototype.getGainAt = function(t) {
-  return this.env.getValueAt(t);
+Voice.prototype.getGainAt = function(t, ignoreJumps = false) {
+  return this.env.getValueAt(t, ignoreJumps);
 }
 
-Voice.prototype.getFrequencyAt = function(t) {
-  return this.fEnv.getValueAt(t);
+Voice.prototype.getFrequencyAt = function(t, ignoreJumps = false) {
+  return this.fEnv.getValueAt(t, ignoreJumps);
 }
