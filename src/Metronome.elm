@@ -4,7 +4,7 @@ leniency : Float
 leniency = 0.2
 
 interval : Float
-interval = 0.15
+interval = 0.25 * 60 / 85
 
 ticksPerBeat : Int
 ticksPerBeat = 4

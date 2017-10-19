@@ -25,6 +25,12 @@ type alias Model =
 type alias PlayInfo =
   { metronome : Metronome
   , chordIndex : Int
+  , nextChord : Maybe ScheduledChord
+  }
+
+type alias ScheduledChord =
+  { index : Int
+  , tick : Int
   }
 
 init : ( Model, Cmd Msg )
@@ -104,7 +110,18 @@ update msg model =
           if now >= Metronome.getStop p.metronome then
             ( { model | playing = Nothing }, Cmd.none )
           else
-            ( model, Cmd.none )
+            case p.nextChord of
+              Nothing -> ( model, Cmd.none )
+              Just { index, tick } ->
+                if now >= Metronome.getTickTime p.metronome tick then
+                  ( { model
+                    | playing =
+                        Just { p | chordIndex = index, nextChord = Nothing }
+                    }
+                  , Cmd.none
+                  )
+                else
+                  ( model, Cmd.none )
         Nothing ->
           ( model, Cmd.none )
 
@@ -166,13 +183,36 @@ audioUpdate now msg model =
         m = { start = start, ticks = changeTick + List.length offsets }
       in let
         changeTime = Metronome.getTickTime m changeTick
+      in let
+        oldChordIndex =
+          case model.playing of
+            Nothing -> Nothing
+            Just p ->
+              if changeTime > now then Just p.chordIndex else Nothing
+      in let
+        p =
+          case oldChordIndex of
+            Nothing ->
+              { metronome = m
+              , chordIndex = chordIndex
+              , nextChord = Nothing
+              }
+            Just i ->
+              { metronome = m
+              , chordIndex = i
+              , nextChord = Just { index = chordIndex, tick = changeTick }
+              }
       in
         { model =
-          { model
-          | playing = Just { metronome = m, chordIndex = chordIndex }
-          }
+            { model | playing = Just p }
         , cmd =
-            setCheckpoint (Metronome.getStop m)
+            Cmd.batch
+              ( setCheckpoint (Metronome.getStop m) ::
+                  if p.nextChord == Nothing then
+                    []
+                  else
+                    [ setCheckpoint changeTime ]
+              )
         , changes =
               ( if changeTick < oldTicks then
                   if now + latency >= changeTime then
@@ -301,16 +341,22 @@ view model =
             Nothing -> -1
             Just p -> p.chordIndex
         )
+        ( case Maybe.andThen .nextChord model.playing of
+            Nothing -> -1
+            Just { index, tick } -> index
+        )
       )
       chords
 
-viewChord : Int -> Int -> Chord -> Html Msg
-viewChord activeChordIndex chordIndex chord =
+viewChord : Int -> Int -> Int -> Chord -> Html Msg
+viewChord activeChordIndex nextChordIndex chordIndex chord =
   button
     [ onMouseDown <| NeedsTime (PlayChord chordIndex)
     , style
         ( if chordIndex == activeChordIndex then
             [ ( "color", "#ff0000" ) ]
+          else if chordIndex == nextChordIndex then
+            [ ( "color", "#0000ff" ) ]
           else
             []
         )
