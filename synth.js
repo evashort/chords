@@ -42,27 +42,28 @@ Synth.prototype.noteAt = function(t, f, peak = 0.5) {
   quietestVoice.noteAt(t, f, peak);
 }
 
-Synth.prototype.muteAt = function(t) {
-  for (let i = 0; i < this.voices.length; i++) {
-    this.voices[i].muteAt(t);
-  }
-}
-
-Synth.prototype.ringOutAt = function(t) {
-  for (let i = 0; i < this.voices.length; i++) {
-    this.voices[i].ringOutAt(t);
-  }
-}
-Synth.prototype.glideAt = function(t, f) {
-  let maxGain = -Infinity;
-  let loudestVoice = null;
-  for (let i = 0; i < this.voices.length; i++) {
-    let gain = this.voices[i].getGainAt(t, true);
-    if (gain > maxGain) {
-      maxGain = gain;
-      loudestVoice = this.voices[i];
+Synth.prototype.muteLoudestNoteAt = function(t) {
+    let maxGain = -Infinity;
+    let loudestVoice = null;
+    for (let i = 0; i < this.voices.length; i++) {
+      let gain = this.voices[i].getGainAt(t, true);
+      if (gain > maxGain) {
+        maxGain = gain;
+        loudestVoice = this.voices[i];
+      }
     }
-  }
 
-  loudestVoice.glideAt(t, f);
+    loudestVoice.muteAt(t);
+}
+
+Synth.prototype.muteAt = function(t, ignoreJumps = false) {
+  for (let i = 0; i < this.voices.length; i++) {
+    this.voices[i].muteAt(t, ignoreJumps);
+  }
+}
+
+Synth.prototype.ringOutAt = function(t, ignoreJumps = false) {
+  for (let i = 0; i < this.voices.length; i++) {
+    this.voices[i].ringOutAt(t, ignoreJumps);
+  }
 }

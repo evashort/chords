@@ -45,11 +45,11 @@ update msg model =
     NeedsTime audioMsg ->
       ( { model | audioMsgs = audioMsg :: model.audioMsgs }, timeRequest () )
 
-    CurrentTime t ->
+    CurrentTime now ->
       let
         new =
           List.foldr
-            (batchUpdate <| audioUpdate t)
+            (batchUpdate <| audioUpdate now)
             { model = { model | audioMsgs = [] }
             , cmds = []
             , changeLists = []
@@ -63,10 +63,10 @@ update msg model =
         , Cmd.batch <| (changeAudio changes) :: cmds
         )
 
-    CheckpointReached t ->
+    CheckpointReached now ->
       case model.metronome of
         Just m ->
-          if t >= Metronome.getStop m then
+          if now >= Metronome.getStop m then
             ( { model | metronome = Nothing }, Cmd.none )
           else
             ( model, Cmd.none )
@@ -89,51 +89,63 @@ type alias BatchUpdateResult =
   , changeLists : List (List AudioChange)
   }
 
-minTicks : Int
-minTicks = 5
-
 audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
-audioUpdate t msg model =
+audioUpdate now msg model =
   case msg of
     PlayChord ->
       let
-        oldM =
+        start = Maybe.withDefault now <| Maybe.map .start model.metronome
+      in let
+        oldTicks = Maybe.withDefault 0 <| Maybe.map .ticks model.metronome
+      in let
+        changeTick =
           case model.metronome of
-            Nothing ->
-              { start = t, ticks = 0 }
-            Just x ->
-              { x | ticks = Metronome.getNextTick x t }
+            Nothing -> 0
+            Just m -> Metronome.getNextTick m now
       in let
         pattern = majorArpeggio
       in let
-        noteIndexStart = oldM.ticks % List.length pattern
+        patternStartIndex = changeTick % List.length pattern
       in let
         missingTicks =
           max 0 <|
-            minTicks - (List.length pattern - noteIndexStart)
+            minTicks - (List.length pattern - patternStartIndex)
       in let
         extraCopies =
           (missingTicks + List.length pattern - 1) // List.length pattern
       in let
         offsets =
           List.concat <|
-            (List.drop noteIndexStart pattern) ::
+            (List.drop patternStartIndex pattern) ::
               List.repeat extraCopies pattern
       in let
-        m =
-          { oldM | ticks = oldM.ticks + List.length offsets }
+        m = { start = start, ticks = changeTick + List.length offsets }
+      in let
+        changeTime = Metronome.getTickTime m changeTick
       in
         { model = { model | metronome = Just m }
         , cmd =
             setCheckpoint (Metronome.getStop m)
         , changes =
-            CancelFutureNotes (max t m.start) ::
-              ( offsetsToNotes
-                  t
-                  (Metronome.getTickTime m oldM.ticks)
-                  (if model.metronome == Nothing then 48 else 50)
-                  offsets
-              )
+              ( if changeTick < oldTicks then
+                  if now + latency >= changeTime then
+                    let notBeforeNote = max now changeTime in
+                      [ CancelFutureNotes
+                          { t = notBeforeNote, before = False }
+                      , MuteLoudestNote notBeforeNote
+                      ]
+                  else
+                    [ CancelFutureNotes { t = changeTime, before = True } ]
+                else
+                  []
+              ) ++
+                ( offsetsToNotes
+                    start
+                    changeTick
+                    now
+                    (if model.metronome == Nothing then 48 else 50)
+                    offsets
+                )
         }
 
 type alias AudioUpdateResult =
@@ -141,6 +153,12 @@ type alias AudioUpdateResult =
   , cmd : Cmd Msg
   , changes : List AudioChange
   }
+
+minTicks : Int
+minTicks = 5
+
+latency : Float
+latency = 0.01
 
 mtof : Int -> Float
 mtof m =
@@ -151,22 +169,19 @@ mtof m =
 majorArpeggio : List Int
 majorArpeggio = [ 12, 4, 7, 0, 4, 7, 0, 4 ]
 
-offsetsToNotes : Float -> Float -> Int -> List Int -> List AudioChange
-offsetsToNotes tMin t root offsets =
+offsetsToNotes : Float -> Int -> Float -> Int -> List Int -> List AudioChange
+offsetsToNotes start changeTick now root offsets =
   List.map2
-    (toNote tMin)
+    (toNote now)
     ( List.map
-        ((+) t << (*) Metronome.interval << toFloat)
-        (List.range 0 <| List.length offsets)
+        ((+) start << (*) Metronome.interval << toFloat)
+        (List.range changeTick <| changeTick + List.length offsets)
     )
     (List.map (mtof << (+) root) offsets)
 
 toNote : Float -> Float -> Float -> AudioChange
-toNote tMin t f =
-  if t >= tMin then
-    NewNote <| Note t f
-  else
-    Glide <| Note tMin f
+toNote now t f =
+  NewNote (Note (max now t) f)
 
 -- SUBSCRIPTIONS
 
@@ -187,32 +202,38 @@ audioChangeToJson change =
         , ( "t", Json.Encode.float note.t )
         , ( "f", Json.Encode.float note.f )
         ]
-    Glide note ->
+    MuteLoudestNote t ->
       Json.Encode.object
-        [ ( "type", Json.Encode.string "glide" )
-        , ( "t", Json.Encode.float note.t )
-        , ( "f", Json.Encode.float note.f )
+        [ ( "type", Json.Encode.string "muteLoudest" )
+        , ( "t", Json.Encode.float t )
         ]
-    MuteAllNotes t ->
+    MuteAllNotes ct ->
       Json.Encode.object
         [ ( "type", Json.Encode.string "mute" )
-        , ( "t", Json.Encode.float t )
+        , ( "t", Json.Encode.float ct.t )
+        , ( "before", Json.Encode.bool ct.before )
         ]
-    CancelFutureNotes t ->
+    CancelFutureNotes ct ->
       Json.Encode.object
         [ ( "type", Json.Encode.string "cancel" )
-        , ( "t", Json.Encode.float t )
+        , ( "t", Json.Encode.float ct.t )
+        , ( "before", Json.Encode.bool ct.before )
         ]
 
 type AudioChange
   = NewNote Note
-  | Glide Note
-  | MuteAllNotes Float
-  | CancelFutureNotes Float
+  | MuteLoudestNote Float
+  | MuteAllNotes ChangeTime
+  | CancelFutureNotes ChangeTime
 
 type alias Note =
   { t : Float
   , f : Float
+  }
+
+type alias ChangeTime =
+  { t : Float
+  , before : Bool
   }
 
 port setCheckpoint : Float -> Cmd msg

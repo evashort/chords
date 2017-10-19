@@ -28,18 +28,14 @@ Voice.prototype.noteAt = function(t, f, peak = 0.5) {
   this.env.curve(t, t + 1.5, 0);
 }
 
-Voice.prototype.muteAt = function(t) {
-  this.fEnv.truncateAt(t, true);
-  this.env.line(t, t + 0.002, 0, true);
+Voice.prototype.muteAt = function(t, ignoreJumps = false) {
+  this.fEnv.truncateAt(t, ignoreJumps);
+  this.env.line(t, t + 0.002, 0, ignoreJumps);
 }
 
-Voice.prototype.ringOutAt = function(t) {
-  this.fEnv.truncateAt(t, true);
-  this.env.curve(t, t + 1.5, 0, true);
-}
-
-Voice.prototype.glideAt = function(t, f) {
-  this.fEnv.line(t, t + 0.2, f);
+Voice.prototype.ringOutAt = function(t, ignoreJumps = false) {
+  this.fEnv.truncateAt(t, ignoreJumps);
+  this.env.curve(t, t + 1.5, 0, ignoreJumps);
 }
 
 Voice.prototype.getGainAt = function(t, ignoreJumps = false) {
