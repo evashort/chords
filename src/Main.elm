@@ -1,5 +1,7 @@
 port module Main exposing (..)
 
+import Metronome exposing (Metronome)
+
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onMouseDown)
@@ -17,13 +19,13 @@ main =
 
 type alias Model =
   { audioMsgs : List AudioMsg
-  , chordStart : Maybe Float
+  , metronome : Maybe Metronome
   }
 
 init : ( Model, Cmd Msg )
 init =
   ( { audioMsgs = []
-    , chordStart = Nothing
+    , metronome = Nothing
     }
   , Cmd.none
   )
@@ -62,10 +64,10 @@ update msg model =
         )
 
     CheckpointReached t ->
-      case model.chordStart of
-        Just start ->
-          if t >= start + noteLength * (8 + quantizationLeniency) then
-            ( { model | chordStart = Nothing }, Cmd.none )
+      case model.metronome of
+        Just m ->
+          if t >= Metronome.getStop m then
+            ( { model | metronome = Nothing }, Cmd.none )
           else
             ( model, Cmd.none )
         Nothing ->
@@ -87,37 +89,50 @@ type alias BatchUpdateResult =
   , changeLists : List (List AudioChange)
   }
 
-quantizationLeniency : Float
-quantizationLeniency = 0.2
-
-noteLength : Float
-noteLength = 0.5
+minTicks : Int
+minTicks = 5
 
 audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
 audioUpdate t msg model =
   case msg of
     PlayChord ->
       let
-        start =
-          case model.chordStart of
-            Nothing -> t
-            Just oldStart ->
-              let
-                quant =
-                  ceiling ((t - oldStart) / noteLength - quantizationLeniency)
-              in
-                oldStart + noteLength * toFloat quant
+        oldM =
+          case model.metronome of
+            Nothing ->
+              { start = t, ticks = 0 }
+            Just x ->
+              { x | ticks = Metronome.getNextTick x t }
+      in let
+        pattern = majorArpeggio
+      in let
+        noteIndexStart = oldM.ticks % List.length pattern
+      in let
+        missingTicks =
+          max 0 <|
+            minTicks - (List.length pattern - noteIndexStart)
+      in let
+        extraCopies =
+          (missingTicks + List.length pattern - 1) // List.length pattern
+      in let
+        offsets =
+          List.concat <|
+            (List.drop noteIndexStart pattern) ::
+              List.repeat extraCopies pattern
+      in let
+        m =
+          { oldM | ticks = oldM.ticks + List.length offsets }
       in
-        { model = { model | chordStart = Just start }
+        { model = { model | metronome = Just m }
         , cmd =
-            setCheckpoint (start + noteLength * (8 + quantizationLeniency))
+            setCheckpoint (Metronome.getStop m)
         , changes =
-            CancelFutureNotes (max t start) ::
+            CancelFutureNotes (max t m.start) ::
               ( offsetsToNotes
                   t
-                  start
-                  (if model.chordStart == Nothing then 48 else 50)
-                  majorArpeggio
+                  (Metronome.getTickTime m oldM.ticks)
+                  (if model.metronome == Nothing then 48 else 50)
+                  offsets
               )
         }
 
@@ -141,7 +156,7 @@ offsetsToNotes tMin t root offsets =
   List.map2
     (toNote tMin)
     ( List.map
-        ((+) t << (*) noteLength << toFloat)
+        ((+) t << (*) Metronome.interval << toFloat)
         (List.range 0 <| List.length offsets)
     )
     (List.map (mtof << (+) root) offsets)
@@ -218,7 +233,7 @@ view model =
     [ button
         [ onMouseDown <| NeedsTime PlayChord
         , style
-            ( case model.chordStart of
+            ( case model.metronome of
                 Just _ -> [ ( "color", "#ff0000" ) ]
                 Nothing -> []
             )
