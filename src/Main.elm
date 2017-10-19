@@ -155,7 +155,7 @@ type alias AudioUpdateResult =
   }
 
 minTicks : Int
-minTicks = 5
+minTicks = 9
 
 latency : Float
 latency = 0.01

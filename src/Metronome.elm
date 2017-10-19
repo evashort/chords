@@ -4,7 +4,7 @@ leniency : Float
 leniency = 0.2
 
 interval : Float
-interval = 0.5
+interval = 0.15
 
 type alias Metronome =
   { start : Float
