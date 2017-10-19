@@ -1,10 +1,13 @@
 module Metronome exposing
-  ( Metronome, getNextTick, getTickTime, getStop, interval )
+  ( Metronome, getNextBeat, getTickTime, getStop, interval )
 leniency : Float
 leniency = 0.2
 
 interval : Float
 interval = 0.15
+
+ticksPerBeat : Int
+ticksPerBeat = 4
 
 type alias Metronome =
   { start : Float
@@ -14,6 +17,10 @@ type alias Metronome =
 getNextTick : Metronome -> Float -> Int
 getNextTick m t =
   min m.ticks <| ceiling <| (t - m.start) / interval - leniency
+
+getNextBeat : Metronome -> Float -> Int
+getNextBeat m t =
+  ticksPerBeat * ((getNextTick m t + ticksPerBeat - 1) // ticksPerBeat)
 
 getTickTime : Metronome -> Int -> Float
 getTickTime m i =

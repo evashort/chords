@@ -101,7 +101,7 @@ audioUpdate now msg model =
         changeTick =
           case model.metronome of
             Nothing -> 0
-            Just m -> Metronome.getNextTick m now
+            Just m -> Metronome.getNextBeat m now
       in let
         pattern = majorArpeggio
       in let
