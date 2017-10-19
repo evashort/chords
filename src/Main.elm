@@ -19,16 +19,51 @@ main =
 
 type alias Model =
   { audioMsgs : List AudioMsg
-  , metronome : Maybe Metronome
+  , playing : Maybe PlayInfo
+  }
+
+type alias PlayInfo =
+  { metronome : Metronome
+  , chordIndex : Int
   }
 
 init : ( Model, Cmd Msg )
 init =
   ( { audioMsgs = []
-    , metronome = Nothing
+    , playing = Nothing
     }
   , Cmd.none
   )
+
+type alias Chord =
+  { name : String
+  , root : Int
+  , arpeggio : List Int
+  }
+
+errorChord : Chord
+errorChord =
+  Chord "error" 72 [ 0 ]
+
+chords : List Chord
+chords =
+  [ Chord "C" 48 majorArpeggio
+  , Chord "d" 50 minorArpeggio
+  , Chord "e" 52 minorArpeggio
+  , Chord "F" 53 majorArpeggio
+  , Chord "G" 55 majorArpeggio
+  , Chord "a" 57 minorArpeggio
+  , Chord "b°" 59 diminishedArpeggio
+  ]
+
+majorArpeggio : List Int
+majorArpeggio = [ 12, 4, 7, 0, 4, 7, 0, 4 ]
+
+minorArpeggio : List Int
+minorArpeggio = [ 12, 3, 7, 0, 3, 7, 0, 3 ]
+
+diminishedArpeggio : List Int
+diminishedArpeggio = [ 12, 3, 6, 0, 3, 6, 0, 3 ]
 
 -- UPDATE
 
@@ -37,7 +72,7 @@ type Msg
   | CurrentTime Float
   | CheckpointReached Float
 
-type AudioMsg = PlayChord
+type AudioMsg = PlayChord Int
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -64,10 +99,10 @@ update msg model =
         )
 
     CheckpointReached now ->
-      case model.metronome of
-        Just m ->
-          if now >= Metronome.getStop m then
-            ( { model | metronome = Nothing }, Cmd.none )
+      case model.playing of
+        Just p ->
+          if now >= Metronome.getStop p.metronome then
+            ( { model | playing = Nothing }, Cmd.none )
           else
             ( model, Cmd.none )
         Nothing ->
@@ -92,38 +127,50 @@ type alias BatchUpdateResult =
 audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
 audioUpdate now msg model =
   case msg of
-    PlayChord ->
+    PlayChord chordIndex ->
       let
-        start = Maybe.withDefault now <| Maybe.map .start model.metronome
+        start =
+          case model.playing of
+            Nothing -> now
+            Just p -> p.metronome.start
       in let
-        oldTicks = Maybe.withDefault 0 <| Maybe.map .ticks model.metronome
+        oldTicks =
+          case model.playing of
+            Nothing -> 0
+            Just p -> p.metronome.ticks
       in let
         changeTick =
-          case model.metronome of
+          case model.playing of
             Nothing -> 0
-            Just m -> Metronome.getNextBeat m now
+            Just p -> Metronome.getNextBeat p.metronome now
       in let
-        pattern = majorArpeggio
+        chord =
+          Maybe.withDefault errorChord <|
+            List.head (List.drop chordIndex chords)
       in let
-        patternStartIndex = changeTick % List.length pattern
+        arpeggioStartIndex = changeTick % List.length chord.arpeggio
       in let
         missingTicks =
           max 0 <|
-            minTicks - (List.length pattern - patternStartIndex)
+            minTicks - (List.length chord.arpeggio - arpeggioStartIndex)
       in let
         extraCopies =
-          (missingTicks + List.length pattern - 1) // List.length pattern
+          (missingTicks + List.length chord.arpeggio - 1) //
+            List.length chord.arpeggio
       in let
         offsets =
           List.concat <|
-            (List.drop patternStartIndex pattern) ::
-              List.repeat extraCopies pattern
+            (List.drop arpeggioStartIndex chord.arpeggio) ::
+              List.repeat extraCopies chord.arpeggio
       in let
         m = { start = start, ticks = changeTick + List.length offsets }
       in let
         changeTime = Metronome.getTickTime m changeTick
       in
-        { model = { model | metronome = Just m }
+        { model =
+          { model
+          | playing = Just { metronome = m, chordIndex = chordIndex }
+          }
         , cmd =
             setCheckpoint (Metronome.getStop m)
         , changes =
@@ -143,7 +190,7 @@ audioUpdate now msg model =
                     start
                     changeTick
                     now
-                    (if model.metronome == Nothing then 48 else 50)
+                    chord.root
                     offsets
                 )
         }
@@ -165,9 +212,6 @@ mtof m =
   440 * 2 ^ (toFloat (m - 69) / 12)
 
 -- root octave is midi notes 48 - 59 (C2 - B2)
-
-majorArpeggio : List Int
-majorArpeggio = [ 12, 4, 7, 0, 4, 7, 0, 4 ]
 
 offsetsToNotes : Float -> Int -> Float -> Int -> List Int -> List AudioChange
 offsetsToNotes start changeTick now root offsets =
@@ -250,14 +294,25 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  div []
-    [ button
-        [ onMouseDown <| NeedsTime PlayChord
-        , style
-            ( case model.metronome of
-                Just _ -> [ ( "color", "#ff0000" ) ]
-                Nothing -> []
-            )
-        ]
-        [ text "do it" ]
+  div [] <|
+    List.indexedMap
+      ( viewChord
+        ( case model.playing of
+            Nothing -> -1
+            Just p -> p.chordIndex
+        )
+      )
+      chords
+
+viewChord : Int -> Int -> Chord -> Html Msg
+viewChord activeChordIndex chordIndex chord =
+  button
+    [ onMouseDown <| NeedsTime (PlayChord chordIndex)
+    , style
+        ( if chordIndex == activeChordIndex then
+            [ ( "color", "#ff0000" ) ]
+          else
+            []
+        )
     ]
+    [ text chord.name ]
