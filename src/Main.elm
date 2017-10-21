@@ -1,11 +1,13 @@
 port module Main exposing (..)
 
 import Metronome exposing (Metronome)
+import AudioTime
 
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onMouseDown)
 import Json.Encode
+import Task exposing (Task)
 
 main =
   Html.program
@@ -18,8 +20,7 @@ main =
 -- MODEL
 
 type alias Model =
-  { audioMsgs : List AudioMsg
-  , playing : Maybe PlayInfo
+  { playing : Maybe PlayInfo
   }
 
 type alias PlayInfo =
@@ -35,8 +36,7 @@ type alias ScheduledChord =
 
 init : ( Model, Cmd Msg )
 init =
-  ( { audioMsgs = []
-    , playing = Nothing
+  ( { playing = Nothing
     }
   , Cmd.none
   )
@@ -74,35 +74,15 @@ diminishedArpeggio = [ 12, 3, 6, 0, 3, 6, 0, 3 ]
 -- UPDATE
 
 type Msg
-  = NeedsTime AudioMsg
-  | CurrentTime Float
+  = NeedsTime (Float -> Msg)
   | CheckpointReached Float
-
-type AudioMsg = PlayChord Int
+  | PlayChord ( Int, Float )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
-    NeedsTime audioMsg ->
-      ( { model | audioMsgs = audioMsg :: model.audioMsgs }, timeRequest () )
-
-    CurrentTime now ->
-      let
-        new =
-          List.foldr
-            (batchUpdate <| audioUpdate now)
-            { model = { model | audioMsgs = [] }
-            , cmds = []
-            , changeLists = []
-            }
-            model.audioMsgs
-      in let
-        cmds = List.reverse new.cmds
-        changes = List.concat <| List.reverse new.changeLists
-      in
-        ( new.model
-        , Cmd.batch <| (changeAudio changes) :: cmds
-        )
+    NeedsTime partialMsg ->
+      ( model, Task.perform partialMsg AudioTime.now )
 
     CheckpointReached now ->
       case model.playing of
@@ -124,27 +104,7 @@ update msg model =
                   ( model, Cmd.none )
         Nothing ->
           ( model, Cmd.none )
-
-batchUpdate :
-  (AudioMsg -> Model -> AudioUpdateResult) ->
-    AudioMsg -> BatchUpdateResult -> BatchUpdateResult
-batchUpdate f msg old =
-  let { model, cmd, changes } = f msg old.model in
-    { model = model
-    , cmds = cmd :: old.cmds
-    , changeLists = changes :: old.changeLists
-    }
-
-type alias BatchUpdateResult =
-  { model : Model
-  , cmds : List (Cmd Msg)
-  , changeLists : List (List AudioChange)
-  }
-
-audioUpdate : Float -> AudioMsg -> Model -> AudioUpdateResult
-audioUpdate now msg model =
-  case msg of
-    PlayChord chordIndex ->
+    PlayChord ( chordIndex, now ) ->
       let
         start =
           case model.playing of
@@ -202,44 +162,41 @@ audioUpdate now msg model =
               , chordIndex = i
               , nextChord = Just { index = chordIndex, tick = changeTick }
               }
+      in let
+        audioChanges =
+          ( if changeTick < oldTicks then
+              if now + latency >= changeTime then
+                let notBeforeNote = max now changeTime in
+                  [ CancelFutureNotes
+                      { t = notBeforeNote, before = False }
+                  , MuteLoudestNote notBeforeNote
+                  ]
+              else
+                [ CancelFutureNotes { t = changeTime, before = True } ]
+            else
+              []
+          ) ++
+            ( offsetsToNotes
+                start
+                changeTick
+                now
+                chord.root
+                offsets
+            )
       in
-        { model =
-            { model | playing = Just p }
-        , cmd =
-            Cmd.batch
-              ( setCheckpoint (Metronome.getStop m) ::
-                  if p.nextChord == Nothing then
+        ( { model | playing = Just p }
+        , Cmd.batch
+            ( [ changeAudioUsingJson
+                  (List.map audioChangeToJson audioChanges)
+              , setCheckpoint (Metronome.getStop m)
+              ] ++
+                ( if p.nextChord == Nothing then
                     []
                   else
                     [ setCheckpoint changeTime ]
-              )
-        , changes =
-              ( if changeTick < oldTicks then
-                  if now + latency >= changeTime then
-                    let notBeforeNote = max now changeTime in
-                      [ CancelFutureNotes
-                          { t = notBeforeNote, before = False }
-                      , MuteLoudestNote notBeforeNote
-                      ]
-                  else
-                    [ CancelFutureNotes { t = changeTime, before = True } ]
-                else
-                  []
-              ) ++
-                ( offsetsToNotes
-                    start
-                    changeTick
-                    now
-                    chord.root
-                    offsets
                 )
-        }
-
-type alias AudioUpdateResult =
-  { model : Model
-  , cmd : Cmd Msg
-  , changes : List AudioChange
-  }
+            )
+        )
 
 minTicks : Int
 minTicks = 9
@@ -268,12 +225,6 @@ toNote now t f =
   NewNote (Note (max now t) f)
 
 -- SUBSCRIPTIONS
-
-port timeRequest : () -> Cmd msg
-port currentTime : (Float -> msg) -> Sub msg
-
-changeAudio : List AudioChange -> Cmd msg
-changeAudio = changeAudioUsingJson << List.map audioChangeToJson
 
 port changeAudioUsingJson : List Json.Encode.Value -> Cmd msg
 
@@ -325,10 +276,7 @@ port checkpointReached : (Float -> msg) -> Sub msg
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  Sub.batch
-    [ currentTime CurrentTime
-    , checkpointReached CheckpointReached
-    ]
+  checkpointReached CheckpointReached
 
 -- VIEW
 
@@ -351,7 +299,7 @@ view model =
 viewChord : Int -> Int -> Int -> Chord -> Html Msg
 viewChord activeChordIndex nextChordIndex chordIndex chord =
   button
-    [ onMouseDown <| NeedsTime (PlayChord chordIndex)
+    [ onMouseDown <| NeedsTime (PlayChord << (,) chordIndex)
     , style
         ( if chordIndex == activeChordIndex then
             [ ( "color", "#ff0000" ) ]

@@ -8,10 +8,6 @@ var synth = new Synth(6, ac);
 synth.connect(lp);
 synth.start();
 
-function getCurrentTime() {
-  return ac.currentTime;
-}
-
 function changeAudio(changes) {
   for (let i = 0; i < changes.length; i++) {
     if (changes[i].type == "note") {

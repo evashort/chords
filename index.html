@@ -15,11 +15,6 @@
     <script>
       var app = Elm.Main.fullscreen();
 
-      app.ports.timeRequest.subscribe(function() {
-          let now = getCurrentTime();
-          app.ports.currentTime.send(now);
-      });
-
       app.ports.changeAudioUsingJson.subscribe(changeAudio);
 
       startMonitoringCheckpoints(app.ports.checkpointReached.send);
