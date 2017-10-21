@@ -4,8 +4,8 @@ import Metronome exposing (Metronome)
 import AudioTime
 
 import AnimationFrame
-import Html exposing (Html, button, div, text)
-import Html.Attributes exposing (style)
+import Html exposing (Html, a, button, div, text)
+import Html.Attributes exposing (href, style)
 import Html.Events exposing (onMouseDown)
 import Json.Encode
 import Task exposing (Task)
@@ -272,19 +272,27 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  div [] <|
-    List.indexedMap
-      ( viewChord
-        ( case model.playing of
-            Nothing -> -1
-            Just p -> p.chordIndex
-        )
-        ( case Maybe.andThen .nextChord model.playing of
-            Nothing -> -1
-            Just { index, tick } -> index
-        )
-      )
-      chords
+  div []
+    [ div
+        [ style [ ( "height", "200px" ) ] ] <|
+        List.indexedMap
+          ( viewChord
+            ( case model.playing of
+                Nothing -> -1
+                Just p -> p.chordIndex
+            )
+            ( case Maybe.andThen .nextChord model.playing of
+                Nothing -> -1
+                Just { index, tick } -> index
+            )
+          )
+          chords
+    , div []
+        [ a
+            [ href "https://github.com/evanshort73/chords" ]
+            [ text "GitHub" ]
+        ]
+    ]
 
 viewChord : Int -> Int -> Int -> Chord -> Html Msg
 viewChord activeChordIndex nextChordIndex chordIndex chord =
