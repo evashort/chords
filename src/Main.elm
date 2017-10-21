@@ -3,6 +3,7 @@ port module Main exposing (..)
 import Metronome exposing (Metronome)
 import AudioTime
 
+import AnimationFrame
 import Html exposing (Html, button, div, text)
 import Html.Attributes exposing (style)
 import Html.Events exposing (onMouseDown)
@@ -75,7 +76,7 @@ diminishedArpeggio = [ 12, 3, 6, 0, 3, 6, 0, 3 ]
 
 type Msg
   = NeedsTime (Float -> Msg)
-  | CheckpointReached Float
+  | CurrentTime Float
   | PlayChord ( Int, Float )
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -84,7 +85,7 @@ update msg model =
     NeedsTime partialMsg ->
       ( model, Task.perform partialMsg AudioTime.now )
 
-    CheckpointReached now ->
+    CurrentTime now ->
       case model.playing of
         Just p ->
           if now >= Metronome.getStop p.metronome then
@@ -185,17 +186,7 @@ update msg model =
             )
       in
         ( { model | playing = Just p }
-        , Cmd.batch
-            ( [ changeAudioUsingJson
-                  (List.map audioChangeToJson audioChanges)
-              , setCheckpoint (Metronome.getStop m)
-              ] ++
-                ( if p.nextChord == Nothing then
-                    []
-                  else
-                    [ setCheckpoint changeTime ]
-                )
-            )
+        , changeAudioUsingJson (List.map audioChangeToJson audioChanges)
         )
 
 minTicks : Int
@@ -271,12 +262,11 @@ type alias ChangeTime =
   , before : Bool
   }
 
-port setCheckpoint : Float -> Cmd msg
-port checkpointReached : (Float -> msg) -> Sub msg
-
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  checkpointReached CheckpointReached
+  case model.playing of
+    Nothing -> Sub.none
+    Just _ -> AnimationFrame.times (always (NeedsTime CurrentTime))
 
 -- VIEW
 
@@ -304,7 +294,7 @@ viewChord activeChordIndex nextChordIndex chordIndex chord =
         ( if chordIndex == activeChordIndex then
             [ ( "color", "#ff0000" ) ]
           else if chordIndex == nextChordIndex then
-            [ ( "color", "#0000ff" ) ]
+            [ ( "color", "#ffffff" ) ]
           else
             []
         )
