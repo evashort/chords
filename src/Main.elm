@@ -64,13 +64,13 @@ chords =
   ]
 
 majorArpeggio : List Int
-majorArpeggio = [ 12, 4, 7, 0, 4, 7, 0, 4 ]
+majorArpeggio = [ 12, 7, 4, 7, 0, 7, 4, 7 ]
 
 minorArpeggio : List Int
-minorArpeggio = [ 12, 3, 7, 0, 3, 7, 0, 3 ]
+minorArpeggio = [ 12, 7, 3, 7, 0, 7, 3, 7 ]
 
 diminishedArpeggio : List Int
-diminishedArpeggio = [ 12, 3, 6, 0, 3, 6, 0, 3 ]
+diminishedArpeggio = [ 12, 6, 3, 6, 0, 6, 3, 6 ]
 
 -- UPDATE
 
