@@ -4,9 +4,10 @@ import Metronome exposing (Metronome)
 import AudioTime
 
 import AnimationFrame
-import Html exposing (Html, a, div, span, text)
+import Html exposing (Html, a, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style)
-import Html.Events exposing (onMouseDown)
+import Html.Events exposing (onMouseDown, on, targetValue)
+import Json.Decode
 import Json.Encode
 import Task exposing (Task)
 
@@ -22,6 +23,7 @@ main =
 
 type alias Model =
   { playing : Maybe PlayInfo
+  , text : String
   }
 
 type alias PlayInfo =
@@ -38,6 +40,7 @@ type alias ScheduledChord =
 init : ( Model, Cmd Msg )
 init =
   ( { playing = Nothing
+    , text = "C G a F"
     }
   , Cmd.none
   )
@@ -82,6 +85,7 @@ type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
   | PlayChord ( Int, Float )
+  | TextEdited String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -109,6 +113,7 @@ update msg model =
                   ( model, Cmd.none )
         Nothing ->
           ( model, Cmd.none )
+
     PlayChord ( chordIndex, now ) ->
       let
         start =
@@ -192,6 +197,9 @@ update msg model =
         ( { model | playing = Just p }
         , changeAudioUsingJson (List.map audioChangeToJson audioChanges)
         )
+
+    TextEdited newText ->
+      ( { model | text = newText }, Cmd.none )
 
 minTicks : Int
 minTicks = 9
@@ -282,6 +290,46 @@ view model =
         ]
     ]
     [ div
+        [ style
+            [ ( "width", "500px" )
+            , ( "position", "relative" )
+            , ( "border-style", "inset" )
+            , ( "border-width", "2px" )
+            , ( "border-color", "#e3e3e3")
+            ]
+        ]
+        [ textarea
+            [ on "input" (Json.Decode.map TextEdited targetValue)
+            , style
+                [ ( "font", "inherit" )
+                , ( "width", "100%" )
+                , ( "height", "100%" )
+                , ( "padding", "10px" )
+                , ( "border", "none" )
+                , ( "margin", "0px" )
+                , ( "position", "absolute" )
+                , ( "resize", "none" )
+                , ( "overflow", "hidden" )
+                , ( "box-sizing", "border-box" )
+                , ( "background", "transparent" )
+                ]
+            ]
+            [ text model.text
+            ]
+        , pre
+            [ style
+                [ ( "font", "inherit")
+                , ( "padding", "10px" )
+                , ( "margin", "0px" )
+                , ( "white-space", "pre-wrap" )
+                , ( "word-wrap", "break-word" )
+                , ( "color", "transparent" )
+                ]
+            ]
+            [ text (model.text ++ "\n")
+            ]
+        ]
+    , div
         [ style [ ( "height", "200px" ) ] ] <|
         List.indexedMap
           ( viewChord
