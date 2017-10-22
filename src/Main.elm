@@ -4,7 +4,7 @@ import Metronome exposing (Metronome)
 import AudioTime
 
 import AnimationFrame
-import Html exposing (Html, a, button, div, text)
+import Html exposing (Html, a, div, span, text)
 import Html.Attributes exposing (href, style)
 import Html.Events exposing (onMouseDown)
 import Json.Encode
@@ -45,22 +45,26 @@ init =
 type alias Chord =
   { name : String
   , root : Int
+  , bgColor : String
+  , textColor : String
   , arpeggio : List Int
   }
 
 errorChord : Chord
 errorChord =
-  Chord "error" 72 [ 0 ]
+  Chord "error" 72 "#800000" "#ffffff" [ 0 ]
 
+-- http://www.colourlovers.com/palette/324465/Pastel_Rainbow
+-- blue and orange from http://www.colourlovers.com/palette/36070/pastel_rainbow
 chords : List Chord
 chords =
-  [ Chord "C" 48 majorArpeggio
-  , Chord "d" 50 minorArpeggio
-  , Chord "e" 52 minorArpeggio
-  , Chord "F" 53 majorArpeggio
-  , Chord "G" 55 majorArpeggio
-  , Chord "a" 57 minorArpeggio
-  , Chord "b°" 59 diminishedArpeggio
+  [ Chord "C" 48 "#f8facd" "#000000" majorArpeggio
+  , Chord "d" 50 "#eccdfa" "#000000" minorArpeggio
+  , Chord "e" 52 "#d2facd" "#000000" minorArpeggio
+  , Chord "F" 53 "#facdcd" "#000000" majorArpeggio
+  , Chord "G" 55 "#c9ffff" "#000000" majorArpeggio
+  , Chord "a" 57 "#ffe7c9" "#000000" minorArpeggio
+  , Chord "b°" 59 "#005e93" "#ffffff" diminishedArpeggio
   ]
 
 majorArpeggio : List Int
@@ -272,7 +276,11 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  div []
+  div
+    [ style
+        [ ( "font-family", "calibri, helvetica, arial, sans-serif" )
+        ]
+    ]
     [ div
         [ style [ ( "height", "200px" ) ] ] <|
         List.indexedMap
@@ -296,15 +304,44 @@ view model =
 
 viewChord : Int -> Int -> Int -> Chord -> Html Msg
 viewChord activeChordIndex nextChordIndex chordIndex chord =
-  button
-    [ onMouseDown <| NeedsTime (PlayChord << (,) chordIndex)
-    , style
-        ( if chordIndex == activeChordIndex then
-            [ ( "color", "#ff0000" ) ]
-          else if chordIndex == nextChordIndex then
-            [ ( "color", "#ffffff" ) ]
-          else
-            []
-        )
-    ]
-    [ text chord.name ]
+  let
+    selected =
+      chordIndex == activeChordIndex || chordIndex == nextChordIndex
+  in
+    span
+      [ style
+          [ ( "border-style"
+            , if chordIndex == nextChordIndex then
+                "dashed"
+              else
+                "solid"
+            )
+          , ( "border-width", "5px" )
+          , ( "display", "inline-block" )
+          , ( "margin-right", "-5px" )
+          , ( "border-color"
+            , if selected then
+                "#3399ff"
+              else
+                "transparent"
+            )
+          , ( "border-radius", "10px" )
+          ]
+      ]
+      [ span
+          [ onMouseDown <| NeedsTime (PlayChord << (,) chordIndex)
+          , style
+              [ ( "background", chord.bgColor )
+              , ( "color", chord.textColor )
+              , ( "width", "50px" )
+              , ( "line-height", "50px" )
+              , ( "font-size", "20pt" )
+              , ( "text-align", "center" )
+              , ( "display", "inline-block" )
+              , ( "border-radius", "5px" )
+              , ( "box-shadow", "1px 1px 3px rgba(0, 0, 0, 0.6)" )
+              , ( "cursor", "pointer" )
+              ]
+          ]
+          [ text chord.name ]
+      ]
