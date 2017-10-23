@@ -1,7 +1,9 @@
 port module Main exposing (..)
 
-import Metronome exposing (Metronome)
 import AudioTime
+import Highlight exposing (Highlight)
+import Metronome exposing (Metronome)
+import Tokenizer
 
 import AnimationFrame
 import Html exposing (Html, a, div, pre, span, text, textarea)
@@ -296,6 +298,7 @@ view model =
             , ( "border-style", "inset" )
             , ( "border-width", "2px" )
             , ( "border-color", "#e3e3e3")
+            , ( "font-size", "20pt" )
             ]
         ]
         [ textarea
@@ -326,8 +329,11 @@ view model =
                 , ( "color", "transparent" )
                 ]
             ]
-            [ text (model.text ++ "\n")
-            ]
+            ( List.map Highlight.view <|
+                Highlight.group <|
+                  List.map Highlight.fromText <|
+                    Tokenizer.tokenize model.text ++ [ "\n" ]
+            )
         ]
     , div
         [ style [ ( "height", "200px" ) ] ] <|
