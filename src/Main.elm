@@ -1,6 +1,7 @@
 port module Main exposing (..)
 
 import AudioTime
+import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import Metronome exposing (Metronome)
 import Tokenizer
