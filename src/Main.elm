@@ -8,7 +8,7 @@ import Tokenizer
 
 import AnimationFrame
 import Html exposing (Html, a, div, pre, span, text, textarea)
-import Html.Attributes exposing (href, style)
+import Html.Attributes exposing (href, style, spellcheck)
 import Html.Events exposing (onMouseDown, on, targetValue)
 import Json.Decode
 import Json.Encode
@@ -267,10 +267,12 @@ view model =
             , ( "border-width", "2px" )
             , ( "border-color", "#e3e3e3")
             , ( "font-size", "20pt" )
+            , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
             ]
         ]
         [ textarea
             [ on "input" (Json.Decode.map TextEdited targetValue)
+            , spellcheck False
             , style
                 [ ( "font", "inherit" )
                 , ( "width", "100%" )
@@ -289,7 +291,7 @@ view model =
             ]
         , pre
             [ style
-                [ ( "font", "inherit")
+                [ ( "font", "inherit" )
                 , ( "padding", "10px" )
                 , ( "margin", "0px" )
                 , ( "white-space", "pre-wrap" )
@@ -304,7 +306,11 @@ view model =
             )
         ]
     , div
-        [ style [ ( "height", "200px" ) ] ] <|
+        [ style
+            [ ( "height", "200px" )
+            , ( "font-size", "20pt" )
+            ]
+        ] <|
         List.map
           ( viewChord
             ( case model.playing of
@@ -357,7 +363,6 @@ viewChord activeChord nextChord chord =
               , ( "color", Chord.fg chord )
               , ( "width", "50px" )
               , ( "line-height", "50px" )
-              , ( "font-size", "20pt" )
               , ( "text-align", "center" )
               , ( "display", "inline-block" )
               , ( "border-radius", "5px" )
