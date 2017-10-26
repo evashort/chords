@@ -31,63 +31,40 @@ type alias Model =
 
 type alias PlayInfo =
   { metronome : Metronome
-  , chordIndex : Int
+  , chord : Chord
   , nextChord : Maybe ScheduledChord
   }
 
 type alias ScheduledChord =
-  { index : Int
+  { chord : Chord
   , tick : Int
   }
 
 init : ( Model, Cmd Msg )
 init =
   ( { playing = Nothing
-    , text = "C G a F"
+    , text = "C G Am F"
     }
   , Cmd.none
   )
 
-type alias Chord =
-  { name : String
-  , root : Int
-  , bgColor : String
-  , textColor : String
-  , arpeggio : List Int
-  }
-
-errorChord : Chord
-errorChord =
-  Chord "error" 72 "#800000" "#ffffff" [ 0 ]
-
--- http://www.colourlovers.com/palette/324465/Pastel_Rainbow
--- blue and orange from http://www.colourlovers.com/palette/36070/pastel_rainbow
 chords : List Chord
 chords =
-  [ Chord "C" 48 "#f8facd" "#000000" majorArpeggio
-  , Chord "d" 50 "#eccdfa" "#000000" minorArpeggio
-  , Chord "e" 52 "#d2facd" "#000000" minorArpeggio
-  , Chord "F" 53 "#facdcd" "#000000" majorArpeggio
-  , Chord "G" 55 "#c9ffff" "#000000" majorArpeggio
-  , Chord "a" 57 "#ffe7c9" "#000000" minorArpeggio
-  , Chord "b°" 59 "#005e93" "#ffffff" diminishedArpeggio
+  [ [ 48, 52, 55 ]
+  , [ 50, 53, 57 ]
+  , [ 52, 55, 59 ]
+  , [ 53, 57, 60 ]
+  , [ 55, 59, 62 ]
+  , [ 57, 60, 64 ]
+  , [ 59, 62, 65 ]
   ]
-
-majorArpeggio : List Int
-majorArpeggio = [ 12, 7, 4, 7, 0, 7, 4, 7 ]
-
-minorArpeggio : List Int
-minorArpeggio = [ 12, 7, 3, 7, 0, 7, 3, 7 ]
-
-diminishedArpeggio : List Int
-diminishedArpeggio = [ 12, 6, 3, 6, 0, 6, 3, 6 ]
 
 -- UPDATE
 
 type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
-  | PlayChord ( Int, Float )
+  | PlayChord ( Chord, Float )
   | TextEdited String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -104,11 +81,11 @@ update msg model =
           else
             case p.nextChord of
               Nothing -> ( model, Cmd.none )
-              Just { index, tick } ->
+              Just { chord, tick } ->
                 if now >= Metronome.getTickTime p.metronome tick then
                   ( { model
                     | playing =
-                        Just { p | chordIndex = index, nextChord = Nothing }
+                        Just { p | chord = chord, nextChord = Nothing }
                     }
                   , Cmd.none
                   )
@@ -117,7 +94,7 @@ update msg model =
         Nothing ->
           ( model, Cmd.none )
 
-    PlayChord ( chordIndex, now ) ->
+    PlayChord ( chord, now ) ->
       let
         start =
           case model.playing of
@@ -134,46 +111,42 @@ update msg model =
             Nothing -> 0
             Just p -> Metronome.getNextBeat p.metronome now
       in let
-        chord =
-          Maybe.withDefault errorChord <|
-            List.head (List.drop chordIndex chords)
+        arpeggio = Chord.arpeggio chord
       in let
-        arpeggioStartIndex = changeTick % List.length chord.arpeggio
+        arpeggioStartIndex = changeTick % List.length arpeggio
       in let
         missingTicks =
-          max 0 <|
-            minTicks - (List.length chord.arpeggio - arpeggioStartIndex)
+          max 0 (minTicks - (List.length arpeggio - arpeggioStartIndex))
       in let
         extraCopies =
-          (missingTicks + List.length chord.arpeggio - 1) //
-            List.length chord.arpeggio
+          (missingTicks + List.length arpeggio - 1) // List.length arpeggio
       in let
-        offsets =
+        editedArpeggio =
           List.concat <|
-            (List.drop arpeggioStartIndex chord.arpeggio) ::
-              List.repeat extraCopies chord.arpeggio
+            (List.drop arpeggioStartIndex arpeggio) ::
+              List.repeat extraCopies arpeggio
       in let
-        m = { start = start, ticks = changeTick + List.length offsets }
+        m = { start = start, ticks = changeTick + List.length editedArpeggio }
       in let
         changeTime = Metronome.getTickTime m changeTick
       in let
-        oldChordIndex =
+        oldChord =
           case model.playing of
             Nothing -> Nothing
             Just p ->
-              if changeTime > now then Just p.chordIndex else Nothing
+              if changeTime > now then Just p.chord else Nothing
       in let
         p =
-          case oldChordIndex of
+          case oldChord of
             Nothing ->
               { metronome = m
-              , chordIndex = chordIndex
+              , chord = chord
               , nextChord = Nothing
               }
-            Just i ->
+            Just c ->
               { metronome = m
-              , chordIndex = i
-              , nextChord = Just { index = chordIndex, tick = changeTick }
+              , chord = c
+              , nextChord = Just { chord = chord, tick = changeTick }
               }
       in let
         audioChanges =
@@ -189,13 +162,7 @@ update msg model =
             else
               []
           ) ++
-            ( offsetsToNotes
-                start
-                changeTick
-                now
-                chord.root
-                offsets
-            )
+            (midiToNotes start changeTick now editedArpeggio)
       in
         ( { model | playing = Just p }
         , changeAudioUsingJson (List.map audioChangeToJson audioChanges)
@@ -216,15 +183,15 @@ mtof m =
 
 -- root octave is midi notes 48 - 59 (C2 - B2)
 
-offsetsToNotes : Float -> Int -> Float -> Int -> List Int -> List AudioChange
-offsetsToNotes start changeTick now root offsets =
+midiToNotes : Float -> Int -> Float -> List Int -> List AudioChange
+midiToNotes start changeTick now arpeggio =
   List.map2
     (toNote now)
     ( List.map
         ((+) start << (*) Metronome.interval << toFloat)
-        (List.range changeTick <| changeTick + List.length offsets)
+        (List.range changeTick <| changeTick + List.length arpeggio)
     )
-    (List.map (mtof << (+) root) offsets)
+    (List.map mtof arpeggio)
 
 toNote : Float -> Float -> Float -> AudioChange
 toNote now t f =
@@ -338,15 +305,15 @@ view model =
         ]
     , div
         [ style [ ( "height", "200px" ) ] ] <|
-        List.indexedMap
+        List.map
           ( viewChord
             ( case model.playing of
-                Nothing -> -1
-                Just p -> p.chordIndex
+                Nothing -> []
+                Just p -> p.chord
             )
             ( case Maybe.andThen .nextChord model.playing of
-                Nothing -> -1
-                Just { index, tick } -> index
+                Nothing -> []
+                Just { chord, tick } -> chord
             )
           )
           chords
@@ -357,16 +324,16 @@ view model =
         ]
     ]
 
-viewChord : Int -> Int -> Int -> Chord -> Html Msg
-viewChord activeChordIndex nextChordIndex chordIndex chord =
+viewChord : Chord -> Chord -> Chord -> Html Msg
+viewChord activeChord nextChord chord =
   let
     selected =
-      chordIndex == activeChordIndex || chordIndex == nextChordIndex
+      chord == activeChord || chord == nextChord
   in
     span
       [ style
           [ ( "border-style"
-            , if chordIndex == nextChordIndex then
+            , if chord == nextChord then
                 "dashed"
               else
                 "solid"
@@ -384,10 +351,10 @@ viewChord activeChordIndex nextChordIndex chordIndex chord =
           ]
       ]
       [ span
-          [ onMouseDown <| NeedsTime (PlayChord << (,) chordIndex)
+          [ onMouseDown <| NeedsTime (PlayChord << (,) chord)
           , style
-              [ ( "background", chord.bgColor )
-              , ( "color", chord.textColor )
+              [ ( "background", Chord.bg chord )
+              , ( "color", Chord.fg chord )
               , ( "width", "50px" )
               , ( "line-height", "50px" )
               , ( "font-size", "20pt" )
@@ -398,5 +365,5 @@ viewChord activeChordIndex nextChordIndex chordIndex chord =
               , ( "cursor", "pointer" )
               ]
           ]
-          [ text chord.name ]
+          [ text (Chord.prettyName chord) ]
       ]

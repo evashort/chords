@@ -1,4 +1,4 @@
-module Chord exposing (Chord, fromRawName, arpeggio, prettyName)
+module Chord exposing (Chord, fromRawName, arpeggio, prettyName, fg, bg)
 
 import StaffMap exposing (StaffMap)
 
@@ -18,6 +18,26 @@ fromRawName name =
     "Bo" -> Just [ 59, 62, 65 ]
     _ -> Nothing
 
+fg : Chord -> String
+fg chord =
+  case chord of
+    [ 59, 62, 65 ] -> "#ffffff"
+    _ -> "#000000"
+
+-- http://www.colourlovers.com/palette/324465/Pastel_Rainbow
+-- blue and orange from http://www.colourlovers.com/palette/36070/pastel_rainbow
+bg : Chord -> String
+bg chord =
+  case chord of
+    [ 48, 52, 55 ] -> "#f8facd"
+    [ 50, 53, 57 ] -> "#eccdfa"
+    [ 52, 55, 59 ] -> "#d2facd"
+    [ 53, 57, 60 ] -> "#facdcd"
+    [ 55, 59, 62 ] -> "#c9ffff"
+    [ 57, 60, 64 ] -> "#ffe7c9"
+    [ 59, 62, 65 ] -> "#005e93"
+    _ -> "#ffffff"
+
 arpeggio : Chord -> List Int
 arpeggio chord =
   let
@@ -25,7 +45,7 @@ arpeggio chord =
       case List.length chord of
         3 -> [ 3, 2, 1, 2, 0, 2, 1, 2 ]
         4 -> [ 4, 3, 2, 1, 0, 1, 2, 3 ]
-        _ -> [ 0 ]
+        _ -> List.range 0 (List.length chord - 1)
   in
     multiGet indices chord
 
@@ -60,7 +80,7 @@ getIntervals chord =
 
 invert : Int -> Chord -> Chord
 invert n chord =
-  multiGet (List.range n (n + List.length chord)) chord
+  multiGet (List.range n (n + List.length chord - 1)) chord
 
 multiGet : List Int -> Chord -> List Int
 multiGet ns chord =

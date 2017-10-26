@@ -13,18 +13,18 @@ fromText : String -> Highlight
 fromText text =
   { fg =
       case text of
-        "bo" -> "#ffffff"
+        "Bo" -> "#ffffff"
         "keyword" -> "#8055ff"
         _ -> "#000000"
   , bg =
       case text of
         "C" -> "#f8facd"
-        "d" -> "#eccdfa"
-        "e" -> "#d2facd"
+        "Dm" -> "#eccdfa"
+        "Em" -> "#d2facd"
         "F" -> "#facdcd"
         "G" -> "#c9ffff"
-        "a" -> "#ffe7c9"
-        "bo" -> "#005e93"
+        "Am" -> "#ffe7c9"
+        "Bo" -> "#005e93"
         _ -> "#ffffff"
   , text = text
   }
