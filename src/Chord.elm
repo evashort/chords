@@ -1,8 +1,9 @@
-module Chord exposing (Chord, fromRawName, arpeggio, prettyName, fg, bg)
+module Chord exposing (Chord, fromRawName, arpeggio, view, fg, bg)
 
 import StaffMap exposing (StaffMap)
 
 import Dict exposing (Dict)
+import Html exposing (Html)
 
 type alias Chord = List Int
 
@@ -48,6 +49,16 @@ arpeggio chord =
         _ -> List.range 0 (List.length chord - 1)
   in
     multiGet indices chord
+
+view : Chord -> List (Html msg)
+view chord =
+  let name = prettyName chord in
+    case String.split "^" name of
+      [ a, b, "" ] ->
+        [ Html.text a, Html.sup [] [ Html.text b ] ]
+      [ a, b, c ] ->
+        [ Html.text a, Html.sup [] [ Html.text b ], Html.text c ]
+      _ -> [ Html.text name ]
 
 prettyName : Chord -> String
 prettyName chord =
@@ -219,18 +230,18 @@ flavorNames =
   Dict.fromList
     [ ( [ 4, 3 ], "" )
     , ( [ 3, 4 ], "m" )
-    , ( [ 3, 3 ], "^o" )
+    , ( [ 3, 3 ], "^o^" )
     , ( [ 4, 4 ], "+" )
-    , ( [ 5, 2 ], "^sus4" )
-    , ( [ 2, 5 ], "^sus2" )
+    , ( [ 5, 2 ], "^sus4^" )
+    , ( [ 2, 5 ], "^sus2^" )
     , ( [ 4, 3, 3 ], "7" )
-    , ( [ 3, 4, 3 ], "m^7" )
-    , ( [ 3, 3, 4 ], "m^7♭5" )
-    , ( [ 4, 3, 4 ], "M^7" )
-    , ( [ 3, 3, 3 ], "^o7" )
-    , ( [ 3, 4, 4 ], "m^M7" )
-    , ( [ 4, 4, 3 ], "+^M7" )
-    , ( [ 4, 4, 2 ], "+^7" )
-    , ( [ 3, 3, 5 ], "m^M7♭5" )
-    , ( [ 4, 2, 4 ], "^7♭5" )
+    , ( [ 3, 4, 3 ], "m^7^" )
+    , ( [ 3, 3, 4 ], "m^7♭5^" )
+    , ( [ 4, 3, 4 ], "M^7^" )
+    , ( [ 3, 3, 3 ], "^o7^" )
+    , ( [ 3, 4, 4 ], "m^M7^" )
+    , ( [ 4, 4, 3 ], "+^M7^" )
+    , ( [ 4, 4, 2 ], "+^7^" )
+    , ( [ 3, 3, 5 ], "m^M7♭5^" )
+    , ( [ 4, 2, 4 ], "^7♭5^" )
     ]

@@ -370,5 +370,5 @@ viewChord activeChord nextChord chord =
               , ( "cursor", "pointer" )
               ]
           ]
-          [ text (Chord.prettyName chord) ]
+          (Chord.view chord)
       ]
