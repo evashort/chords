@@ -302,7 +302,7 @@ view model =
             ( List.map Highlight.view <|
                 Highlight.group <|
                   List.map Highlight.fromText <|
-                    Tokenizer.tokenize model.text ++ [ "\n" ]
+                    Tokenizer.tokenize model.text
             )
         ]
     , div

@@ -4,7 +4,26 @@ import Regex exposing (Regex, HowMany(..), Match)
 
 tokenize : String -> List String
 tokenize text =
-  let matches = Regex.find All whitespace text in
+  List.concatMap tokenizeCommentedLine (String.lines text)
+
+tokenizeCommentedLine : String -> List String
+tokenizeCommentedLine line =
+  if String.startsWith "#" line then
+    [ line, "\n" ]
+  else
+    case Regex.find (AtMost 1) (Regex.regex "\\s+#") line of
+      [ match ] ->
+        tokenizeLine (String.left match.index line) ++
+          [ String.dropRight 1 match.match
+          , String.dropLeft (match.index + String.length match.match - 1) line
+          , "\n"
+          ]
+      _ ->
+        tokenizeLine line ++ [ "\n" ]
+
+tokenizeLine : String -> List String
+tokenizeLine text =
+  let matches = Regex.find All (Regex.regex "\\s+") text in
     case matches of
       x :: _ ->
         case String.left x.index text of
@@ -14,14 +33,6 @@ tokenize text =
         case text of
           "" -> []
           onlyToken -> [ onlyToken ]
-
-whitespace : Regex
-whitespace =
-  Regex.regex "\\s+"
-
-betweenMatches : Match -> Match -> String -> String
-betweenMatches x y =
-  String.slice (x.index + String.length x.match) y.index
 
 fromMatches : List Match -> String -> List String
 fromMatches matches text =
@@ -35,3 +46,7 @@ fromMatches matches text =
           lastToken -> [ lastToken ]
     [] ->
       []
+
+betweenMatches : Match -> Match -> String -> String
+betweenMatches x y =
+  String.slice (x.index + String.length x.match) y.index

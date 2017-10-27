@@ -14,8 +14,11 @@ fromText text =
   { fg =
       case text of
         "Bo" -> "#ffffff"
-        "keyword" -> "#8055ff"
-        _ -> "#000000"
+        _ ->
+          if String.startsWith "#" text then
+            "#008000"
+          else
+            "#000000"
   , bg =
       case text of
         "C" -> "#f8facd"
