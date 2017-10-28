@@ -62,7 +62,7 @@ parseLine line =
     , comment = Just line
     }
   else
-    case Regex.find (AtMost 1) (Regex.regex "\\s+#") line.s of
+    case Regex.find (AtMost 1) (Regex.regex " +#") line.s of
       match :: _ ->
         { chordRange = Just (Substring.left match.index line)
         , comment =
@@ -74,7 +74,7 @@ parseLine line =
         }
       [] ->
         { chordRange =
-            case Regex.find (AtMost 1) (Regex.regex "\\s+$") line.s of
+            case Regex.find (AtMost 1) (Regex.regex " +$") line.s of
               match :: _ ->
                 let beforeSpace = Substring.left match.index line in
                   case beforeSpace.s of

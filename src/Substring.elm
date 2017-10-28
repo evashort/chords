@@ -1,5 +1,5 @@
 module Substring exposing
-  (Substring, fromString, stop, lines, left, dropLeft, split, regexSplit)
+  (Substring, fromString, stop, lines, left, dropLeft, regexSplit)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -25,20 +25,6 @@ left n substring =
 dropLeft : Int -> Substring -> Substring
 dropLeft n substring =
   { i = substring.i + n, s = String.dropLeft n substring.s }
-
-split : String -> Substring -> List Substring
-split separator substring =
-  let
-    strings =
-      String.split separator substring.s
-  in let
-    starts =
-      List.scanl
-        ((+) << (+) (String.length separator) << String.length)
-        substring.i
-        strings
-  in
-    List.map2 Substring starts strings
 
 regexSplit : HowMany -> Regex -> Substring -> List Substring
 regexSplit howMany regex substring =

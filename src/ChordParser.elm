@@ -6,7 +6,10 @@ import Substring exposing (Substring)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
-type alias Model = List ChordResult
+type alias Model =
+  { words : List ChordResult
+  , indentation : List Substring
+  }
 
 init : List Substring -> Model
 init = parse
@@ -16,16 +19,41 @@ update chordRanges model =
   init chordRanges
 
 view : Model -> List Highlight
-view = List.filterMap viewChordResult
+view model =
+  List.filterMap viewWord model.words ++
+    List.map Highlight.suggestDeletion model.indentation
 
 getChords : Model -> List Chord
-getChords = List.filterMap .chord
+getChords model =
+  List.filterMap .chord model.words
 
 parse : List Substring -> Model
-parse = List.concatMap parseLine
+parse lines =
+  let lineResults = List.map parseLine lines in
+    { words = List.concatMap .words lineResults
+    , indentation = List.filterMap .indentation lineResults
+    }
 
-parseLine : Substring -> List ChordResult
-parseLine = List.map parseChord << Substring.regexSplit All (Regex.regex " +")
+type alias LineResult =
+  { words : List ChordResult
+  , indentation : Maybe Substring
+  }
+
+parseLine : Substring -> LineResult
+parseLine line =
+  case Regex.find (AtMost 1) (Regex.regex "^ +") line.s of
+    match :: _ ->
+      { words = []
+      , indentation =
+          Just (Substring.left (String.length match.match) line)
+      }
+    [] ->
+      { words =
+          List.map
+            parseChord
+            (Substring.regexSplit All (Regex.regex " +") line)
+      , indentation = Nothing
+      }
 
 type alias ChordResult =
   { substring : Substring
@@ -38,9 +66,9 @@ parseChord word =
   , chord = Chord.fromRawName word.s
   }
 
-viewChordResult : ChordResult -> Maybe Highlight
-viewChordResult chordResult =
-  case chordResult.chord of
+viewWord : ChordResult -> Maybe Highlight
+viewWord word =
+  case word.chord of
     Nothing ->
       Nothing
     Just c ->
@@ -48,5 +76,5 @@ viewChordResult chordResult =
         ( Highlight.fromSubstring
             (Chord.fg c)
             (Chord.bg c)
-            chordResult.substring
+            word.substring
         )

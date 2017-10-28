@@ -1,4 +1,4 @@
-module Highlight exposing (Highlight, fromSubstring, view)
+module Highlight exposing (Highlight, fromSubstring, view, suggestDeletion)
 
 import Substring exposing (Substring)
 
@@ -96,3 +96,6 @@ viewString fg bg string =
             ]
             [ Html.text string ]
         ]
+
+suggestDeletion : Substring -> Highlight
+suggestDeletion = fromSubstring "#ffffff" "#800000"
