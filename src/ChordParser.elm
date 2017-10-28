@@ -1,11 +1,12 @@
 module ChordParser exposing (Model, init, update, view)
 
+import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
-type alias Model = List Substring
+type alias Model = List ChordResult
 
 init : List Substring -> Model
 init = parse
@@ -15,33 +16,34 @@ update chordRanges model =
   init chordRanges
 
 view : Model -> List Highlight
-view = List.filterMap viewSubstring
+view = List.filterMap viewChordResult
 
 parse : List Substring -> Model
 parse = List.concatMap parseLine
 
-parseLine : Substring -> List Substring
-parseLine = Substring.regexSplit All (Regex.regex " +")
+parseLine : Substring -> List ChordResult
+parseLine = List.map parseChord << Substring.regexSplit All (Regex.regex " +")
 
-viewSubstring : Substring -> Maybe Highlight
-viewSubstring substring =
-  let
-    fg =
-      case substring.s of
-        "Bo" -> "#ffffff"
-        _ -> "#000000"
-  in let
-    bg =
-      case substring.s of
-        "C" -> "#f8facd"
-        "Dm" -> "#eccdfa"
-        "Em" -> "#d2facd"
-        "F" -> "#facdcd"
-        "G" -> "#c9ffff"
-        "Am" -> "#ffe7c9"
-        "Bo" -> "#005e93"
-        _ -> "#ffffff"
-  in
-    case ( fg, bg ) of
-      ( "#000000", "#ffffff" ) -> Nothing
-      _ -> Just (Highlight.fromSubstring fg bg substring)
+type alias ChordResult =
+  { substring : Substring
+  , chord : Maybe Chord
+  }
+
+parseChord : Substring -> ChordResult
+parseChord word =
+  { substring = word
+  , chord = Chord.fromRawName word.s
+  }
+
+viewChordResult : ChordResult -> Maybe Highlight
+viewChordResult chordResult =
+  case chordResult.chord of
+    Nothing ->
+      Nothing
+    Just c ->
+      Just
+        ( Highlight.fromSubstring
+            (Chord.fg c)
+            (Chord.bg c)
+            chordResult.substring
+        )
