@@ -44,23 +44,13 @@ type alias ScheduledChord =
 
 init : ( Model, Cmd Msg )
 init =
-  ( { playing = Nothing
-    , text = "C G Am F"
-    , parse = MainParser.init (Substring 0 "C G Am F")
-    }
-  , Cmd.none
-  )
-
-chords : List Chord
-chords =
-  [ [ 48, 52, 55 ]
-  , [ 50, 53, 57 ]
-  , [ 52, 55, 59 ]
-  , [ 53, 57, 60 ]
-  , [ 55, 59, 62 ]
-  , [ 57, 60, 64 ]
-  , [ 59, 62, 65 ]
-  ]
+  let defaultChords = "C Dm Em F G Am Bo" in
+    ( { playing = Nothing
+      , text = defaultChords
+      , parse = MainParser.init (Substring 0 defaultChords)
+      }
+    , Cmd.none
+    )
 
 -- UPDATE
 
@@ -330,7 +320,7 @@ view model =
                 Just { chord, tick } -> chord
             )
           )
-          chords
+          (MainParser.getChords model.parse)
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]

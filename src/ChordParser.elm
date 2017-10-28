@@ -1,4 +1,4 @@
-module ChordParser exposing (Model, init, update, view)
+module ChordParser exposing (Model, init, update, view, getChords)
 
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
@@ -17,6 +17,9 @@ update chordRanges model =
 
 view : Model -> List Highlight
 view = List.filterMap viewChordResult
+
+getChords : Model -> List Chord
+getChords = List.filterMap .chord
 
 parse : List Substring -> Model
 parse = List.concatMap parseLine
