@@ -1,4 +1,6 @@
-module Highlight exposing (Highlight, fromText, group, view)
+module Highlight exposing (Highlight, fromSubstring, view)
+
+import Substring exposing (Substring)
 
 import Html exposing (Html)
 import Html.Attributes exposing (style)
@@ -6,52 +8,55 @@ import Html.Attributes exposing (style)
 type alias Highlight =
   { fg : String
   , bg : String
-  , text : String
+  , start : Int
+  , stop : Int
   }
 
-fromText : String -> Highlight
-fromText text =
-  { fg =
-      case text of
-        "Bo" -> "#ffffff"
-        _ ->
-          if String.startsWith "#" text then
-            "#008000"
-          else
-            "#000000"
-  , bg =
-      case text of
-        "C" -> "#f8facd"
-        "Dm" -> "#eccdfa"
-        "Em" -> "#d2facd"
-        "F" -> "#facdcd"
-        "G" -> "#c9ffff"
-        "Am" -> "#ffe7c9"
-        "Bo" -> "#005e93"
-        _ -> "#ffffff"
-  , text = text
+fromSubstring : String -> String -> Substring -> Highlight
+fromSubstring fg bg substring =
+  { fg = fg
+  , bg = bg
+  , start = substring.i
+  , stop = Substring.stop substring
   }
 
-group : List Highlight -> List Highlight
-group =
-  List.foldr appendOrMerge []
+view : String -> List Highlight -> List (Html msg)
+view string highlights =
+  let
+    sorted = List.sortBy .start highlights
+  in let
+    before =
+      case sorted of
+        [] -> string
+        x :: rest -> String.left x.start string
+  in
+    case before of
+      "" -> viewHelp string sorted
+      _ -> Html.text before :: viewHelp string sorted
 
-appendOrMerge : Highlight -> List Highlight -> List Highlight
-appendOrMerge x ys =
-  case ys of
-    y :: rest ->
-      if x.fg == y.fg && x.bg == y.bg then
-        { x | text = x.text ++ y.text } :: rest
-      else
-        x :: ys
+viewHelp : String -> List Highlight -> List (Html msg)
+viewHelp string highlights =
+  case highlights of
     [] ->
-      [ x ]
+      []
+    x :: rest ->
+      let
+        xView = viewString x.fg x.bg (String.slice x.start x.stop string)
+      in let
+        between =
+          case rest of
+            [] -> String.dropLeft x.stop string
+            y :: _ -> String.slice x.stop y.start string
+      in
+        case between of
+          "" -> xView :: viewHelp string rest
+          _ -> xView :: Html.text between :: viewHelp string rest
 
-view : Highlight -> Html msg
-view { fg, bg, text } =
+viewString : String -> String -> String -> Html msg
+viewString fg bg string =
   case ( fg, bg ) of
     ( "#000000", "#ffffff" ) ->
-      Html.text text
+      Html.text string
     ( "#000000", _ ) ->
       Html.mark
         [ style
@@ -60,7 +65,7 @@ view { fg, bg, text } =
             , ( "border-radius", "3px" )
             ]
         ]
-        [ Html.text text ]
+        [ Html.text string ]
     ( _, "#ffffff" ) ->
       Html.mark
         [ style
@@ -71,7 +76,7 @@ view { fg, bg, text } =
             , ( "pointer-events", "none" )
             ]
         ]
-        [ Html.text text ]
+        [ Html.text string ]
     _ ->
       Html.mark
         [ style
@@ -89,5 +94,5 @@ view { fg, bg, text } =
                 , ( "pointer-events", "none" )
                 ]
             ]
-            [ Html.text text ]
+            [ Html.text string ]
         ]

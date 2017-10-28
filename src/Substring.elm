@@ -1,0 +1,61 @@
+module Substring exposing
+  (Substring, fromString, stop, lines, left, dropLeft, split, regexSplit)
+
+import Regex exposing (Regex, HowMany(..), Match)
+
+type alias Substring =
+  { i : Int
+  , s : String
+  }
+
+fromString : String -> Substring
+fromString = Substring 0
+
+stop : Substring -> Int
+stop substring =
+  substring.i + String.length substring.s
+
+lines : Substring -> List Substring
+lines = regexSplit All (Regex.regex "\\r\\n|\\r|\\n")
+
+left : Int -> Substring -> Substring
+left n substring =
+  { i = substring.i, s = String.left n substring.s }
+
+dropLeft : Int -> Substring -> Substring
+dropLeft n substring =
+  { i = substring.i + n, s = String.dropLeft n substring.s }
+
+split : String -> Substring -> List Substring
+split separator substring =
+  let
+    strings =
+      String.split separator substring.s
+  in let
+    starts =
+      List.scanl
+        ((+) << (+) (String.length separator) << String.length)
+        substring.i
+        strings
+  in
+    List.map2 Substring starts strings
+
+regexSplit : HowMany -> Regex -> Substring -> List Substring
+regexSplit howMany regex substring =
+  let
+    matches =
+      Regex.find howMany regex substring.s ++
+        [ emptyMatch (String.length substring.s) ]
+  in
+    List.map2 (betweenMatches substring) (emptyMatch 0 :: matches) matches
+
+emptyMatch : Int -> Match
+emptyMatch index =
+  { match = "", submatches = [], index = index, number = 0 }
+
+betweenMatches : Substring -> Match -> Match -> Substring
+betweenMatches substring x y =
+  let xStop = x.index + String.length x.match in
+    { i = substring.i + xStop
+    , s = String.slice xStop y.index substring.s
+    }

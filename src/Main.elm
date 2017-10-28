@@ -3,8 +3,9 @@ port module Main exposing (..)
 import AudioTime
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
+import MainParser
 import Metronome exposing (Metronome)
-import Tokenizer
+import Substring exposing (Substring)
 
 import AnimationFrame
 import Html exposing (Html, a, div, pre, span, text, textarea)
@@ -27,6 +28,7 @@ main =
 type alias Model =
   { playing : Maybe PlayInfo
   , text : String
+  , parse : MainParser.Model
   }
 
 type alias PlayInfo =
@@ -44,6 +46,7 @@ init : ( Model, Cmd Msg )
 init =
   ( { playing = Nothing
     , text = "C G Am F"
+    , parse = MainParser.init (Substring 0 "C G Am F")
     }
   , Cmd.none
   )
@@ -169,7 +172,13 @@ update msg model =
         )
 
     TextEdited newText ->
-      ( { model | text = newText }, Cmd.none )
+      ( { model
+        | text = newText
+        , parse =
+            MainParser.update (Substring 0 newText) model.parse
+        }
+      , Cmd.none
+      )
 
 minTicks : Int
 minTicks = 9
@@ -299,10 +308,9 @@ view model =
                 , ( "color", "transparent" )
                 ]
             ]
-            ( List.map Highlight.view <|
-                Highlight.group <|
-                  List.map Highlight.fromText <|
-                    Tokenizer.tokenize model.text
+            ( Highlight.view
+                (model.text ++ "\n")
+                (MainParser.view model.parse)
             )
         ]
     , div
