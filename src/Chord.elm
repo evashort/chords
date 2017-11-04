@@ -1,8 +1,8 @@
 module Chord exposing (Chord, fromRawName, arpeggio, view, fg, bg)
 
+import Flavor exposing (Flavor)
 import StaffMap exposing (StaffMap)
 
-import Dict exposing (Dict)
 import Html exposing (Html)
 
 type alias Chord = List Int
@@ -20,24 +20,21 @@ fromRawName name =
     _ -> Nothing
 
 fg : Chord -> String
-fg chord =
-  case chord of
-    [ 59, 62, 65 ] -> "#ffffff"
-    _ -> "#000000"
+fg = .fg << Tuple.second << Flavor.get << intervals
 
--- http://www.colourlovers.com/palette/324465/Pastel_Rainbow
--- blue and orange from http://www.colourlovers.com/palette/36070/pastel_rainbow
 bg : Chord -> String
 bg chord =
-  case chord of
-    [ 48, 52, 55 ] -> "#f8facd"
-    [ 50, 53, 57 ] -> "#eccdfa"
-    [ 52, 55, 59 ] -> "#d2facd"
-    [ 53, 57, 60 ] -> "#facdcd"
-    [ 55, 59, 62 ] -> "#c9ffff"
-    [ 57, 60, 64 ] -> "#ffe7c9"
-    [ 59, 62, 65 ] -> "#005e93"
-    _ -> "#ffffff"
+  let
+    ( i, flavor ) = Flavor.get (intervals chord)
+  in
+    nth3 (get i chord) flavor.bg
+
+nth3 : Int -> ( a, a, a ) -> a
+nth3 i ( x, y, z ) =
+  case i % 3 of
+    0 -> x
+    1 -> y
+    _ -> z
 
 arpeggio : Chord -> List Int
 arpeggio chord =
@@ -52,42 +49,46 @@ arpeggio chord =
 
 view : Chord -> List (Html msg)
 view chord =
-  let name = prettyName chord in
-    case String.split "^" name of
-      [ a, b, "" ] ->
-        [ Html.text a, Html.sup [] [ Html.text b ] ]
-      [ a, b, c ] ->
-        [ Html.text a, Html.sup [] [ Html.text b ], Html.text c ]
-      _ -> [ Html.text name ]
-
-prettyName : Chord -> String
-prettyName chord =
   let
-    namesakeIndex = getNamesakeIndex (getIntervals chord)
+    ( i, flavor ) = Flavor.get (intervals chord)
   in let
-    namesakeChord = invert namesakeIndex chord
+    namesake = get i chord
   in let
-    staffMap = StaffMap.invert -namesakeIndex (getStaffMap namesakeChord)
+    staffNamesake = StaffMap.get namesake flavor.staffMap
   in let
-    flavorName =
-      Maybe.withDefault "?" <|
-        Dict.get (getIntervals namesakeChord) flavorNames
+    staffChord = List.map ((+) staffNamesake) flavor.staffOffsets
   in let
-    staffChord = { chord = chord, staffMap = staffMap }
-  in let
-    inversionName =
-      if namesakeIndex == 0 then
-        ""
-      else
-        "/" ++ getNotePrettyName 0 staffChord ++ getOctaveName (get 0 chord)
+    root = get 0 chord
   in
-    getNotePrettyName namesakeIndex staffChord ++ flavorName ++ inversionName
+    [ Html.text
+        ( String.concat
+            [ letter staffNamesake
+            , prettyAccidental (namesake - get staffNamesake cScale)
+            , flavor.prettyName
+            ]
+        )
+    , Html.sup [] [ Html.text flavor.superscript ]
+    ] ++
+      ( case ( i, getOctaveName root ) of
+          ( 0, "" ) -> []
+          ( _, octaveName ) ->
+            [ Html.text
+                ( let
+                    staffRoot = StaffMap.get -i staffChord
+                  in
+                    String.concat
+                      [ "/"
+                      , letter staffRoot
+                      , prettyAccidental (root - get staffRoot cScale)
+                      , octaveName
+                      ]
+                )
+            ]
+      )
 
--- BASICS
-
-getIntervals : Chord -> List Int
-getIntervals chord =
-  List.map2 (-) (List.drop 1 chord) chord
+intervals : Chord -> List Int
+intervals chord =
+  List.map2 (-) (invert 1 chord) chord
 
 invert : Int -> Chord -> Chord
 invert n chord =
@@ -108,108 +109,16 @@ get n chord =
       pitch :: _ -> 12 * octave + pitch
       [] -> 0
 
--- FINDING CANONICAL INVERSION
-
-getNamesakeIndex : List Int -> Int
-getNamesakeIndex intervals =
-  case intervals of
-    [ 5, 5 ] -> 1
-    [ 5, 2 ] -> 0
-    [ 2, 5 ] -> 0
-    [ 4, 4, 2 ] -> 0
-    [ 3, 3, 5 ] -> 0
-    [ 4, 2, 4 ] -> 0
-    _ ->
-      case where_ (List.map (not << isThird) intervals) of
-        [ i ] -> i + 1
-        [ i, j ] -> j + 1
-        _ -> 0
-
-isThird : Int -> Bool
-isThird interval =
-  interval == 3 || interval == 4
-
-where_ : List Bool -> List Int
-where_ = whereHelp 0
-
-whereHelp : Int -> List Bool -> List Int
-whereHelp i xs =
-  case xs of
-    [] -> []
-    True :: rest -> i :: whereHelp (i + 1) rest
-    False :: rest -> whereHelp (i + 1) rest
-
--- ASSIGNING NOTES TO STAFF ROWS
-
-type alias StaffChord =
-  { chord : Chord
-  , staffMap : StaffMap
-  }
-
-getStaffMap : Chord -> StaffMap
-getStaffMap chord =
-  let
-    root = get 0 chord
-  in let
-    staffRoots =
-      List.map (StaffMap.get root) [ StaffMap.cFloor, StaffMap.cCeiling ]
-  in let
-    whiteChords = List.map (whitenChord chord) (unique staffRoots)
-  in
-    case argmin (getDistance chord << .chord) whiteChords of
-      Nothing -> [ 0 ]
-      Just whiteChord -> whiteChord.staffMap
-
-whitenChord : List Int -> Int -> StaffChord
-whitenChord chord staffRoot =
-  let
-    staffMap = StaffMap.fromPitchIntervals staffRoot (getIntervals chord)
-  in
-    { chord = multiGet staffMap cScale
-    , staffMap = staffMap
-    }
-
 cScale : Chord
 cScale = [ 0, 2, 4, 5, 7, 9, 11 ]
 
-unique : List a -> List a
-unique xs =
-  case xs of
-    x :: y :: rest ->
-      if x == y then unique (y :: rest) else x :: unique (y :: rest)
-    _ -> xs
-
-argmin : (a -> comparable) -> List a -> Maybe a
-argmin f xs =
-  case List.map2 (,) (List.map f xs) xs of
-    pair :: rest ->
-      Just (Tuple.second (List.foldl minFirst pair rest))
-    [] ->
-      Nothing
-
-minFirst : (comparable, a) -> (comparable, a) -> (comparable, a)
-minFirst x y =
-  if Tuple.first x < Tuple.first y then x else y
-
-getDistance : Chord -> Chord -> Int
-getDistance a b =
-  List.sum (List.map abs (List.map2 (-) a b))
-
--- CHORD NAME COMPONENTS
-
-getNotePrettyName : Int -> StaffChord -> String
-getNotePrettyName i { chord, staffMap } =
-  let staffRow = StaffMap.get i staffMap in
-    getLetter staffRow ++
-      getAccidentalPrettyName (get i chord - get staffRow cScale)
-
-getLetter : Int -> String
-getLetter staffRow =
+letter : Int -> String
+letter staffRow =
   let i = staffRow % 7 in
     String.slice i (i + 1) "CDEFGAB"
 
-getAccidentalPrettyName : Int -> String
-getAccidentalPrettyName accidental =
+prettyAccidental : Int -> String
+prettyAccidental accidental =
   if accidental < 0 then
     tally -accidental "♭" "𝄫"
   else
@@ -224,24 +133,3 @@ getOctaveName pitch =
   case (pitch - pitch % 12) // 12 - 2 of
     2 -> ""
     octave -> toString octave
-
-flavorNames : Dict (List Int) String
-flavorNames =
-  Dict.fromList
-    [ ( [ 4, 3 ], "" )
-    , ( [ 3, 4 ], "m" )
-    , ( [ 3, 3 ], "^o^" )
-    , ( [ 4, 4 ], "+" )
-    , ( [ 5, 2 ], "^sus4^" )
-    , ( [ 2, 5 ], "^sus2^" )
-    , ( [ 4, 3, 3 ], "7" )
-    , ( [ 3, 4, 3 ], "m^7^" )
-    , ( [ 3, 3, 4 ], "m^7♭5^" )
-    , ( [ 4, 3, 4 ], "M^7^" )
-    , ( [ 3, 3, 3 ], "^o7^" )
-    , ( [ 3, 4, 4 ], "m^M7^" )
-    , ( [ 4, 4, 3 ], "+^M7^" )
-    , ( [ 4, 4, 2 ], "+^7^" )
-    , ( [ 3, 3, 5 ], "m^M7♭5^" )
-    , ( [ 4, 2, 4 ], "^7♭5^" )
-    ]
