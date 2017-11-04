@@ -98,4 +98,4 @@ viewString fg bg string =
         ]
 
 suggestDeletion : Substring -> Highlight
-suggestDeletion = fromSubstring "#ffffff" "#800000"
+suggestDeletion = fromSubstring "#ffffff" "#ff0000"

@@ -44,7 +44,10 @@ type alias ScheduledChord =
 
 init : ( Model, Cmd Msg )
 init =
-  let defaultChords = "C Dm Em F G Am Bo" in
+  let
+    defaultChords =
+      "F   Csus4 C   G  G7\nDm7 FM7   Am7 E  E7\nDm  Asus4 Am  Em\nB0\n"
+  in
     ( { playing = Nothing
       , text = defaultChords
       , parse = MainParser.init (Substring 0 defaultChords)
@@ -305,12 +308,14 @@ view model =
         ]
     , div
         [ style
-            [ ( "height", "200px" )
+            [ ( "min-height", "200px" )
             , ( "font-size", "20pt" )
+            , ( "margin-right", "5px" )
+            , ( "margin-bottom", "55px" )
             ]
         ] <|
         List.map
-          ( viewChord
+          ( viewLine
             ( case model.playing of
                 Nothing -> []
                 Just p -> p.chord
@@ -327,6 +332,10 @@ view model =
             [ text "GitHub" ]
         ]
     ]
+
+viewLine : Chord -> Chord -> List Chord -> Html Msg
+viewLine activeChord nextChord line =
+  div [] (List.map (viewChord activeChord nextChord) line)
 
 viewChord : Chord -> Chord -> Chord -> Html Msg
 viewChord activeChord nextChord chord =
@@ -345,6 +354,7 @@ viewChord activeChord nextChord chord =
           , ( "border-width", "5px" )
           , ( "display", "inline-block" )
           , ( "margin-right", "-5px" )
+          , ( "margin-bottom", "-5px" )
           , ( "border-color"
             , if selected then
                 "#3399ff"

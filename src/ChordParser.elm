@@ -8,7 +8,7 @@ import Substring exposing (Substring)
 import Regex exposing (Regex, HowMany(..), Match)
 
 type alias Model =
-  { words : List ChordResult
+  { lines : List (List ChordResult)
   , indentation : List Substring
   }
 
@@ -21,17 +21,19 @@ update chordRanges model =
 
 view : Model -> List Highlight
 view model =
-  List.filterMap viewWord model.words ++
+  List.concatMap (List.filterMap viewWord) model.lines ++
     List.map Highlight.suggestDeletion model.indentation
 
-getChords : Model -> List Chord
+getChords : Model -> List (List Chord)
 getChords model =
-  List.filterMap .chord model.words
+  List.filter
+    (not << List.isEmpty)
+    (List.map (List.filterMap .chord) model.lines)
 
 parse : List Substring -> Model
 parse lines =
   let lineResults = List.map parseLine lines in
-    { words = List.concatMap .words lineResults
+    { lines = List.map .words lineResults
     , indentation = List.filterMap .indentation lineResults
     }
 
