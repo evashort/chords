@@ -366,6 +366,7 @@ viewChord activeChord nextChord chord =
               , ( "border-radius", "5px" )
               , ( "box-shadow", "1px 1px 3px rgba(0, 0, 0, 0.6)" )
               , ( "cursor", "pointer" )
+              , ( "white-space", "nowrap" )
               ]
           ]
           (Chord.view chord)

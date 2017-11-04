@@ -1,4 +1,4 @@
-module Chord exposing (Chord, fromRawName, arpeggio, view, fg, bg)
+module Chord exposing (Chord, arpeggio, view, fg, bg, invert, indexOf)
 
 import Flavor exposing (Flavor)
 import StaffMap exposing (StaffMap)
@@ -6,18 +6,6 @@ import StaffMap exposing (StaffMap)
 import Html exposing (Html)
 
 type alias Chord = List Int
-
-fromRawName : String -> Maybe Chord
-fromRawName name =
-  case name of
-    "C" -> Just [ 48, 52, 55 ]
-    "Dm" -> Just [ 50, 53, 57 ]
-    "Em" -> Just [ 52, 55, 59 ]
-    "F" -> Just [ 53, 57, 60 ]
-    "G" -> Just [ 55, 59, 62 ]
-    "Am" -> Just [ 57, 60, 64 ]
-    "Bo" -> Just [ 59, 62, 65 ]
-    _ -> Nothing
 
 fg : Chord -> String
 fg = .fg << Tuple.second << Flavor.get << intervals
@@ -59,32 +47,40 @@ view chord =
     staffChord = List.map ((+) staffNamesake) flavor.staffOffsets
   in let
     root = get 0 chord
+  in let
+    a =
+      String.concat
+        [ letter staffNamesake
+        , prettyAccidental (namesake - get staffNamesake cScale)
+        , flavor.prettyName
+        ]
+  in let
+    b = flavor.superscript
+  in let
+    c =
+      case ( i, getOctaveName root ) of
+        ( 0, "" ) -> ""
+        ( _, octaveName ) ->
+          let staffRoot = StaffMap.get -i staffChord in
+            String.concat
+              [ letter staffRoot
+              , prettyAccidental (root - get staffRoot cScale)
+              , octaveName
+              ]
   in
-    [ Html.text
-        ( String.concat
-            [ letter staffNamesake
-            , prettyAccidental (namesake - get staffNamesake cScale)
-            , flavor.prettyName
-            ]
-        )
-    , Html.sup [] [ Html.text flavor.superscript ]
-    ] ++
-      ( case ( i, getOctaveName root ) of
-          ( 0, "" ) -> []
-          ( _, octaveName ) ->
-            [ Html.text
-                ( let
-                    staffRoot = StaffMap.get -i staffChord
-                  in
-                    String.concat
-                      [ "/"
-                      , letter staffRoot
-                      , prettyAccidental (root - get staffRoot cScale)
-                      , octaveName
-                      ]
-                )
-            ]
-      )
+    case ( b, c ) of
+      ( "", "" ) ->
+        [ Html.text a ]
+      ( _, "" ) ->
+        [ Html.text a, Html.sup [] [ Html.text b ] ]
+      ( "", _ ) ->
+        [ Html.text (a ++ "/"), Html.sub [] [ Html.text c ] ]
+      _ ->
+        [ Html.text a
+        , Html.sup [] [ Html.text b ]
+        , Html.text "⁄"
+        , Html.sub [] [ Html.text c ]
+        ]
 
 intervals : Chord -> List Int
 intervals chord =
@@ -108,6 +104,23 @@ get n chord =
     case List.drop i chord of
       pitch :: _ -> 12 * octave + pitch
       [] -> 0
+
+indexOf : Int -> Chord -> List Int
+indexOf pitch =
+  zeros << List.map ((+) -pitch)
+
+zeros : Chord -> List Int
+zeros chord =
+  List.filterMap
+    identity
+    (List.indexedMap (zerosHelp (List.length chord)) chord)
+
+zerosHelp : Int -> Int -> Int -> Maybe Int
+zerosHelp n i pitch =
+  if pitch % 12 == 0 then
+    Just (i - n * (pitch // 12))
+  else
+    Nothing
 
 cScale : Chord
 cScale = [ 0, 2, 4, 5, 7, 9, 11 ]

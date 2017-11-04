@@ -187,9 +187,9 @@ flavors =
         }
       )
     , ( [ 3, 3, 4, 2 ]
-      , { codeName = "7b5"
+      , { codeName = "0"
         , prettyName = ""
-        , superscript = "7♭5"
+        , superscript = "ø"
         , staffMap = alwaysSharp
         , staffOffsets = [ 0, 2, 4, 6 ]
         , fg = white
@@ -247,8 +247,8 @@ flavors =
         }
       )
     , ( [ 3, 3, 5, 1 ]
-      , { codeName = "M7b5"
-        , prettyName = ""
+      , { codeName = "mM7b5"
+        , prettyName = "m"
         , superscript = "M7♭5"
         , staffMap = alwaysSharp
         , staffOffsets = [ 0, 2, 4, 6 ]

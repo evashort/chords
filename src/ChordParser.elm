@@ -1,6 +1,7 @@
 module ChordParser exposing (Model, init, update, view, getChords)
 
 import Chord exposing (Chord)
+import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 
@@ -63,7 +64,7 @@ type alias ChordResult =
 parseChord : Substring -> ChordResult
 parseChord word =
   { substring = word
-  , chord = Chord.fromRawName word.s
+  , chord = chordFromCode word.s
   }
 
 viewWord : ChordResult -> Maybe Highlight
