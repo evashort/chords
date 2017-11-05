@@ -349,8 +349,8 @@ viewChord activeChord nextChord chord =
           , style
               [ ( "background", Chord.bg chord )
               , ( "color", Chord.fg chord )
-              , ( "width", "50px" )
-              , ( "line-height", "50px" )
+              , ( "width", "75px" )
+              , ( "line-height", "75px" )
               , ( "text-align", "center" )
               , ( "display", "inline-block" )
               , ( "border-radius", "5px" )
