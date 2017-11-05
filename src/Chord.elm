@@ -1,8 +1,10 @@
 module Chord exposing (Chord, arpeggio, view, fg, bg, invert, indexOf)
 
+import Arpeggio exposing (Arpeggio)
 import Flavor exposing (Flavor)
 import StaffMap exposing (StaffMap)
 
+import Array exposing (Array)
 import Html exposing (Html)
 
 type alias Chord = List Int
@@ -24,16 +26,25 @@ nth3 i ( x, y, z ) =
     1 -> y
     _ -> z
 
-arpeggio : Chord -> List Int
-arpeggio chord =
-  let
-    indices =
-      case List.length chord of
-        3 -> [ 3, 2, 1, 2, 0, 2, 1, 2 ]
-        4 -> [ 4, 3, 2, 1, 0, 1, 2, 3 ]
-        _ -> List.range 0 (List.length chord - 1)
-  in
-    multiGet indices chord
+lowStart : List (List Int)
+lowStart =
+  [ [ 0 ], [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
+
+highStart : List (List Int)
+highStart =
+  [ [ 0, 6 ], [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
+
+arpeggio : Int -> Int -> Chord -> Arpeggio
+arpeggio lastChangeTick start =
+  arpeggioGet
+    { start = start
+    , intro =
+        if lastChangeTick == start - 8 then
+          Array.fromList (highStart ++ lowStart)
+        else
+          Array.empty
+    , loop = Array.fromList (lowStart ++ highStart)
+    }
 
 view : Chord -> List (Html msg)
 view chord =
@@ -121,6 +132,13 @@ zerosHelp n i pitch =
     Just (i - n * (pitch // 12))
   else
     Nothing
+
+arpeggioGet : Arpeggio -> Chord -> Arpeggio
+arpeggioGet arpeggio chord =
+  { arpeggio
+  | intro = Array.map ((flip multiGet) chord) arpeggio.intro
+  , loop = Array.map ((flip multiGet) chord) arpeggio.loop
+  }
 
 cScale : Chord
 cScale = [ 0, 2, 4, 5, 7, 9, 11 ]
