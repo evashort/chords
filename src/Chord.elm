@@ -1,6 +1,5 @@
-module Chord exposing (Chord, arpeggio, view, fg, bg, invert, indexOf)
+module Chord exposing (Chord, view, fg, bg, invert, indexOf, getSquared)
 
-import Arpeggio exposing (Arpeggio)
 import Flavor exposing (Flavor)
 import StaffMap exposing (StaffMap)
 
@@ -25,26 +24,6 @@ nth3 i ( x, y, z ) =
     0 -> x
     1 -> y
     _ -> z
-
-lowStart : List (List Int)
-lowStart =
-  [ [ 0 ], [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
-
-highStart : List (List Int)
-highStart =
-  [ [ 0, 6 ], [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
-
-arpeggio : Int -> Int -> Chord -> Arpeggio
-arpeggio lastChangeTick start =
-  arpeggioGet
-    { start = start
-    , intro =
-        if lastChangeTick == start - 8 then
-          Array.fromList (highStart ++ lowStart)
-        else
-          Array.empty
-    , loop = Array.fromList (lowStart ++ highStart)
-    }
 
 view : Chord -> List (Html msg)
 view chord =
@@ -101,6 +80,10 @@ invert : Int -> Chord -> Chord
 invert n chord =
   multiGet (List.range n (n + List.length chord - 1)) chord
 
+getSquared : List (List Int) -> Chord -> List (List Int)
+getSquared nss chord =
+  List.map ((flip multiGet) chord) nss
+
 multiGet : List Int -> Chord -> List Int
 multiGet ns chord =
   List.map ((flip get) chord) ns
@@ -132,13 +115,6 @@ zerosHelp n i pitch =
     Just (i - n * (pitch // 12))
   else
     Nothing
-
-arpeggioGet : Arpeggio -> Chord -> Arpeggio
-arpeggioGet arpeggio chord =
-  { arpeggio
-  | intro = Array.map ((flip multiGet) chord) arpeggio.intro
-  , loop = Array.map ((flip multiGet) chord) arpeggio.loop
-  }
 
 cScale : Chord
 cScale = [ 0, 2, 4, 5, 7, 9, 11 ]

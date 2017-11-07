@@ -1,19 +1,19 @@
-port module Main exposing (..)
+module Main exposing (..)
 
-import Arpeggio exposing (Arpeggio)
+import AudioChange
 import AudioTime
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import MainParser
-import Metronome exposing (Metronome)
+import Schedule exposing (Schedule, ScheduledChord)
 import Substring exposing (Substring)
+import TickTime
 
 import AnimationFrame
 import Html exposing (Html, a, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck)
 import Html.Events exposing (onMouseDown, on, targetValue)
 import Json.Decode
-import Json.Encode
 import Task exposing (Task)
 
 main =
@@ -27,30 +27,29 @@ main =
 -- MODEL
 
 type alias Model =
-  { metronome : Metronome
-  , schedule : List ScheduledChord
+  { start : Float
+  , schedule : Schedule
+  , tick : Int
+  , stop : Int
   , text : String
   , parse : MainParser.Model
   }
 
-type alias ScheduledChord =
-  { chord : Chord
-  , tick : Int
-  }
-
 init : ( Model, Cmd Msg )
 init =
-  let
-    defaultChords =
-      "F   Csus4 C   G  G7\nDm7 FM7   Am7 E  E7\nDm  Asus4 Am  Em\nB0\n"
-  in
-    ( { metronome = { start = 0, ticks = 0 }
-      , schedule = []
-      , text = defaultChords
-      , parse = MainParser.init (Substring 0 defaultChords)
-      }
-    , Cmd.none
-    )
+  ( { start = 0
+    , schedule = []
+    , tick = 0
+    , stop = 0
+    , text = defaultText
+    , parse = MainParser.init (Substring 0 defaultText)
+    }
+  , Cmd.none
+  )
+
+defaultText : String
+defaultText =
+  "F   Csus4 C   G  G7\nDm7 FM7   Am7 E  E7\nDm  Asus4 Am  Em\nB0\n"
 
 -- UPDATE
 
@@ -67,87 +66,50 @@ update msg model =
       ( model, Task.perform partialMsg AudioTime.now )
 
     CurrentTime now ->
-      case model.schedule of
-        [] ->
-          ( model, Cmd.none )
-        [ _ ] ->
-          if now > Metronome.end model.metronome then
-            ( { model | schedule = [] }, Cmd.none )
-          else
-            ( model, Cmd.none )
-        x :: y :: rest ->
-          if now >= Metronome.tickTime model.metronome y.tick then
-            ( { model
-              | schedule =
-                  if x.chord == y.chord then
-                    x :: rest
-                  else
-                    y :: rest
-              }
-            , Cmd.none
-            )
-          else
-            ( model, Cmd.none )
+      ( if TickTime.nextBeat model.start now > model.stop then
+          { model | start = 0, schedule = [], tick = 0, stop = 0 }
+        else
+          { model | tick = TickTime.toTick model.start now }
+      , Cmd.none
+      )
 
     PlayChord ( chord, now ) ->
       let
-        oldMetronome =
-          case model.schedule of
-            [] -> { start = now, ticks = 0 }
-            _ -> model.metronome
+        wouldBeat = TickTime.nextBeat model.start now
       in let
-        changeTick = Metronome.nextBeat oldMetronome now
+        lastChord = Schedule.get (wouldBeat - 1) model.schedule
       in let
-        measureStart = changeTick - (changeTick % ticksPerMeasure)
+        ( start, beat, schedule ) =
+          case lastChord of
+            Nothing ->
+              ( now, 0, [] )
+            Just _ ->
+              ( model.start
+              , wouldBeat
+              , Schedule.dropBefore (wouldBeat - 9) model.schedule
+              )
       in let
-        lastChangeTick =
-          case model.schedule of
-            x :: _ -> x.tick
-            _ -> measureStart
+        arpeggioHead =
+          if lastChord == Just chord then
+            [ 0 ]
+          else if beat == 8 || Schedule.isStop (beat - 8) schedule then
+            [ 0, 2 * List.length chord ]
+          else
+            [ 0 ]
       in let
-        arpeggio = Chord.arpeggio lastChangeTick measureStart chord
-      in let
-        metronome =
-          { oldMetronome
-          | ticks =
-              if measureStart + ticksPerMeasure - changeTick < minTicks then
-                measureStart + 2 * ticksPerMeasure
-              else
-                measureStart + ticksPerMeasure
-          }
-      in let
-        changeTime = Metronome.tickTime metronome changeTick
-      in let
-        audioChanges =
-          ( if changeTick < oldMetronome.ticks then
-              if now + latency >= changeTime then
-                let notBeforeNote = max now changeTime in
-                  [ MuteAllNotes
-                      { t = notBeforeNote, before = False }
-                  ]
-              else
-                [ MuteAllNotes { t = changeTime, before = True } ]
-            else
-              []
-          ) ++
-            ( List.concatMap
-                (arpeggioNotes metronome.start now arpeggio)
-                (List.range changeTick (metronome.ticks - 1))
-            )
+        stop = beat + 16
       in
         ( { model
-          | metronome = metronome
+          | start = start
           , schedule =
-              case model.schedule of
-                [] ->
-                  [ { chord = chord, tick = changeTick } ]
-                x :: _ ->
-                  if changeTime > now then
-                    [ x, { chord = chord, tick = changeTick } ]
-                  else
-                    [ { chord = chord, tick = changeTick } ]
+              Schedule.add beat { chord = chord, stop = stop } schedule
+          , stop = stop
           }
-        , changeAudioUsingJson (List.map audioChangeToJson audioChanges)
+        , AudioChange.playNotes
+            (lastChord /= Just chord)
+            now
+            (List.map (TickTime.get start) (List.range beat (stop - 1)))
+            (Chord.getSquared (arpeggioHead :: arpeggioTail) chord)
         )
 
     TextEdited newText ->
@@ -159,72 +121,13 @@ update msg model =
       , Cmd.none
       )
 
-ticksPerMeasure : Int
-ticksPerMeasure = 8
+halfArpeggioTail : List (List Int)
+halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
 
-minTicks : Int
-minTicks = 9
-
-latency : Float
-latency = 0.01
-
-mtof : Int -> Float
-mtof m =
-  440 * 2 ^ (toFloat (m - 69) / 12)
-
-arpeggioNotes : Float -> Float -> Arpeggio -> Int -> List AudioChange
-arpeggioNotes start now arpeggio i =
-  let t = max now (start + Metronome.interval * toFloat i) in
-    List.map
-      (NewNote << Note t << mtof)
-      (Arpeggio.get i arpeggio)
+arpeggioTail : List (List Int)
+arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
 
 -- SUBSCRIPTIONS
-
-port changeAudioUsingJson : List Json.Encode.Value -> Cmd msg
-
-audioChangeToJson : AudioChange -> Json.Encode.Value
-audioChangeToJson change =
-  case change of
-    NewNote note ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "note" )
-        , ( "t", Json.Encode.float note.t )
-        , ( "f", Json.Encode.float note.f )
-        ]
-    MuteLoudestNote t ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "muteLoudest" )
-        , ( "t", Json.Encode.float t )
-        ]
-    MuteAllNotes ct ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "mute" )
-        , ( "t", Json.Encode.float ct.t )
-        , ( "before", Json.Encode.bool ct.before )
-        ]
-    CancelFutureNotes ct ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "cancel" )
-        , ( "t", Json.Encode.float ct.t )
-        , ( "before", Json.Encode.bool ct.before )
-        ]
-
-type AudioChange
-  = NewNote Note
-  | MuteLoudestNote Float
-  | MuteAllNotes ChangeTime
-  | CancelFutureNotes ChangeTime
-
-type alias Note =
-  { t : Float
-  , f : Float
-  }
-
-type alias ChangeTime =
-  { t : Float
-  , before : Bool
-  }
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -296,14 +199,8 @@ view model =
         ] <|
         List.map
           ( viewLine
-            ( case model.schedule of
-                [] -> []
-                x :: _ -> x.chord
-            )
-            ( case model.schedule of
-                _ :: y :: _ -> y.chord
-                _ -> []
-            )
+              (Schedule.get model.tick model.schedule)
+              (Schedule.next model.tick model.schedule)
           )
           (MainParser.getChords model.parse)
     , div []
@@ -313,20 +210,20 @@ view model =
         ]
     ]
 
-viewLine : Chord -> Chord -> List Chord -> Html Msg
+viewLine : Maybe Chord -> Maybe Chord -> List Chord -> Html Msg
 viewLine activeChord nextChord line =
   div [] (List.map (viewChord activeChord nextChord) line)
 
-viewChord : Chord -> Chord -> Chord -> Html Msg
+viewChord : Maybe Chord -> Maybe Chord -> Chord -> Html Msg
 viewChord activeChord nextChord chord =
   let
     selected =
-      chord == activeChord || chord == nextChord
+      activeChord == Just chord || nextChord == Just chord
   in
     span
       [ style
           [ ( "border-style"
-            , if chord == nextChord then
+            , if nextChord == Just chord then
                 "dashed"
               else
                 "solid"

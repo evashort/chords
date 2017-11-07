@@ -42,18 +42,18 @@ Synth.prototype.noteAt = function(t, f, peak = 0.5) {
   quietestVoice.noteAt(t, f, peak);
 }
 
-Synth.prototype.muteLoudestNoteAt = function(t) {
+Synth.prototype.muteLoudestNoteAt = function(t, ignoreJumps = false) {
     let maxGain = -Infinity;
     let loudestVoice = null;
     for (let i = 0; i < this.voices.length; i++) {
-      let gain = this.voices[i].getGainAt(t, true);
+      let gain = this.voices[i].getGainAt(t);
       if (gain > maxGain) {
         maxGain = gain;
         loudestVoice = this.voices[i];
       }
     }
 
-    loudestVoice.muteAt(t);
+    loudestVoice.muteAt(t, ignoreJumps);
 }
 
 Synth.prototype.muteAt = function(t, ignoreJumps = false) {
