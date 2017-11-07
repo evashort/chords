@@ -24,7 +24,7 @@ view model =
   List.concatMap (List.filterMap viewWord) model.lines ++
     List.map Highlight.suggestDeletion model.indentation
 
-getChords : Model -> List (List Chord)
+getChords : Model -> List (List (Maybe Chord))
 getChords model =
   List.filter
     (not << List.isEmpty)
@@ -60,24 +60,27 @@ parseLine line =
 
 type alias ChordResult =
   { substring : Substring
-  , chord : Maybe Chord
+  , chord : Maybe (Maybe Chord)
   }
 
 parseChord : Substring -> ChordResult
 parseChord word =
   { substring = word
-  , chord = chordFromCode word.s
+  , chord =
+      if word.s == "_" then
+        Just Nothing
+      else
+        Maybe.map Just (chordFromCode word.s)
   }
 
 viewWord : ChordResult -> Maybe Highlight
 viewWord word =
   case word.chord of
+    Just (Just c) ->
+      Just
+        (Highlight.fromSubstring (Chord.fg c) (Chord.bg c) word.substring)
+    Just Nothing ->
+      Just
+        (Highlight.fromSubstring "#808080" "#ffffff" word.substring)
     Nothing ->
       Nothing
-    Just c ->
-      Just
-        ( Highlight.fromSubstring
-            (Chord.fg c)
-            (Chord.bg c)
-            word.substring
-        )

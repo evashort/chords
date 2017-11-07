@@ -49,7 +49,7 @@ init =
 
 defaultText : String
 defaultText =
-  "F   Csus4 C   G  G7\nDm7 FM7   Am7 E  E7\nDm  Asus4 Am  Em\nB0\n"
+  "F   Csus4 C   G  G7\nDm7 FM7   _   E  E7\nDm  Asus4 Am  Em\nB0\n"
 
 -- UPDATE
 
@@ -210,9 +210,21 @@ view model =
         ]
     ]
 
-viewLine : Maybe Chord -> Maybe Chord -> List Chord -> Html Msg
+viewLine : Maybe Chord -> Maybe Chord -> List (Maybe Chord) -> Html Msg
 viewLine activeChord nextChord line =
-  div [] (List.map (viewChord activeChord nextChord) line)
+  div
+    [ style
+        [ ( "display", "flex" ) ]
+    ]
+    (List.map (viewMaybeChord activeChord nextChord) line)
+
+viewMaybeChord : Maybe Chord -> Maybe Chord -> Maybe Chord -> Html Msg
+viewMaybeChord activeChord nextChord maybeChord =
+  case maybeChord of
+    Just chord ->
+      viewChord activeChord nextChord chord
+    Nothing ->
+      viewSpace
 
 viewChord : Maybe Chord -> Maybe Chord -> Chord -> Html Msg
 viewChord activeChord nextChord chord =
@@ -228,8 +240,8 @@ viewChord activeChord nextChord chord =
               else
                 "solid"
             )
+          , ( "width", "75px" )
           , ( "border-width", "5px" )
-          , ( "display", "inline-block" )
           , ( "margin-right", "-5px" )
           , ( "margin-bottom", "-5px" )
           , ( "border-color"
@@ -241,20 +253,30 @@ viewChord activeChord nextChord chord =
           , ( "border-radius", "10px" )
           ]
       ]
-      [ span
+      [ div
           [ onMouseDown <| NeedsTime (PlayChord << (,) chord)
           , style
               [ ( "background", Chord.bg chord )
               , ( "color", Chord.fg chord )
-              , ( "width", "75px" )
-              , ( "line-height", "75px" )
-              , ( "text-align", "center" )
-              , ( "display", "inline-block" )
+              , ( "height", "75px" )
+              , ( "display", "flex" )
+              , ( "align-items", "center" )
+              , ( "justify-content", "center" )
               , ( "border-radius", "5px" )
               , ( "box-shadow", "1px 1px 3px rgba(0, 0, 0, 0.6)" )
               , ( "cursor", "pointer" )
               , ( "white-space", "nowrap" )
               ]
           ]
-          (Chord.view chord)
+          [ div [] (Chord.view chord) ]
       ]
+
+viewSpace : Html msg
+viewSpace =
+  span
+    [ style
+        [ ( "width", "80px" )
+        , ( "height", "80px" )
+        ]
+    ]
+    []

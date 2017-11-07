@@ -33,7 +33,7 @@ view model =
   ChordParser.view model.chordModel ++
     List.map (Highlight.fromSubstring "#008000" "#ffffff") model.comments
 
-getChords : Model -> List (List Chord)
+getChords : Model -> List (List (Maybe Chord))
 getChords = ChordParser.getChords << .chordModel
 
 type alias ParseResult =
