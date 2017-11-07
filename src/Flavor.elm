@@ -232,7 +232,7 @@ flavors =
         , superscript = "M7"
         , staffMap = alwaysFlat
         , staffOffsets = [ 0, 2, 4, 6 ]
-        , fg = black
+        , fg = white
         , bg = lsh3 2 darkPrimary
         }
       )
