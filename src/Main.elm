@@ -10,10 +10,11 @@ import Substring exposing (Substring)
 import TickTime
 
 import AnimationFrame
-import Html exposing (Html, a, div, pre, span, text, textarea)
+import Html exposing
+  (Html, Attribute, a, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck)
-import Html.Events exposing (onMouseDown, on, targetValue)
-import Json.Decode
+import Html.Events exposing (on, onInput)
+import Json.Decode exposing (Decoder)
 import Task exposing (Task)
 
 main =
@@ -155,7 +156,7 @@ view model =
             ]
         ]
         [ textarea
-            [ on "input" (Json.Decode.map TextEdited targetValue)
+            [ onInput TextEdited
             , spellcheck False
             , style
                 [ ( "font", "inherit" )
@@ -254,7 +255,7 @@ viewChord activeChord nextChord chord =
           ]
       ]
       [ div
-          [ onMouseDown <| NeedsTime (PlayChord << (,) chord)
+          [ onLeftDown (NeedsTime (PlayChord << (,) chord))
           , style
               [ ( "background", Chord.bg chord )
               , ( "color", Chord.fg chord )
@@ -270,6 +271,21 @@ viewChord activeChord nextChord chord =
           ]
           [ div [] (Chord.view chord) ]
       ]
+
+onLeftDown : msg -> Attribute msg
+onLeftDown message =
+  on
+    "mousedown"
+    ( Json.Decode.andThen
+        (requireLeftButton message)
+        (Json.Decode.field "button" Json.Decode.int)
+    )
+
+requireLeftButton : msg -> Int -> Decoder msg
+requireLeftButton message button =
+  case button of
+    0 -> Json.Decode.succeed message
+    _ -> Json.Decode.fail ("ignoring button " ++ toString button)
 
 viewSpace : Html msg
 viewSpace =
