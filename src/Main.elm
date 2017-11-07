@@ -240,6 +240,7 @@ viewChord activeChord nextChord chord =
                 "solid"
             )
           , ( "width", "75px" )
+          , ( "flex", "none" )
           , ( "border-width", "5px" )
           , ( "margin-right", "-5px" )
           , ( "margin-bottom", "-5px" )
@@ -276,6 +277,7 @@ viewSpace =
     [ style
         [ ( "width", "80px" )
         , ( "height", "80px" )
+        , ( "flex", "none" )
         ]
     ]
     []
