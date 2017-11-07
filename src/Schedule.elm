@@ -1,51 +1,68 @@
-module Schedule exposing
-  (Schedule, ScheduledChord, get, isStop, next, add, dropBefore)
+module Schedule exposing (Schedule, Segment, get, next, add, dropBefore)
 
-import Chord exposing (Chord)
-
-type alias Schedule = List ScheduledChord
-
-type alias ScheduledChord =
-  { chord : Chord
-  , stop : Int
+type alias Schedule a =
+  { stop : Int
+  , segments : List (Segment a)
   }
 
-get : Int -> Schedule -> Maybe Chord
+type alias Segment a =
+  { x : a
+  , start : Int
+  }
+
+get : Int -> Schedule a -> Maybe (Segment a)
 get tick schedule =
-  case schedule of
+  if tick >= schedule.stop then Nothing
+  else getHelp tick schedule.segments
+
+getHelp : Int -> List (Segment a) -> Maybe (Segment a)
+getHelp tick segments =
+  case segments of
     [] -> Nothing
-    { chord, stop } :: rest ->
-      if tick < stop then Just chord
-      else get tick rest
+    segment :: rest ->
+      if tick >= segment.start then Just segment
+      else getHelp tick rest
 
-isStop : Int -> Schedule -> Bool
-isStop tick schedule =
-  case schedule of
-    [] -> False
-    { chord, stop } :: rest ->
-      if tick <= stop then tick == stop
-      else isStop tick rest
-
-next : Int -> Schedule -> Maybe Chord
+next : Int -> Schedule a -> Maybe (Segment a)
 next tick schedule =
-  case schedule of
+  if tick >= schedule.stop then Nothing
+  else nextHelp Nothing tick schedule.segments
+
+nextHelp : Maybe (Segment a) -> Int -> List (Segment a) -> Maybe (Segment a)
+nextHelp currentNext tick segments =
+  case segments of
     [] -> Nothing
-    { chord, stop } :: rest ->
-      if tick < stop then Maybe.map .chord (List.head rest)
-      else next tick rest
+    segment :: rest ->
+      if tick >= segment.start then currentNext
+      else nextHelp (Just segment) tick rest
 
-add : Int -> ScheduledChord -> Schedule -> Schedule
-add start y schedule =
-  case schedule of
-    [] -> [ y ]
-    x :: rest ->
-      if start < x.stop then [ { x | stop = start }, y ]
-      else x :: add start y rest
+add : Int -> Segment a -> Schedule a -> Schedule a
+add stop segment schedule =
+  { schedule
+  | stop = stop
+  , segments = segment :: takeBefore segment.start schedule.segments
+  }
 
-dropBefore : Int -> Schedule -> Schedule
-dropBefore tick schedule =
-  case schedule of
+takeBefore : Int -> List (Segment a) -> List (Segment a)
+takeBefore tick segments =
+  case segments of
     [] -> []
-    { chord, stop } :: rest ->
-      if tick < stop then schedule
-      else dropBefore tick rest
+    { x, start } :: rest ->
+      if tick > start then segments
+      else takeBefore tick rest
+
+dropBefore : Int -> Schedule a -> Schedule a
+dropBefore tick schedule =
+  { schedule
+  | segments =
+      if tick >= schedule.stop then []
+      else dropBeforeHelp tick schedule.segments
+  }
+
+dropBeforeHelp : Int -> List (Segment a) -> List (Segment a)
+dropBeforeHelp tick segments =
+  case segments of
+    [] -> []
+    segment :: rest ->
+      if tick >= segment.start then [ { segment | start = tick } ]
+      else segment :: dropBeforeHelp tick rest

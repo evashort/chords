@@ -5,7 +5,7 @@ import AudioTime
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import MainParser
-import Schedule exposing (Schedule, ScheduledChord)
+import Schedule exposing (Schedule, Segment)
 import Substring exposing (Substring)
 import TickTime
 
@@ -28,9 +28,8 @@ main =
 
 type alias Model =
   { start : Float
-  , schedule : Schedule
+  , schedule : Schedule Chord
   , tick : Int
-  , stop : Int
   , text : String
   , parse : MainParser.Model
   }
@@ -38,9 +37,8 @@ type alias Model =
 init : ( Model, Cmd Msg )
 init =
   ( { start = 0
-    , schedule = []
+    , schedule = { stop = 0, segments = [] }
     , tick = 0
-    , stop = 0
     , text = defaultText
     , parse = MainParser.init (Substring 0 defaultText)
     }
@@ -66,8 +64,12 @@ update msg model =
       ( model, Task.perform partialMsg AudioTime.now )
 
     CurrentTime now ->
-      ( if TickTime.nextBeat model.start now > model.stop then
-          { model | start = 0, schedule = [], tick = 0, stop = 0 }
+      ( if TickTime.nextBeat model.start now > model.schedule.stop then
+          { model
+          | start = 0
+          , schedule = { stop = 0, segments = [] }
+          , tick = 0
+          }
         else
           { model | tick = TickTime.toTick model.start now }
       , Cmd.none
@@ -77,39 +79,36 @@ update msg model =
       let
         wouldBeat = TickTime.nextBeat model.start now
       in let
-        lastChord = Schedule.get (wouldBeat - 1) model.schedule
-      in let
-        ( start, beat, schedule ) =
-          case lastChord of
+        ( start, beat, schedule, highStart, mute ) =
+          case Schedule.get (wouldBeat - 1) model.schedule of
             Nothing ->
-              ( now, 0, [] )
-            Just _ ->
+              ( now, 0, { stop = 0, segments = [] }, False, True )
+            Just segment ->
               ( model.start
               , wouldBeat
               , Schedule.dropBefore (wouldBeat - 9) model.schedule
+              , segment.start == wouldBeat - 8 && segment.x /= chord
+              , segment.x /= chord
               )
       in let
-        arpeggioHead =
-          if lastChord == Just chord then
-            [ 0 ]
-          else if beat == 8 || Schedule.isStop (beat - 8) schedule then
-            [ 0, 2 * List.length chord ]
+        arpeggio =
+          if highStart then
+            [ 0, 2 * List.length chord ] :: arpeggioTail
           else
-            [ 0 ]
+            [ 0 ] :: arpeggioTail
       in let
         stop = beat + 16
       in
         ( { model
           | start = start
           , schedule =
-              Schedule.add beat { chord = chord, stop = stop } schedule
-          , stop = stop
+              Schedule.add stop { x = chord, start = beat } schedule
           }
         , AudioChange.playNotes
-            (lastChord /= Just chord)
+            mute
             now
             (List.map (TickTime.get start) (List.range beat (stop - 1)))
-            (Chord.getSquared (arpeggioHead :: arpeggioTail) chord)
+            (Chord.getSquared arpeggio chord)
         )
 
     TextEdited newText ->
@@ -131,7 +130,7 @@ arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  case model.schedule of
+  case model.schedule.segments of
     [] -> Sub.none
     _ -> AnimationFrame.times (always (NeedsTime CurrentTime))
 
@@ -199,8 +198,8 @@ view model =
         ] <|
         List.map
           ( viewLine
-              (Schedule.get model.tick model.schedule)
-              (Schedule.next model.tick model.schedule)
+              (Maybe.map .x (Schedule.get model.tick model.schedule))
+              (Maybe.map .x (Schedule.next model.tick model.schedule))
           )
           (MainParser.getChords model.parse)
     , div []
