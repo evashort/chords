@@ -44,17 +44,16 @@ type alias LineResult =
 
 parseLine : Substring -> LineResult
 parseLine line =
-  case Regex.find (AtMost 1) (Regex.regex "^ +") line.s of
-    match :: _ ->
+  case Substring.find (AtMost 1) (Regex.regex "^ +") line of
+    indentation :: _ ->
       { words = []
-      , indentation =
-          Just (Substring.left (String.length match.match) line)
+      , indentation = Just indentation
       }
     [] ->
       { words =
           List.map
             parseChord
-            (Substring.regexSplit All (Regex.regex " +") line)
+            (Substring.find All (Regex.regex "[^ ]+") line)
       , indentation = Nothing
       }
 
