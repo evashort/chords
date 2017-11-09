@@ -34,7 +34,8 @@ getChords model =
 
 getSuggestions : Model -> List Suggestion
 getSuggestions model =
-  List.concatMap (List.filterMap getSuggestion) model.lines
+  Suggestion.unique
+    (List.concatMap (List.filterMap getSuggestion) model.lines)
 
 getSuggestion : Word -> Maybe Suggestion
 getSuggestion word =
