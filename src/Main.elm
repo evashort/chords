@@ -8,13 +8,14 @@ import Highlight exposing (Highlight)
 import MainParser
 import Schedule exposing (Schedule, Segment)
 import Substring exposing (Substring)
+import Suggestion exposing (Suggestion)
 import TickTime
 
 import AnimationFrame
 import Html exposing
-  (Html, Attribute, a, div, pre, span, text, textarea)
+  (Html, Attribute, a, div, pre, span, text, textarea, mark)
 import Html.Attributes exposing (href, style, spellcheck)
-import Html.Events exposing (on, onInput)
+import Html.Events exposing (on, onInput, onMouseEnter, onMouseLeave)
 import Json.Decode exposing (Decoder)
 import Task exposing (Task)
 
@@ -34,6 +35,7 @@ type alias Model =
   , tick : Int
   , text : String
   , parse : MainParser.Model
+  , suggestion : String
   }
 
 init : ( Model, Cmd Msg )
@@ -43,6 +45,7 @@ init =
     , tick = 0
     , text = defaultText
     , parse = MainParser.init (Substring 0 defaultText)
+    , suggestion = ""
     }
   , Cmd.none
   )
@@ -58,6 +61,8 @@ type Msg
   | CurrentTime Float
   | PlayChord ( Chord, Float )
   | TextEdited String
+  | SuggestionHover String
+  | SuggestionLeave
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -121,6 +126,12 @@ update msg model =
         }
       , Cmd.none
       )
+
+    SuggestionHover suggestion ->
+      ( { model | suggestion = suggestion }, Cmd.none)
+
+    SuggestionLeave ->
+      ( { model | suggestion = "" }, Cmd.none)
 
 halfArpeggioTail : List (List Int)
 halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
@@ -187,9 +198,15 @@ view model =
             ]
             ( Highlight.view
                 (model.text ++ "\n")
-                (MainParser.view model.parse)
+                (MainParser.view model.suggestion model.parse)
             )
         ]
+    , div
+        [ style
+            [ ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+            ]
+        ]
+        (List.map viewSuggestion (MainParser.getSuggestions model.parse))
     , div
         [ style
             [ ( "min-height", "200px" )
@@ -210,6 +227,14 @@ view model =
             [ text "GitHub" ]
         ]
     ]
+
+viewSuggestion : Suggestion -> Html Msg
+viewSuggestion suggestion =
+  span
+    [ onMouseEnter (SuggestionHover suggestion.s)
+    , onMouseLeave SuggestionLeave
+    ]
+    [ Suggestion.view suggestion ]
 
 viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg
 viewLine activeChord nextChord line =

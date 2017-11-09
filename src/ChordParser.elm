@@ -1,9 +1,11 @@
-module ChordParser exposing (Model, init, update, view, getChords)
+module ChordParser exposing
+  (Model, init, update, view, getChords, getSuggestions)
 
 import CachedChord exposing (CachedChord)
 import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
+import Suggestion exposing (Suggestion)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -19,9 +21,9 @@ update : List Substring -> Model -> Model
 update chordRanges model =
   init chordRanges
 
-view : Model -> List Highlight
-view model =
-  List.concatMap (List.filterMap viewWord) model.lines ++
+view : String -> Model -> List Highlight
+view suggestion model =
+  List.concatMap (List.filterMap (viewWord suggestion)) model.lines ++
     List.map Highlight.suggestDeletion model.indentation
 
 getChords : Model -> List (List (Maybe CachedChord))
@@ -29,6 +31,25 @@ getChords model =
   List.filter
     (not << List.isEmpty)
     (List.map (List.filterMap getChord) model.lines)
+
+getSuggestions : Model -> List Suggestion
+getSuggestions model =
+  List.concatMap (List.filterMap getSuggestion) model.lines
+
+getSuggestion : Word -> Maybe Suggestion
+getSuggestion word =
+  case word.chord of
+    Nothing ->
+      Nothing
+    Just chord ->
+      if word.substring.s == chord.codeName then
+        Nothing
+      else
+        Just
+          { s = chord.codeName
+          , fg = CachedChord.fg chord
+          , bg = CachedChord.bg chord
+          }
 
 parse : List Substring -> Model
 parse lines =
@@ -82,8 +103,8 @@ getChord word =
       else
         Nothing
 
-viewWord : Word -> Maybe Highlight
-viewWord word =
+viewWord : String -> Word -> Maybe Highlight
+viewWord suggestion word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
@@ -98,5 +119,7 @@ viewWord word =
               (CachedChord.bg chord)
               word.substring
           )
+      else if chord.codeName == suggestion then
+        Just (Highlight.fromSubstring "#ffffff" "#3399ff" word.substring)
       else
         Nothing
