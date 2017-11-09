@@ -1,6 +1,6 @@
 module MainParser exposing (Model, init, update, view, getChords)
 
-import Chord exposing (Chord)
+import CachedChord exposing (CachedChord)
 import ChordParser
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
@@ -33,7 +33,7 @@ view model =
   ChordParser.view model.chordModel ++
     List.map (Highlight.fromSubstring "#008000" "#ffffff") model.comments
 
-getChords : Model -> List (List (Maybe Chord))
+getChords : Model -> List (List (Maybe CachedChord))
 getChords = ChordParser.getChords << .chordModel
 
 type alias ParseResult =

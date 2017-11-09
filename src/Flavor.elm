@@ -1,17 +1,16 @@
-module Flavor exposing (Flavor, get)
+module Flavor exposing (Flavor, get, errorFlavor)
 
 import StaffMap exposing (StaffMap)
 
 import Dict exposing (Dict)
 
-get : List Int -> ( Int, Flavor )
+get : List Int -> ( Int, Maybe Flavor )
 get intervals =
   let
     ( before, after ) = splitIntervals intervals
   in
     ( List.length before
-    , Maybe.withDefault errorFlavor <|
-        Dict.get (after ++ before) flavors
+    , Dict.get (after ++ before) flavors
     )
 
 splitIntervals : List Int -> ( List Int, List Int )

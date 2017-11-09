@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import AudioChange
 import AudioTime
+import CachedChord exposing (CachedChord)
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import MainParser
@@ -109,7 +110,7 @@ update msg model =
             mute
             now
             (List.map (TickTime.get start) (List.range beat (stop - 1)))
-            (Chord.getSquared arpeggio chord)
+            (List.map (List.map (Chord.get chord)) arpeggio)
         )
 
     TextEdited newText ->
@@ -210,7 +211,7 @@ view model =
         ]
     ]
 
-viewLine : Maybe Chord -> Maybe Chord -> List (Maybe Chord) -> Html Msg
+viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg
 viewLine activeChord nextChord line =
   div
     [ style
@@ -218,7 +219,7 @@ viewLine activeChord nextChord line =
     ]
     (List.map (viewMaybeChord activeChord nextChord) line)
 
-viewMaybeChord : Maybe Chord -> Maybe Chord -> Maybe Chord -> Html Msg
+viewMaybeChord : Maybe Chord -> Maybe Chord -> Maybe CachedChord -> Html Msg
 viewMaybeChord activeChord nextChord maybeChord =
   case maybeChord of
     Just chord ->
@@ -226,16 +227,16 @@ viewMaybeChord activeChord nextChord maybeChord =
     Nothing ->
       viewSpace
 
-viewChord : Maybe Chord -> Maybe Chord -> Chord -> Html Msg
+viewChord : Maybe Chord -> Maybe Chord -> CachedChord -> Html Msg
 viewChord activeChord nextChord chord =
   let
     selected =
-      activeChord == Just chord || nextChord == Just chord
+      activeChord == Just chord.chord || nextChord == Just chord.chord
   in
     span
       [ style
           [ ( "border-style"
-            , if nextChord == Just chord then
+            , if nextChord == Just chord.chord then
                 "dashed"
               else
                 "solid"
@@ -255,10 +256,10 @@ viewChord activeChord nextChord chord =
           ]
       ]
       [ div
-          [ onLeftDown (NeedsTime (PlayChord << (,) chord))
+          [ onLeftDown (NeedsTime (PlayChord << (,) chord.chord))
           , style
-              [ ( "background", Chord.bg chord )
-              , ( "color", Chord.fg chord )
+              [ ( "background", CachedChord.bg chord )
+              , ( "color", CachedChord.fg chord )
               , ( "height", "75px" )
               , ( "display", "flex" )
               , ( "align-items", "center" )
@@ -269,7 +270,7 @@ viewChord activeChord nextChord chord =
               , ( "white-space", "nowrap" )
               ]
           ]
-          [ div [] (Chord.view chord) ]
+          [ div [] (CachedChord.view chord) ]
       ]
 
 onLeftDown : msg -> Attribute msg

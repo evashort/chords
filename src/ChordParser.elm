@@ -1,6 +1,6 @@
 module ChordParser exposing (Model, init, update, view, getChords)
 
-import Chord exposing (Chord)
+import CachedChord exposing (CachedChord)
 import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
@@ -8,7 +8,7 @@ import Substring exposing (Substring)
 import Regex exposing (Regex, HowMany(..), Match)
 
 type alias Model =
-  { lines : List (List ChordResult)
+  { lines : List (List Word)
   , indentation : List Substring
   }
 
@@ -24,11 +24,11 @@ view model =
   List.concatMap (List.filterMap viewWord) model.lines ++
     List.map Highlight.suggestDeletion model.indentation
 
-getChords : Model -> List (List (Maybe Chord))
+getChords : Model -> List (List (Maybe CachedChord))
 getChords model =
   List.filter
     (not << List.isEmpty)
-    (List.map (List.filterMap .chord) model.lines)
+    (List.map (List.filterMap getChord) model.lines)
 
 parse : List Substring -> Model
 parse lines =
@@ -38,7 +38,7 @@ parse lines =
     }
 
 type alias LineResult =
-  { words : List ChordResult
+  { words : List Word
   , indentation : Maybe Substring
   }
 
@@ -57,29 +57,46 @@ parseLine line =
       , indentation = Nothing
       }
 
-type alias ChordResult =
+type alias Word =
   { substring : Substring
-  , chord : Maybe (Maybe Chord)
+  , chord : Maybe CachedChord
   }
 
-parseChord : Substring -> ChordResult
-parseChord word =
-  { substring = word
-  , chord =
-      if word.s == "_" then
+parseChord : Substring -> Word
+parseChord substring =
+  { substring = substring
+  , chord = Maybe.map CachedChord.fromChord (chordFromCode substring.s)
+  }
+
+getChord : Word -> Maybe (Maybe CachedChord)
+getChord word =
+  case word.chord of
+    Nothing ->
+      if word.substring.s == "_" then
         Just Nothing
       else
-        Maybe.map Just (chordFromCode word.s)
-  }
+        Nothing
+    Just chord ->
+      if word.substring.s == chord.codeName then
+        Just (Just chord)
+      else
+        Nothing
 
-viewWord : ChordResult -> Maybe Highlight
+viewWord : Word -> Maybe Highlight
 viewWord word =
   case word.chord of
-    Just (Just c) ->
-      Just
-        (Highlight.fromSubstring (Chord.fg c) (Chord.bg c) word.substring)
-    Just Nothing ->
-      Just
-        (Highlight.fromSubstring "#808080" "#ffffff" word.substring)
     Nothing ->
-      Nothing
+      if word.substring.s == "_" then
+        Just (Highlight.fromSubstring "#808080" "#ffffff" word.substring)
+      else
+        Nothing
+    Just chord ->
+      if word.substring.s == chord.codeName then
+        Just
+          ( Highlight.fromSubstring
+              (CachedChord.fg chord)
+              (CachedChord.bg chord)
+              word.substring
+          )
+      else
+        Nothing
