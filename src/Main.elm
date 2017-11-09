@@ -160,9 +160,6 @@ view model =
         [ style
             [ ( "width", "500px" )
             , ( "position", "relative" )
-            , ( "border-style", "inset" )
-            , ( "border-width", "2px" )
-            , ( "border-color", "#e3e3e3")
             , ( "font-size", "20pt" )
             , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
             ]
@@ -175,7 +172,7 @@ view model =
                 , ( "width", "100%" )
                 , ( "height", "100%" )
                 , ( "padding", "10px" )
-                , ( "border", "none" )
+                , ( "border", "2px inset #e3e3e3")
                 , ( "margin", "0px" )
                 , ( "position", "absolute" )
                 , ( "resize", "none" )
@@ -190,6 +187,7 @@ view model =
             [ style
                 [ ( "font", "inherit" )
                 , ( "padding", "10px" )
+                , ( "border", "2px solid transparent")
                 , ( "margin", "0px" )
                 , ( "white-space", "pre-wrap" )
                 , ( "word-wrap", "break-word" )
