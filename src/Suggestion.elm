@@ -87,7 +87,7 @@ view show hide copied recentlyCopied suggestion =
         [ style
             [ ( "position", "relative" )
             , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-            , ( "font-size", "12pt" )
+            , ( "font-size", "13pt" )
             , ( "margin-left", "-1px" )
             ]
         ]

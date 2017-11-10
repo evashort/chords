@@ -53,7 +53,8 @@ init =
     , suggestion = ""
     , recentlyCopied = Set.empty
     }
-  , Cmd.none
+  , let n = String.length defaultText in
+      SelectionChange.changeSelection ( n, n )
   )
 
 defaultText : String
@@ -178,9 +179,7 @@ view : Model -> Html Msg
 view model =
   div
     [ style
-        [ ( "font-family"
-          , "\"Lucida Sans Unicode\", \"Lucida Grande\", sans-serif"
-          )
+        [ ( "font-family", "Arial, Helvetica, sans-serif" )
         , ( "font-size", "10pt" )
         ]
     ]
@@ -244,7 +243,7 @@ view model =
     , div
         [ style
             [ ( "min-height", "200px" )
-            , ( "font-size", "20pt" )
+            , ( "font-size", "18pt" )
             , ( "margin-right", "5px" )
             , ( "margin-bottom", "55px" )
             ]
