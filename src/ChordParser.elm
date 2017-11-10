@@ -50,6 +50,8 @@ getSuggestion word =
           { s = chord.codeName
           , fg = CachedChord.fg chord
           , bg = CachedChord.bg chord
+          , firstRange =
+              ( word.substring.i, Substring.stop word.substring )
           }
 
 parse : List Substring -> Model
@@ -121,6 +123,6 @@ viewWord suggestion word =
               word.substring
           )
       else if chord.codeName == suggestion then
-        Just (Highlight.fromSubstring "#ffffff" "#3399ff" word.substring)
+        Just (Highlight.fromSubstring "#ffffff" "#aaaaaa" word.substring)
       else
         Nothing

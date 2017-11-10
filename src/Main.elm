@@ -7,17 +7,21 @@ import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import MainParser
 import Schedule exposing (Schedule, Segment)
+import SelectionChange
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import TickTime
 
 import AnimationFrame
 import Html exposing
-  (Html, Attribute, a, div, pre, span, text, textarea, mark)
-import Html.Attributes exposing (href, style, spellcheck)
-import Html.Events exposing (on, onInput, onMouseEnter, onMouseLeave)
+  (Html, Attribute, a, div, pre, span, text, textarea)
+import Html.Attributes exposing (href, style, spellcheck, id)
+import Html.Events exposing (on, onInput)
 import Json.Decode exposing (Decoder)
+import Process
+import Set exposing (Set)
 import Task exposing (Task)
+import Time
 
 main =
   Html.program
@@ -36,6 +40,7 @@ type alias Model =
   , text : String
   , parse : MainParser.Model
   , suggestion : String
+  , recentlyCopied : Set String
   }
 
 init : ( Model, Cmd Msg )
@@ -46,6 +51,7 @@ init =
     , text = defaultText
     , parse = MainParser.init (Substring 0 defaultText)
     , suggestion = ""
+    , recentlyCopied = Set.empty
     }
   , Cmd.none
   )
@@ -61,8 +67,10 @@ type Msg
   | CurrentTime Float
   | PlayChord ( Chord, Float )
   | TextEdited String
-  | SuggestionHover String
-  | SuggestionLeave
+  | ShowSuggestion Suggestion
+  | HideSuggestion Suggestion
+  | SuggestionCopied Suggestion
+  | RemoveCopied String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -127,11 +135,28 @@ update msg model =
       , Cmd.none
       )
 
-    SuggestionHover suggestion ->
-      ( { model | suggestion = suggestion }, Cmd.none)
+    ShowSuggestion suggestion ->
+      ( { model | suggestion = suggestion.s }, Cmd.none)
 
-    SuggestionLeave ->
+    HideSuggestion _ ->
       ( { model | suggestion = "" }, Cmd.none)
+
+    SuggestionCopied suggestion ->
+      ( { model
+        | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
+        }
+      , Cmd.batch
+          [ SelectionChange.changeSelection suggestion.firstRange
+          , Task.perform
+              (always (RemoveCopied suggestion.s))
+              (Process.sleep (1 * Time.second))
+          ]
+      )
+
+    RemoveCopied s ->
+      ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
+      , Cmd.none
+      )
 
 halfArpeggioTail : List (List Int)
 halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
@@ -153,7 +178,10 @@ view : Model -> Html Msg
 view model =
   div
     [ style
-        [ ( "font-family", "calibri, helvetica, arial, sans-serif" )
+        [ ( "font-family"
+          , "\"Lucida Sans Unicode\", \"Lucida Grande\", sans-serif"
+          )
+        , ( "font-size", "10pt" )
         ]
     ]
     [ div
@@ -167,6 +195,7 @@ view model =
         [ textarea
             [ onInput TextEdited
             , spellcheck False
+            , id "chordBox"
             , style
                 [ ( "font", "inherit" )
                 , ( "width", "100%" )
@@ -201,10 +230,17 @@ view model =
         ]
     , div
         [ style
-            [ ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-            ]
+            [ ( "margin-top", "3px" ) ]
         ]
-        (List.map viewSuggestion (MainParser.getSuggestions model.parse))
+        ( List.map
+            ( Suggestion.view
+                ShowSuggestion
+                HideSuggestion
+                SuggestionCopied
+                model.recentlyCopied
+            )
+            (MainParser.getSuggestions model.parse)
+        )
     , div
         [ style
             [ ( "min-height", "200px" )
@@ -225,14 +261,6 @@ view model =
             [ text "GitHub" ]
         ]
     ]
-
-viewSuggestion : Suggestion -> Html Msg
-viewSuggestion suggestion =
-  span
-    [ onMouseEnter (SuggestionHover suggestion.s)
-    , onMouseLeave SuggestionLeave
-    ]
-    [ Suggestion.view suggestion ]
 
 viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg
 viewLine activeChord nextChord line =

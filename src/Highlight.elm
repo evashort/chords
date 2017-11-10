@@ -1,4 +1,5 @@
-module Highlight exposing (Highlight, fromSubstring, view, suggestDeletion)
+module Highlight exposing
+  (Highlight, fromSubstring, view, suggestDeletion, viewString)
 
 import Substring exposing (Substring)
 

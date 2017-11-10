@@ -21,3 +21,10 @@ function changeAudio(changes) {
     }
   }
 }
+
+function changeSelection(range) {
+  chordBox = document.getElementById("chordBox");
+  chordBox.focus();
+  chordBox.selectionStart = range[0];
+  chordBox.selectionEnd = range[1];
+}
