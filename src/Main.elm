@@ -9,22 +9,19 @@ import MainParser
 import Schedule exposing (Schedule, Segment)
 import SelectionChange
 import Substring exposing (Substring)
-import Suggestion exposing (Suggestion)
+import SuggestionBar
 import TickTime
 
 import AnimationFrame
 import Html exposing
   (Html, Attribute, a, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck, id)
-import Html.Events exposing (on, onInput)
+import Html.Events exposing (on, onInput, onFocus, onBlur)
 import Json.Decode exposing (Decoder)
-import Process
-import Set exposing (Set)
 import Task exposing (Task)
-import Time
 
 main =
-  Html.program
+  Html.programWithFlags
     { init = init
     , view = view
     , update = update
@@ -39,19 +36,17 @@ type alias Model =
   , tick : Int
   , text : String
   , parse : MainParser.Model
-  , suggestion : String
-  , recentlyCopied : Set String
+  , suggestionBar : SuggestionBar.Model
   }
 
-init : ( Model, Cmd Msg )
-init =
+init : Bool -> ( Model, Cmd Msg )
+init mac =
   ( { start = 0
     , schedule = { stop = 0, segments = [] }
     , tick = 0
     , text = defaultText
     , parse = MainParser.init (Substring 0 defaultText)
-    , suggestion = ""
-    , recentlyCopied = Set.empty
+    , suggestionBar = SuggestionBar.init mac
     }
   , let n = String.length defaultText in
       SelectionChange.changeSelection ( n, n )
@@ -68,10 +63,7 @@ type Msg
   | CurrentTime Float
   | PlayChord ( Chord, Float )
   | TextEdited String
-  | ShowSuggestion Suggestion
-  | HideSuggestion Suggestion
-  | SuggestionCopied Suggestion
-  | RemoveCopied String
+  | SuggestionBarMsg SuggestionBar.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -128,36 +120,32 @@ update msg model =
         )
 
     TextEdited newText ->
-      ( { model
-        | text = newText
-        , parse =
-            MainParser.update (Substring 0 newText) model.parse
-        }
-      , Cmd.none
-      )
+      let
+        parse = MainParser.update (Substring 0 newText) model.parse
+      in let
+        suggestions = MainParser.getSuggestions parse
+      in let
+        ( suggestionBar, suggestionBarCmd ) =
+          SuggestionBar.update
+            (SuggestionBar.SuggestionsChanged suggestions)
+            model.suggestionBar
+      in
+        ( { model
+          | text = newText
+          , parse = parse
+          , suggestionBar = suggestionBar
+          }
+        , Cmd.map SuggestionBarMsg suggestionBarCmd
+        )
 
-    ShowSuggestion suggestion ->
-      ( { model | suggestion = suggestion.s }, Cmd.none)
-
-    HideSuggestion _ ->
-      ( { model | suggestion = "" }, Cmd.none)
-
-    SuggestionCopied suggestion ->
-      ( { model
-        | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
-        }
-      , Cmd.batch
-          [ SelectionChange.changeSelection suggestion.firstRange
-          , Task.perform
-              (always (RemoveCopied suggestion.s))
-              (Process.sleep (1 * Time.second))
-          ]
-      )
-
-    RemoveCopied s ->
-      ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
-      , Cmd.none
-      )
+    SuggestionBarMsg msg ->
+      let
+        ( suggestionBar, suggestionBarCmd ) =
+          SuggestionBar.update msg model.suggestionBar
+      in
+        ( { model | suggestionBar = suggestionBar }
+        , Cmd.map SuggestionBarMsg suggestionBarCmd
+        )
 
 halfArpeggioTail : List (List Int)
 halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
@@ -193,6 +181,9 @@ view model =
         ]
         [ textarea
             [ onInput TextEdited
+            , onLeftClick (SuggestionBarMsg SuggestionBar.ChordBoxClick)
+            , onFocus (SuggestionBarMsg SuggestionBar.ChordBoxFocus)
+            , onBlur (SuggestionBarMsg SuggestionBar.ChordBoxBlur)
             , spellcheck False
             , id "chordBox"
             , style
@@ -224,22 +215,13 @@ view model =
             ]
             ( Highlight.view
                 (model.text ++ "\n")
-                (MainParser.view model.suggestion model.parse)
+                ( MainParser.view
+                    model.suggestionBar.highlightedOne
+                    model.parse
+                )
             )
         ]
-    , div
-        [ style
-            [ ( "margin-top", "3px" ) ]
-        ]
-        ( List.map
-            ( Suggestion.view
-                ShowSuggestion
-                HideSuggestion
-                SuggestionCopied
-                model.recentlyCopied
-            )
-            (MainParser.getSuggestions model.parse)
-        )
+    , Html.map SuggestionBarMsg (SuggestionBar.view model.suggestionBar)
     , div
         [ style
             [ ( "min-height", "200px" )
@@ -327,6 +309,15 @@ onLeftDown : msg -> Attribute msg
 onLeftDown message =
   on
     "mousedown"
+    ( Json.Decode.andThen
+        (requireLeftButton message)
+        (Json.Decode.field "button" Json.Decode.int)
+    )
+
+onLeftClick : msg -> Attribute msg
+onLeftClick message =
+  on
+    "click"
     ( Json.Decode.andThen
         (requireLeftButton message)
         (Json.Decode.field "button" Json.Decode.int)

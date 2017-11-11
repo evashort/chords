@@ -1,4 +1,4 @@
-module Suggestion exposing (Suggestion, view, unique)
+module Suggestion exposing (Suggestion, Msg(..), view, unique)
 
 import Highlight
 
@@ -15,10 +15,15 @@ type alias Suggestion =
   , firstRange : ( Int, Int )
   }
 
-view :
-  (Suggestion -> msg) -> (Suggestion -> msg) -> (Suggestion -> msg) ->
-    Set String -> Suggestion -> Html msg
-view show hide copied recentlyCopied suggestion =
+type Msg
+  = Enter
+  | Leave
+  | Focus
+  | Blur
+  | Copied
+
+view : Bool -> Suggestion -> Html Msg
+view recentlyCopied suggestion =
   span
     [ style
         [ ( "display", "inline-flex" )
@@ -43,22 +48,20 @@ view show hide copied recentlyCopied suggestion =
                   , ( "display", "flex" )
                   , ( "align-items", "center")
                   , ( "padding", "1px 3px" )
-                  , ( "cursor", "default")
+                  , ( "pointer-events", "none" )
                   ]
-                , if Set.member suggestion.s recentlyCopied then
+                , if recentlyCopied then
                     [ ( "transition-duration", "0s" )
                     , ( "opacity", "1" )
-                    , ( "pointer-events", "auto" )
                     ]
                   else
                     [ ( "transition-duration", "0.5s" )
                     , ( "opacity", "0" )
-                    , ( "pointer-events", "none" )
                     ]
                 ]
             )
         ]
-        [ Html.text "Copied" ]
+        [ text "Copied" ]
     , button
         [ attribute
             "onclick"
@@ -68,11 +71,11 @@ view show hide copied recentlyCopied suggestion =
                 , "\").select(); document.execCommand(\"Copy\");"
                 ]
             )
-        , onMouseEnter (show suggestion)
-        , onMouseLeave (hide suggestion)
-        , onFocus (show suggestion)
-        , onBlur (hide suggestion)
-        , onClick (copied suggestion)
+        , onMouseEnter Enter
+        , onMouseLeave Leave
+        , onFocus Focus
+        , onBlur Blur
+        , onClick Copied
         , class "pressMe"
         , style
             [ ( "padding", "0px 3px" )

@@ -33,7 +33,9 @@
   <body>
     <div id="main"></div>
     <script>
-      var app = Elm.Main.fullscreen();
+      var app = Elm.Main.fullscreen(
+        navigator.userAgent.indexOf("Mac OS X") != -1
+      );
 
       app.ports.changeAudio.subscribe(changeAudio);
       app.ports.changeSelection.subscribe(changeSelection);
