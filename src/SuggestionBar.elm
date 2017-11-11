@@ -13,9 +13,10 @@ import Time
 type alias Model =
   { mac : Bool
   , suggestions : List Suggestion
-  , highlightedOne : String
+  , highlighted : String
   , recentlyCopied : Set String
-  , copyButtonFocused : Bool
+  , hovered : String
+  , focused : String
   , readyToPaste : Bool
   , chordBoxFocused : Bool
   }
@@ -24,9 +25,10 @@ init : Bool -> Model
 init mac =
   { mac = mac
   , suggestions = []
-  , highlightedOne = ""
+  , highlighted = ""
   , recentlyCopied = Set.empty
-  , copyButtonFocused = False
+  , hovered = ""
+  , focused = ""
   , readyToPaste = False
   , chordBoxFocused = True
   }
@@ -45,7 +47,9 @@ update msg model =
     SuggestionsChanged suggestions ->
       ( { model
         | suggestions = suggestions
-        , copyButtonFocused = False
+        , highlighted = ""
+        , hovered = ""
+        , focused = ""
         , readyToPaste = False
         }
       , Cmd.none
@@ -57,20 +61,30 @@ update msg model =
     ChordBoxBlur ->
       ( { model | chordBoxFocused = False }, Cmd.none )
     SuggestionMsg (suggestion, Suggestion.Enter) ->
-      ( { model | highlightedOne = suggestion.s }, Cmd.none )
+      ( { model
+        | highlighted = suggestion.s
+        , hovered = suggestion.s
+        }
+      , Cmd.none
+      )
     SuggestionMsg (suggestion, Suggestion.Leave) ->
-      ( { model | highlightedOne = "" }, Cmd.none )
+      ( { model
+        | highlighted = model.focused
+        , hovered = ""
+        }
+      , Cmd.none
+      )
     SuggestionMsg (suggestion, Suggestion.Focus) ->
       ( { model
-        | highlightedOne = suggestion.s
-        , copyButtonFocused = True
+        | highlighted = suggestion.s
+        , focused = suggestion.s
         }
       , Cmd.none
       )
     SuggestionMsg (suggestion, Suggestion.Blur) ->
       ( { model
-        | highlightedOne = ""
-        , copyButtonFocused = False
+        | highlighted = model.hovered
+        , focused = ""
         }
       , Cmd.none
       )
@@ -119,7 +133,7 @@ view model =
 getInstructions : Model -> String
 getInstructions model =
   if List.length model.suggestions == 1 then
-    if model.copyButtonFocused then
+    if model.focused /= "" && model.hovered == "" then
       "Space to copy or Shift-Tab to go back"
     else if model.chordBoxFocused then
       if model.readyToPaste then

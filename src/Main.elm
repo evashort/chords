@@ -215,10 +215,7 @@ view model =
             ]
             ( Highlight.view
                 (model.text ++ "\n")
-                ( MainParser.view
-                    model.suggestionBar.highlightedOne
-                    model.parse
-                )
+                (MainParser.view model.suggestionBar.highlighted model.parse)
             )
         ]
     , Html.map SuggestionBarMsg (SuggestionBar.view model.suggestionBar)
