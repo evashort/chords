@@ -1,5 +1,4 @@
-module Highlight exposing
-  (Highlight, fromSubstring, view, suggestDeletion, viewString)
+module Highlight exposing (Highlight, viewWhole, view, suggestDeletion)
 
 import Substring exposing (Substring)
 
@@ -9,94 +8,90 @@ import Html.Attributes exposing (style)
 type alias Highlight =
   { fg : String
   , bg : String
-  , start : Int
-  , stop : Int
+  , substring : Substring
   }
 
-fromSubstring : String -> String -> Substring -> Highlight
-fromSubstring fg bg substring =
-  { fg = fg
-  , bg = bg
-  , start = substring.i
-  , stop = Substring.stop substring
-  }
-
-view : String -> List Highlight -> List (Html msg)
-view string highlights =
+viewWhole : Substring -> List Highlight -> List (Html msg)
+viewWhole whole highlights =
   let
-    sorted = List.sortBy .start highlights
+    sorted = List.sortBy (.i << .substring) highlights
   in let
     before =
       case sorted of
-        [] -> string
-        x :: rest -> String.left x.start string
+        [] -> whole
+        x :: rest -> Substring.before x.substring.i whole
   in
-    case before of
-      "" -> viewHelp string sorted
-      _ -> Html.text before :: viewHelp string sorted
+    case before.s of
+      "" -> viewWholeHelp whole sorted
+      _ -> Html.text before.s :: viewWholeHelp whole sorted
 
-viewHelp : String -> List Highlight -> List (Html msg)
-viewHelp string highlights =
+viewWholeHelp : Substring -> List Highlight -> List (Html msg)
+viewWholeHelp whole highlights =
   case highlights of
     [] ->
       []
     x :: rest ->
       let
-        xView = viewString x.fg x.bg (String.slice x.start x.stop string)
+        xView = view x
       in let
         between =
           case rest of
-            [] -> String.dropLeft x.stop string
-            y :: _ -> String.slice x.stop y.start string
+            [] ->
+              Substring.after (Substring.stop x.substring) whole
+            y :: _ ->
+              Substring.between
+                (Substring.stop x.substring)
+                y.substring.i
+                whole
       in
-        case between of
-          "" -> xView :: viewHelp string rest
-          _ -> xView :: Html.text between :: viewHelp string rest
+        case between.s of
+          "" -> xView :: viewWholeHelp whole rest
+          _ -> xView :: Html.text between.s :: viewWholeHelp whole rest
 
-viewString : String -> String -> String -> Html msg
-viewString fg bg string =
-  case ( fg, bg ) of
+view : Highlight -> Html msg
+view highlight =
+  case ( highlight.fg, highlight.bg ) of
     ( "#000000", "#ffffff" ) ->
-      Html.text string
+      Html.text highlight.substring.s
     ( "#000000", _ ) ->
       Html.mark
         [ style
             [ ( "color", "inherit" )
-            , ( "background", bg )
+            , ( "background", highlight.bg )
             , ( "border-radius", "3px" )
             ]
         ]
-        [ Html.text string ]
+        [ Html.text highlight.substring.s ]
     ( _, "#ffffff" ) ->
       Html.mark
         [ style
-            [ ( "color", fg )
+            [ ( "color", highlight.fg )
             , ( "background", "transparent" )
             , ( "text-shadow", "0px 0px 0px white" )
             , ( "position", "relative" )
             , ( "pointer-events", "none" )
             ]
         ]
-        [ Html.text string ]
+        [ Html.text highlight.substring.s ]
     _ ->
       Html.mark
         [ style
             [ ( "color", "inherit" )
-            , ( "background", bg )
+            , ( "background", highlight.bg )
             , ( "border-radius", "3px" )
             ]
         ]
         [ Html.mark
             [ style
-                [ ( "color", fg )
+                [ ( "color", highlight.fg )
                 , ( "background", "transparent" )
-                , ( "text-shadow", "0px 0px 0px " ++ bg )
+                , ( "text-shadow", "0px 0px 0px " ++ highlight.bg )
                 , ( "position", "relative" )
                 , ( "pointer-events", "none" )
                 ]
             ]
-            [ Html.text string ]
+            [ Html.text highlight.substring.s ]
         ]
 
 suggestDeletion : Substring -> Highlight
-suggestDeletion = fromSubstring "#ffffff" "#ff0000"
+suggestDeletion = Highlight "#ffffff" "#ff0000"

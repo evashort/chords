@@ -223,8 +223,8 @@ view model =
                 , ( "color", "transparent" )
                 ]
             ]
-            ( Highlight.view
-                (model.text ++ "\n")
+            ( Highlight.viewWhole
+                (Substring 0 (model.text ++ "\n"))
                 (MainParser.view model.suggestionBar.highlighted model.parse)
             )
         ]

@@ -1,6 +1,7 @@
 module Suggestion exposing (Suggestion, Msg(..), view, unique)
 
-import Highlight
+import Highlight exposing (Highlight)
+import Substring exposing (Substring)
 
 import Html exposing (Html, span, button, mark, text, textarea, pre)
 import Html.Attributes exposing (style, attribute, class, id, readonly)
@@ -125,10 +126,12 @@ view recentlyCopied suggestion =
                 , ( "color", "transparent" )
                 ]
             ]
-            [ ( Highlight.viewString
-                  suggestion.fg
-                  suggestion.bg
-                  suggestion.s
+            [ ( Highlight.view
+                  ( Highlight
+                      suggestion.fg
+                      suggestion.bg
+                      (Substring 0 suggestion.s)
+                  )
               )
             ]
         ]

@@ -111,18 +111,18 @@ viewWord suggestion word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
-        Just (Highlight.fromSubstring "#808080" "#ffffff" word.substring)
+        Just (Highlight "#808080" "#ffffff" word.substring)
       else
         Nothing
     Just chord ->
       if word.substring.s == chord.codeName then
         Just
-          ( Highlight.fromSubstring
+          ( Highlight
               (CachedChord.fg chord)
               (CachedChord.bg chord)
               word.substring
           )
       else if chord.codeName == suggestion then
-        Just (Highlight.fromSubstring "#ffffff" "#aaaaaa" word.substring)
+        Just (Highlight "#ffffff" "#aaaaaa" word.substring)
       else
         Nothing
