@@ -22,9 +22,14 @@ function changeAudio(changes) {
   }
 }
 
-function changeSelection(range) {
+function setSelection(range) {
   chordBox = document.getElementById("chordBox");
-  chordBox.focus();
   chordBox.selectionStart = range[0];
   chordBox.selectionEnd = range[1];
+  chordBox.focus();
+}
+
+function checkSelection() {
+  chordBox = document.getElementById("chordBox");
+  return [chordBox.selectionStart, chordBox.selectionEnd]
 }

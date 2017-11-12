@@ -7,7 +7,7 @@ import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import MainParser
 import Schedule exposing (Schedule, Segment)
-import SelectionChange
+import Selection
 import Substring exposing (Substring)
 import SuggestionBar
 import TickTime
@@ -49,7 +49,7 @@ init mac =
     , suggestionBar = SuggestionBar.init mac
     }
   , let n = String.length defaultText in
-      SelectionChange.changeSelection ( n, n )
+      Selection.setSelection ( n, n )
   )
 
 defaultText : String
@@ -157,9 +157,20 @@ arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  case model.schedule.segments of
-    [] -> Sub.none
-    _ -> AnimationFrame.times (always (NeedsTime CurrentTime))
+  let
+    suggestionBarSubs =
+      Sub.map
+        SuggestionBarMsg
+        (SuggestionBar.subscriptions model.suggestionBar)
+  in
+    case model.schedule.segments of
+      [] ->
+        suggestionBarSubs
+      _ ->
+        Sub.batch
+          [ AnimationFrame.times (always (NeedsTime CurrentTime))
+          , suggestionBarSubs
+          ]
 
 -- VIEW
 
@@ -181,7 +192,6 @@ view model =
         ]
         [ textarea
             [ onInput TextEdited
-            , onLeftClick (SuggestionBarMsg SuggestionBar.ChordBoxClick)
             , onFocus (SuggestionBarMsg SuggestionBar.ChordBoxFocus)
             , onBlur (SuggestionBarMsg SuggestionBar.ChordBoxBlur)
             , spellcheck False
@@ -306,15 +316,6 @@ onLeftDown : msg -> Attribute msg
 onLeftDown message =
   on
     "mousedown"
-    ( Json.Decode.andThen
-        (requireLeftButton message)
-        (Json.Decode.field "button" Json.Decode.int)
-    )
-
-onLeftClick : msg -> Attribute msg
-onLeftClick message =
-  on
-    "click"
     ( Json.Decode.andThen
         (requireLeftButton message)
         (Json.Decode.field "button" Json.Decode.int)

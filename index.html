@@ -38,7 +38,12 @@
       );
 
       app.ports.changeAudio.subscribe(changeAudio);
-      app.ports.changeSelection.subscribe(changeSelection);
+      app.ports.setSelection.subscribe(setSelection);
+      app.ports.checkSelection.subscribe(
+        function(dummy) {
+          app.ports.receiveSelection.send(checkSelection());
+        }
+      );
     </script>
   </body>
 </html>

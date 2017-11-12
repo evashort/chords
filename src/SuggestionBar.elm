@@ -1,6 +1,7 @@
-module SuggestionBar exposing (Model, init, Msg(..), update, view)
+module SuggestionBar exposing
+  (Model, init, Msg(..), update, subscriptions, view)
 
-import SelectionChange
+import Selection
 import Suggestion exposing (Suggestion)
 
 import Html exposing (Html, div, span, text)
@@ -17,8 +18,10 @@ type alias Model =
   , recentlyCopied : Set String
   , hovered : String
   , focused : String
-  , readyToPaste : Bool
+  , copiedYet : Bool
   , chordBoxFocused : Bool
+  , subscribeToSelection : Bool
+  , selection : ( Int, Int )
   }
 
 init : Bool -> Model
@@ -29,13 +32,16 @@ init mac =
   , recentlyCopied = Set.empty
   , hovered = ""
   , focused = ""
-  , readyToPaste = False
+  , copiedYet = False
   , chordBoxFocused = True
+  , subscribeToSelection = True
+  , selection = ( 0, 0 )
   }
 
 type Msg
   = SuggestionsChanged (List Suggestion)
-  | ChordBoxClick
+  | CheckSelection
+  | ReceivedSelection ( Int, Int )
   | ChordBoxFocus
   | ChordBoxBlur
   | SuggestionMsg ( Suggestion, Suggestion.Msg )
@@ -50,14 +56,26 @@ update msg model =
         , highlighted = ""
         , hovered = ""
         , focused = ""
-        , readyToPaste = False
+        , copiedYet = False
         }
       , Cmd.none
       )
-    ChordBoxClick ->
-      ( { model | readyToPaste = False }, Cmd.none )
+    CheckSelection ->
+      ( model, Selection.checkSelection () )
+    ReceivedSelection selection ->
+      ( { model
+        | selection = selection
+        , subscribeToSelection = model.chordBoxFocused
+        }
+      , Cmd.none
+      )
     ChordBoxFocus ->
-      ( { model | chordBoxFocused = True }, Cmd.none )
+      ( { model
+        | chordBoxFocused = True
+        , subscribeToSelection = True
+        }
+      , Selection.checkSelection ()
+      )
     ChordBoxBlur ->
       ( { model | chordBoxFocused = False }, Cmd.none )
     SuggestionMsg (suggestion, Suggestion.Enter) ->
@@ -91,10 +109,11 @@ update msg model =
     SuggestionMsg (suggestion, Suggestion.Copied) ->
       ( { model
         | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
-        , readyToPaste = True
+        , copiedYet = True
+        , selection = suggestion.firstRange
         }
       , Cmd.batch
-          [ SelectionChange.changeSelection suggestion.firstRange
+          [ Selection.setSelection suggestion.firstRange
           , Task.perform
               (always (RemoveCopied suggestion.s))
               (Process.sleep (1 * Time.second))
@@ -104,6 +123,16 @@ update msg model =
       ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
       , Cmd.none
       )
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  if model.subscribeToSelection then
+    Sub.batch
+      [ Time.every (1 * Time.second) (always CheckSelection)
+      , Selection.receiveSelection ReceivedSelection
+      ]
+  else
+    Selection.receiveSelection ReceivedSelection
 
 view : Model -> Html Msg
 view model =
@@ -132,25 +161,26 @@ view model =
 
 getInstructions : Model -> String
 getInstructions model =
-  if List.length model.suggestions == 1 then
-    if model.focused /= "" && model.hovered == "" then
-      "Space to copy or Shift-Tab to go back"
-    else if model.chordBoxFocused then
-      if model.readyToPaste then
-        String.concat
-          [ if model.mac then "Cmd" else "Ctrl"
-          , "-V to paste over selected text"
-          ]
+  case model.suggestions of
+    [ suggestion ] ->
+      if model.focused /= "" && model.hovered == "" then
+        "Space to copy or Shift-Tab to go back"
+      else if model.chordBoxFocused then
+        if model.copiedYet && model.selection == suggestion.firstRange then
+          String.concat
+            [ if model.mac then "Cmd" else "Ctrl"
+            , "-V to paste over selected text"
+            ]
+        else
+          String.concat
+            [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
+            , if model.mac then "Cmd" else "Ctrl"
+            , "-V to paste over selected text"
+            ]
       else
-        String.concat
-          [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
-          , if model.mac then "Cmd" else "Ctrl"
-          , "-V to paste over selected text"
-          ]
-    else
+        ""
+    _ ->
       ""
-  else
-    ""
 
 viewSuggestion : Set String -> Suggestion -> Html Msg
 viewSuggestion recentlyCopied suggestion =
