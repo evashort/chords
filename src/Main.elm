@@ -223,9 +223,19 @@ view model =
                 , ( "color", "transparent" )
                 ]
             ]
-            ( Highlight.viewWhole
-                (Substring 0 (model.text ++ "\n"))
-                (MainParser.view model.suggestionBar.highlighted model.parse)
+            ( List.map
+                Highlight.view
+                ( Highlight.mergeLayers
+                    [ MainParser.view
+                        model.suggestionBar.highlighted
+                        model.parse
+                    , [ Highlight
+                          "#000000"
+                          "#ffffff"
+                          (Substring 0 (model.text ++ "\n"))
+                      ]
+                    ]
+                )
             )
         ]
     , Html.map SuggestionBarMsg (SuggestionBar.view model.suggestionBar)

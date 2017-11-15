@@ -1,5 +1,5 @@
 module Substring exposing
-  ( Substring, stop, lines, left, dropLeft, before, after, between, find )
+  ( Substring, stop, lines, left, dropLeft, before, after, find )
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -32,13 +32,6 @@ after : Int -> Substring -> Substring
 after x substring =
   let s = String.dropLeft (x - substring.i) substring.s in
     { i = stop substring - String.length s, s = s }
-
-between : Int -> Int -> Substring -> Substring
-between x y { i, s } =
-  let start = min (String.length s) (max 0 (x - i)) in
-    { i = i + start
-    , s = String.slice start (max 0 (y - i)) s
-    }
 
 find : HowMany -> Regex -> Substring -> List Substring
 find howMany regex { i, s } =
