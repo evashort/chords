@@ -273,27 +273,46 @@ view model =
                 , ( "color", "transparent" )
                 ]
             ]
-            ( List.map
-                Highlight.view
-                ( Highlight.mergeLayers
-                    ( ( case model.suggestionBar.highlighted of
-                          Just suggestion ->
-                            [ List.map
-                                (Highlight "#ffffff" "#aaaaaa")
-                                (suggestion.firstRange :: suggestion.ranges)
-                            ]
-                          Nothing ->
-                            []
-                      ) ++
-                        [ MainParser.view model.parse
-                        , [ Highlight
-                              "#000000"
-                              "#ffffff"
-                              (Substring 0 (model.text ++ "\n"))
-                          ]
-                        ]
+            ( ( List.map Highlight.view <<
+                  Highlight.mergeLayers <<
+                    List.filterMap identity
+              )
+                [ case
+                    ( model.suggestionBar.landingPad
+                    , model.suggestionBar.landingPadSelected
+                    , model.chordBoxFocused
                     )
-                )
+                  of
+                    ( Just landingPad, True, True ) ->
+                      Just
+                        [ Highlight
+                            ( model.suggestionBar.modifierKey ++
+                                "-V to replace"
+                            )
+                            "#ffffff"
+                            "#ff0000"
+                            (Substring landingPad.i "")
+                        ]
+                    _ ->
+                      Nothing
+                , case model.suggestionBar.highlighted of
+                    Just suggestion ->
+                      Just
+                        ( List.map
+                            (Highlight "" "#ffffff" "#aaaaaa")
+                            (suggestion.firstRange :: suggestion.ranges)
+                        )
+                    Nothing ->
+                      Nothing
+                , Just (MainParser.view model.parse)
+                , Just
+                    [ Highlight
+                        ""
+                        "#000000"
+                        "#ffffff"
+                        (Substring 0 (model.text ++ "\n"))
+                    ]
+                ]
             )
         ]
     , Html.map SuggestionBarMsg (SuggestionBar.view model.suggestionBar)

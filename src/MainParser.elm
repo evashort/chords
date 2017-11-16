@@ -33,7 +33,7 @@ update substring model =
 view : Model -> List Highlight
 view model =
   ChordParser.view model.chordModel ++
-    List.map (Highlight "#008000" "#ffffff") model.comments
+    List.map (Highlight "" "#008000" "#ffffff") model.comments
 
 getChords : Model -> List (List (Maybe CachedChord))
 getChords = ChordParser.getChords << .chordModel

@@ -128,6 +128,7 @@ view recentlyCopied suggestion =
             ]
             [ ( Highlight.view
                   ( Highlight
+                      ""
                       suggestion.fg
                       suggestion.bg
                       (Substring 0 suggestion.s)

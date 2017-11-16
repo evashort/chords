@@ -12,7 +12,7 @@ import Task
 import Time
 
 type alias Model =
-  { mac : Bool
+  { modifierKey : String
   , suggestions : List Suggestion
   , highlighted : Maybe Suggestion
   , recentlyCopied : Set String
@@ -25,7 +25,7 @@ type alias Model =
 
 init : Bool -> Model
 init mac =
-  { mac = mac
+  { modifierKey = if mac then "Cmd" else "Ctrl"
   , suggestions = []
   , highlighted = Nothing
   , recentlyCopied = Set.empty
@@ -154,18 +154,12 @@ getInstructions model =
     [ suggestion ] ->
       if model.focused /= Nothing && model.hovered == Nothing then
         "Space to copy or Shift-Tab to go back"
-      else if model.chordBoxFocused then
-        if model.landingPadSelected then
-          String.concat
-            [ if model.mac then "Cmd" else "Ctrl"
-            , "-V to paste over selected text"
-            ]
-        else
-          String.concat
-            [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
-            , if model.mac then "Cmd" else "Ctrl"
-            , "-V to paste over selected text"
-            ]
+      else if model.chordBoxFocused && not model.landingPadSelected then
+        String.concat
+          [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
+          , model.modifierKey
+          , "-V to paste over selected text"
+          ]
       else
         ""
     _ ->

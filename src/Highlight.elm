@@ -5,15 +5,70 @@ import Substring exposing (Substring)
 
 import Html exposing (Html)
 import Html.Attributes exposing (style)
+import Svg exposing (Svg, svg, polyline)
+import Svg.Attributes exposing
+  (width, height, viewBox, fill, stroke, points)
 
 type alias Highlight =
-  { fg : String
+  { bubbleText : String
+  , fg : String
   , bg : String
   , substring : Substring
   }
 
 view : Highlight -> Html msg
 view highlight =
+  if highlight.bubbleText /= "" && highlight.substring.s == "" then
+    viewBubble highlight.bubbleText
+  else
+    viewNoBubble highlight
+
+viewBubble : String -> Html msg
+viewBubble bubbleText =
+  Html.span
+    [ style
+        [ ( "position", "relative" )
+        , ( "pointer-events", "none" )
+        , ( "color", "black")
+        , ( "font-family", "Arial, Helvetica, sans-serif" )
+        , ( "font-size", "10pt" )
+        ]
+    ]
+    [ Html.span
+        [ style
+            [ ( "position", "absolute" )
+            , ( "z-index", "1" )
+            , ( "top", "calc(100% + 8px)" )
+            , ( "background", "white" )
+            , ( "border", "1px solid darkgray" )
+            , ( "border-radius", "0px 3px 3px 3px" )
+            , ( "box-shadow", "1px 1px 4px rgba(0, 0, 0, 0.4)")
+            , ( "padding", "3px" )
+            , ( "white-space", "nowrap" )
+            ]
+        ]
+        [ Html.text bubbleText ]
+    , Svg.svg
+        [ style
+            [ ( "position", "absolute" )
+            , ( "z-index", "1" )
+            , ( "top", "100%" )
+            ]
+        , width "9"
+        , height "9"
+        , viewBox "0 0 9 9"
+        ]
+        [ polyline
+            [ fill "white"
+            , stroke "darkgray"
+            , points "0.5,9 0.5,0.5 9,9"
+            ]
+            []
+        ]
+    ]
+
+viewNoBubble : Highlight -> Html msg
+viewNoBubble highlight =
   case ( highlight.fg, highlight.bg ) of
     ( "#000000", "#ffffff" ) ->
       Html.text highlight.substring.s
@@ -58,7 +113,7 @@ view highlight =
         ]
 
 suggestDeletion : Substring -> Highlight
-suggestDeletion = Highlight "#ffffff" "#ff0000"
+suggestDeletion = Highlight "" "#ffffff" "#ff0000"
 
 mergeLayers : List (List Highlight) -> List Highlight
 mergeLayers layers =
@@ -117,7 +172,11 @@ popAbove queue =
               | above = aboveNew
               , belowStart = Substring.stop highlight.substring
               , below =
-                  (highlight :: peers) ::
+                  ( if highlight.substring.s == "" then
+                      peers
+                    else
+                      highlight :: peers
+                  ) ::
                     List.reverse (List.map cons belowNew) ++
                       queue.below
               }
@@ -142,6 +201,11 @@ popBelow queue =
               ( highlight
               , { queue
                 | belowStart = Substring.stop highlight.substring
+                , below =
+                    if highlight.substring.s == "" then
+                      peers :: belowNew
+                    else
+                      queue.below
                 }
               )
           else
