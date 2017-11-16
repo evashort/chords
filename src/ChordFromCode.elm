@@ -104,7 +104,7 @@ normalizeFlavorChar char =
 flavorCharNormalizations : Dict Char Char
 flavorCharNormalizations =
   Dict.fromList
-    [ ( 'ᴹ', 'M' ), ( 'ᵐ', 'm' ), ( '-', 'm' ), ( '⁻', 'm' )
+    [ ( 'ᴹ', 'M' ), ( 'ᵐ', 'm' ), ( '-', 'm' ), ( '⁻', 'm' ), ( '−', 'm' )
     , ( '⁷', '7' ), ( '⁺', '+' ), ( '⁽', '(' ), ( '⁾', ')' )
     , ( '♭', 'b' ), ( '♭', 'b' ), ( 'ᵇ', 'b' ), ( '♯', '#' )
     , ( '²', '2' ), ( '⁴', '4' ), ( '⁵', '5' ), ( '⁶', '6' )
