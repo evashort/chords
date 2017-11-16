@@ -30,9 +30,9 @@ update substring model =
     , comments = parseResult.comments
     }
 
-view : String -> Model -> List Highlight
-view suggestion model =
-  ChordParser.view suggestion model.chordModel ++
+view : Model -> List Highlight
+view model =
+  ChordParser.view model.chordModel ++
     List.map (Highlight "#008000" "#ffffff") model.comments
 
 getChords : Model -> List (List (Maybe CachedChord))

@@ -14,10 +14,10 @@ import Time
 type alias Model =
   { mac : Bool
   , suggestions : List Suggestion
-  , highlighted : String
+  , highlighted : Maybe Suggestion
   , recentlyCopied : Set String
-  , hovered : String
-  , focused : String
+  , hovered : Maybe Suggestion
+  , focused : Maybe Suggestion
   , copiedYet : Bool
   , chordBoxFocused : Bool
   , subscribeToSelection : Bool
@@ -28,10 +28,10 @@ init : Bool -> Model
 init mac =
   { mac = mac
   , suggestions = []
-  , highlighted = ""
+  , highlighted = Nothing
   , recentlyCopied = Set.empty
-  , hovered = ""
-  , focused = ""
+  , hovered = Nothing
+  , focused = Nothing
   , copiedYet = False
   , chordBoxFocused = True
   , subscribeToSelection = True
@@ -53,9 +53,9 @@ update msg model =
     SuggestionsChanged suggestions ->
       ( { model
         | suggestions = suggestions
-        , highlighted = ""
-        , hovered = ""
-        , focused = ""
+        , highlighted = Nothing
+        , hovered = Nothing
+        , focused = Nothing
         , copiedYet = False
         }
       , Cmd.none
@@ -80,45 +80,46 @@ update msg model =
       ( { model | chordBoxFocused = False }, Cmd.none )
     SuggestionMsg (suggestion, Suggestion.Enter) ->
       ( { model
-        | highlighted = suggestion.s
-        , hovered = suggestion.s
+        | highlighted = Just suggestion
+        , hovered = Just suggestion
         }
       , Cmd.none
       )
     SuggestionMsg (suggestion, Suggestion.Leave) ->
       ( { model
         | highlighted = model.focused
-        , hovered = ""
+        , hovered = Nothing
         }
       , Cmd.none
       )
     SuggestionMsg (suggestion, Suggestion.Focus) ->
       ( { model
-        | highlighted = suggestion.s
-        , focused = suggestion.s
+        | highlighted = Just suggestion
+        , focused = Just suggestion
         }
       , Cmd.none
       )
     SuggestionMsg (suggestion, Suggestion.Blur) ->
       ( { model
         | highlighted = model.hovered
-        , focused = ""
+        , focused = Nothing
         }
       , Cmd.none
       )
     SuggestionMsg (suggestion, Suggestion.Copied) ->
-      ( { model
-        | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
-        , copiedYet = True
-        , selection = suggestion.firstRange
-        }
-      , Cmd.batch
-          [ Selection.setSelection suggestion.firstRange
-          , Task.perform
-              (always (RemoveCopied suggestion.s))
-              (Process.sleep (1 * Time.second))
-          ]
-      )
+      let selection = Suggestion.selection suggestion in
+        ( { model
+          | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
+          , copiedYet = True
+          , selection = selection
+          }
+        , Cmd.batch
+            [ Selection.setSelection selection
+            , Task.perform
+                (always (RemoveCopied suggestion.s))
+                (Process.sleep (1 * Time.second))
+            ]
+        )
     RemoveCopied s ->
       ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
       , Cmd.none
@@ -163,10 +164,13 @@ getInstructions : Model -> String
 getInstructions model =
   case model.suggestions of
     [ suggestion ] ->
-      if model.focused /= "" && model.hovered == "" then
+      if model.focused /= Nothing && model.hovered == Nothing then
         "Space to copy or Shift-Tab to go back"
       else if model.chordBoxFocused then
-        if model.copiedYet && model.selection == suggestion.firstRange then
+        if
+          model.copiedYet &&
+            model.selection == Suggestion.selection suggestion
+        then
           String.concat
             [ if model.mac then "Cmd" else "Ctrl"
             , "-V to paste over selected text"

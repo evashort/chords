@@ -1,4 +1,4 @@
-module Suggestion exposing (Suggestion, Msg(..), view, unique)
+module Suggestion exposing (Suggestion, Msg(..), view, selection)
 
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
@@ -7,13 +7,13 @@ import Html exposing (Html, span, button, mark, text, textarea, pre)
 import Html.Attributes exposing (style, attribute, class, id, readonly)
 import Html.Events exposing
   (onMouseEnter, onMouseLeave, onFocus, onBlur, onClick)
-import Set exposing (Set)
 
 type alias Suggestion =
   { s : String
   , fg : String
   , bg : String
-  , firstRange : ( Int, Int )
+  , firstRange : Substring
+  , ranges : List Substring
   }
 
 type Msg
@@ -137,17 +137,6 @@ view recentlyCopied suggestion =
         ]
     ]
 
-unique : List Suggestion -> List Suggestion
-unique suggestions =
-  uniqueHelp Set.empty suggestions
-
-uniqueHelp : Set String -> List Suggestion -> List Suggestion
-uniqueHelp seen suggestions =
-  case suggestions of
-    [] ->
-      []
-    suggestion :: rest ->
-      if Set.member suggestion.s seen then
-        uniqueHelp seen rest
-      else
-        suggestion :: uniqueHelp (Set.insert suggestion.s seen) rest
+selection : Suggestion -> ( Int, Int )
+selection suggestion =
+  ( suggestion.firstRange.i, Substring.stop suggestion.firstRange )

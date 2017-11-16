@@ -226,15 +226,23 @@ view model =
             ( List.map
                 Highlight.view
                 ( Highlight.mergeLayers
-                    [ MainParser.view
-                        model.suggestionBar.highlighted
-                        model.parse
-                    , [ Highlight
-                          "#000000"
-                          "#ffffff"
-                          (Substring 0 (model.text ++ "\n"))
-                      ]
-                    ]
+                    ( ( case model.suggestionBar.highlighted of
+                          Just suggestion ->
+                            [ List.map
+                                (Highlight "#ffffff" "#aaaaaa")
+                                (suggestion.firstRange :: suggestion.ranges)
+                            ]
+                          Nothing ->
+                            []
+                      ) ++
+                        [ MainParser.view model.parse
+                        , [ Highlight
+                              "#000000"
+                              "#ffffff"
+                              (Substring 0 (model.text ++ "\n"))
+                          ]
+                        ]
+                    )
                 )
             )
         ]

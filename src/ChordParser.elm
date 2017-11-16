@@ -7,6 +7,7 @@ import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
+import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..), Match)
 
 type alias Model =
@@ -21,9 +22,9 @@ update : List Substring -> Model -> Model
 update chordRanges model =
   init chordRanges
 
-view : String -> Model -> List Highlight
-view suggestion model =
-  List.concatMap (List.filterMap (viewWord suggestion)) model.lines ++
+view : Model -> List Highlight
+view model =
+  List.concatMap (List.filterMap viewWord) model.lines ++
     List.map Highlight.suggestDeletion model.indentation
 
 getChords : Model -> List (List (Maybe CachedChord))
@@ -34,25 +35,39 @@ getChords model =
 
 getSuggestions : Model -> List Suggestion
 getSuggestions model =
-  Suggestion.unique
-    (List.concatMap (List.filterMap getSuggestion) model.lines)
+  List.sortBy
+    (.i << .firstRange)
+    ( Dict.values
+        (List.foldl addSuggestion Dict.empty (List.concat model.lines))
+    )
 
-getSuggestion : Word -> Maybe Suggestion
-getSuggestion word =
+addSuggestion : Word -> Dict String Suggestion -> Dict String Suggestion
+addSuggestion word suggestions =
   case word.chord of
     Nothing ->
-      Nothing
+      suggestions
     Just chord ->
       if word.substring.s == chord.codeName then
-        Nothing
+        suggestions
       else
-        Just
-          { s = chord.codeName
-          , fg = CachedChord.fg chord
-          , bg = CachedChord.bg chord
-          , firstRange =
-              ( word.substring.i, Substring.stop word.substring )
-          }
+        Dict.update chord.codeName (updateSuggestion word chord) suggestions
+
+updateSuggestion :
+  Word -> CachedChord -> Maybe Suggestion -> Maybe Suggestion
+updateSuggestion word chord maybeSuggestion =
+  Just <|
+    case maybeSuggestion of
+      Nothing ->
+        { s = chord.codeName
+        , fg = CachedChord.fg chord
+        , bg = CachedChord.bg chord
+        , firstRange = word.substring
+        , ranges = []
+        }
+      Just suggestion ->
+        { suggestion
+        | ranges = word.substring :: suggestion.ranges
+        }
 
 parse : List Substring -> Model
 parse lines =
@@ -106,8 +121,8 @@ getChord word =
       else
         Nothing
 
-viewWord : String -> Word -> Maybe Highlight
-viewWord suggestion word =
+viewWord : Word -> Maybe Highlight
+viewWord word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
@@ -122,7 +137,5 @@ viewWord suggestion word =
               (CachedChord.bg chord)
               word.substring
           )
-      else if chord.codeName == suggestion then
-        Just (Highlight "#ffffff" "#aaaaaa" word.substring)
       else
         Nothing
