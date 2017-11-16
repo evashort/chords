@@ -25,7 +25,7 @@ type alias Model =
 
 init : Bool -> Model
 init mac =
-  { modifierKey = if mac then "Cmd" else "Ctrl"
+  { modifierKey = if mac then "⌘" else "Ctrl+"
   , suggestions = []
   , highlighted = Nothing
   , recentlyCopied = Set.empty
@@ -158,7 +158,7 @@ getInstructions model =
         String.concat
           [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
           , model.modifierKey
-          , "-V to paste over selected text"
+          , "V to paste over selected text"
           ]
       else
         ""

@@ -287,7 +287,7 @@ view model =
                       Just
                         [ Highlight
                             ( model.suggestionBar.modifierKey ++
-                                "-V to replace"
+                                "V to replace"
                             )
                             "#ffffff"
                             "#ff0000"
