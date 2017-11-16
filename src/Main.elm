@@ -17,6 +17,7 @@ import Html exposing
   (Html, Attribute, a, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck, id)
 import Html.Events exposing (on, onInput, onFocus, onBlur)
+import Html.Lazy
 import Json.Decode exposing (Decoder)
 import Task exposing (Task)
 import Time
@@ -40,12 +41,23 @@ type alias Model =
   , selection : ( Int, Int )
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
+  , chordBox : ChordBox
   , suggestionBar : SuggestionBar.Model
+  }
+
+type alias ChordBox =
+  { modifierKey : String
+  , highlightRanges : List Substring
+  , landingPadStart : Maybe Int
   }
 
 init : Bool -> ( Model, Cmd Msg )
 init mac =
-  let n = String.length defaultText in
+  let
+    n = String.length defaultText
+  in let
+    suggestionBar = SuggestionBar.init mac
+  in
     ( { start = 0
       , schedule = { stop = 0, segments = [] }
       , tick = 0
@@ -54,7 +66,12 @@ init mac =
       , selection = ( n, n )
       , subscribeToSelection = True
       , chordBoxFocused = True
-      , suggestionBar = SuggestionBar.init mac
+      , chordBox =
+          { modifierKey = suggestionBar.modifierKey
+          , highlightRanges = SuggestionBar.highlightRanges suggestionBar
+          , landingPadStart = SuggestionBar.landingPadStart suggestionBar
+          }
+      , suggestionBar = suggestionBar
       }
     , Selection.setSelection ( n, n )
     )
@@ -143,6 +160,7 @@ update msg model =
         ( { model
           | text = newText
           , parse = parse
+          , chordBox = updateChordBox suggestionBar model.chordBox
           , suggestionBar = suggestionBar
           }
         , Cmd.map SuggestionBarMsg suggestionBarCmd
@@ -161,6 +179,7 @@ update msg model =
         ( { model
           | selection = selection
           , subscribeToSelection = model.chordBoxFocused
+          , chordBox = updateChordBox suggestionBar model.chordBox
           , suggestionBar = suggestionBar
           }
         , Cmd.map SuggestionBarMsg suggestionBarCmd
@@ -177,6 +196,7 @@ update msg model =
           | chordBoxFocused = chordBoxFocused
           , subscribeToSelection =
               model.subscribeToSelection || chordBoxFocused
+          , chordBox = updateChordBox suggestionBar model.chordBox
           , suggestionBar = suggestionBar
           }
         , if chordBoxFocused then
@@ -193,7 +213,10 @@ update msg model =
         ( suggestionBar, suggestionBarCmd ) =
           SuggestionBar.update msg model.suggestionBar
       in
-        ( { model | suggestionBar = suggestionBar }
+        ( { model
+          | chordBox = updateChordBox suggestionBar model.chordBox
+          , suggestionBar = suggestionBar
+          }
         , Cmd.map SuggestionBarMsg suggestionBarCmd
         )
 
@@ -202,6 +225,25 @@ halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
 
 arpeggioTail : List (List Int)
 arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
+
+updateChordBox : SuggestionBar.Model -> ChordBox -> ChordBox
+updateChordBox suggestionBar chordBox =
+  let
+    highlightRanges = SuggestionBar.highlightRanges suggestionBar
+  in let
+    landingPadStart = SuggestionBar.landingPadStart suggestionBar
+  in
+    if
+      highlightRanges /= chordBox.highlightRanges ||
+        landingPadStart /= chordBox.landingPadStart ||
+          suggestionBar.modifierKey /= chordBox.modifierKey
+    then
+      { modifierKey = suggestionBar.modifierKey
+      , highlightRanges = highlightRanges
+      , landingPadStart = landingPadStart
+      }
+    else
+      chordBox
 
 -- SUBSCRIPTIONS
 
@@ -232,89 +274,7 @@ view model =
         , ( "font-size", "10pt" )
         ]
     ]
-    [ div
-        [ style
-            [ ( "width", "500px" )
-            , ( "position", "relative" )
-            , ( "font-size", "20pt" )
-            , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-            ]
-        ]
-        [ textarea
-            [ onInput TextEdited
-            , onFocus (ChordBoxFocused True)
-            , onBlur (ChordBoxFocused False)
-            , spellcheck False
-            , id "chordBox"
-            , style
-                [ ( "font", "inherit" )
-                , ( "width", "100%" )
-                , ( "height", "100%" )
-                , ( "padding", "10px" )
-                , ( "border", "2px inset #e3e3e3")
-                , ( "margin", "0px" )
-                , ( "position", "absolute" )
-                , ( "resize", "none" )
-                , ( "overflow", "hidden" )
-                , ( "box-sizing", "border-box" )
-                , ( "background", "transparent" )
-                ]
-            ]
-            [ text model.text
-            ]
-        , pre
-            [ style
-                [ ( "font", "inherit" )
-                , ( "padding", "10px" )
-                , ( "border", "2px solid transparent")
-                , ( "margin", "0px" )
-                , ( "white-space", "pre-wrap" )
-                , ( "word-wrap", "break-word" )
-                , ( "color", "transparent" )
-                ]
-            ]
-            ( ( List.map Highlight.view <<
-                  Highlight.mergeLayers <<
-                    List.filterMap identity
-              )
-                [ case
-                    ( model.suggestionBar.landingPad
-                    , model.suggestionBar.landingPadSelected
-                    , model.chordBoxFocused
-                    )
-                  of
-                    ( Just landingPad, True, True ) ->
-                      Just
-                        [ Highlight
-                            ( model.suggestionBar.modifierKey ++
-                                "V to replace"
-                            )
-                            "#ffffff"
-                            "#ff0000"
-                            (Substring landingPad.i "")
-                        ]
-                    _ ->
-                      Nothing
-                , case model.suggestionBar.highlighted of
-                    Just suggestion ->
-                      Just
-                        ( List.map
-                            (Highlight "" "#ffffff" "#aaaaaa")
-                            (suggestion.firstRange :: suggestion.ranges)
-                        )
-                    Nothing ->
-                      Nothing
-                , Just (MainParser.view model.parse)
-                , Just
-                    [ Highlight
-                        ""
-                        "#000000"
-                        "#ffffff"
-                        (Substring 0 (model.text ++ "\n"))
-                    ]
-                ]
-            )
-        ]
+    [ Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.map SuggestionBarMsg (SuggestionBar.view model.suggestionBar)
     , div
         [ style
@@ -335,6 +295,84 @@ view model =
             [ href "https://github.com/evanshort73/chords" ]
             [ text "GitHub" ]
         ]
+    ]
+
+viewChordBox : String -> MainParser.Model -> ChordBox -> Html Msg
+viewChordBox chordBoxText parse chordBox =
+  div
+    [ style
+        [ ( "width", "500px" )
+        , ( "position", "relative" )
+        , ( "font-size", "20pt" )
+        , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+        ]
+    ]
+    [ textarea
+        [ onInput TextEdited
+        , onFocus (ChordBoxFocused True)
+        , onBlur (ChordBoxFocused False)
+        , spellcheck False
+        , id "chordBox"
+        , style
+            [ ( "font", "inherit" )
+            , ( "width", "100%" )
+            , ( "height", "100%" )
+            , ( "padding", "10px" )
+            , ( "border", "2px inset #e3e3e3")
+            , ( "margin", "0px" )
+            , ( "position", "absolute" )
+            , ( "resize", "none" )
+            , ( "overflow", "hidden" )
+            , ( "box-sizing", "border-box" )
+            , ( "background", "transparent" )
+            ]
+        ]
+        [ text chordBoxText ]
+    , pre
+        [ style
+            [ ( "font", "inherit" )
+            , ( "padding", "10px" )
+            , ( "border", "2px solid transparent")
+            , ( "margin", "0px" )
+            , ( "white-space", "pre-wrap" )
+            , ( "word-wrap", "break-word" )
+            , ( "color", "transparent" )
+            ]
+        ]
+        ( List.map
+            Highlight.view
+            (Highlight.mergeLayers (getLayers chordBoxText parse chordBox))
+        )
+    ]
+
+getLayers : String -> MainParser.Model -> ChordBox -> List (List Highlight)
+getLayers chordBoxText parse chordBox =
+  List.filter
+    (not << List.isEmpty)
+    [ let
+        grays =
+          List.map
+            (Highlight "" "#ffffff" "#aaaaaa")
+            chordBox.highlightRanges
+      in
+        case chordBox.landingPadStart of
+          Just i ->
+            ( Highlight
+                (chordBox.modifierKey ++ "V to replace")
+                "#ffffff"
+                "#ff0000"
+                (Substring i "")
+            ) ::
+              grays
+          _ ->
+            grays
+    , MainParser.view parse
+    , [ Highlight
+          ""
+          "#000000"
+          "#ffffff"
+          (Substring 0 (chordBoxText ++ "\n"))
+      ]
     ]
 
 viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg

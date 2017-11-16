@@ -1,4 +1,5 @@
-module SuggestionBar exposing (Model, init, Msg(..), update, view)
+module SuggestionBar exposing
+  (Model, init, Msg(..), update, landingPadStart, highlightRanges, view)
 
 import Selection
 import Substring exposing (Substring)
@@ -122,6 +123,24 @@ update msg model =
       ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
       , Cmd.none
       )
+
+landingPadStart : Model -> Maybe Int
+landingPadStart model =
+  case
+    ( model.landingPad, model.landingPadSelected, model.chordBoxFocused )
+  of
+    ( Just substring, True, True ) ->
+      Just substring.i
+    _ ->
+      Nothing
+
+highlightRanges : Model -> List Substring
+highlightRanges model =
+  case model.highlighted of
+    Nothing ->
+      []
+    Just suggestion ->
+      suggestion.firstRange :: suggestion.ranges
 
 view : Model -> Html Msg
 view model =
