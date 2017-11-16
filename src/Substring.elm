@@ -1,5 +1,5 @@
 module Substring exposing
-  ( Substring, stop, lines, left, dropLeft, before, after, find )
+  ( Substring, stop, range, lines, left, dropLeft, before, after, find )
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -11,6 +11,10 @@ type alias Substring =
 stop : Substring -> Int
 stop { i, s } =
   i + String.length s
+
+range : Substring -> ( Int, Int )
+range { i, s } =
+  ( i, i + String.length s )
 
 lines : Substring -> List Substring
 lines = regexSplit All (Regex.regex "\\r\\n|\\r|\\n")

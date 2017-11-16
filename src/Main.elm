@@ -19,6 +19,7 @@ import Html.Attributes exposing (href, style, spellcheck, id)
 import Html.Events exposing (on, onInput, onFocus, onBlur)
 import Json.Decode exposing (Decoder)
 import Task exposing (Task)
+import Time
 
 main =
   Html.programWithFlags
@@ -36,21 +37,27 @@ type alias Model =
   , tick : Int
   , text : String
   , parse : MainParser.Model
+  , selection : ( Int, Int )
+  , subscribeToSelection : Bool
+  , chordBoxFocused : Bool
   , suggestionBar : SuggestionBar.Model
   }
 
 init : Bool -> ( Model, Cmd Msg )
 init mac =
-  ( { start = 0
-    , schedule = { stop = 0, segments = [] }
-    , tick = 0
-    , text = defaultText
-    , parse = MainParser.init (Substring 0 defaultText)
-    , suggestionBar = SuggestionBar.init mac
-    }
-  , let n = String.length defaultText in
-      Selection.setSelection ( n, n )
-  )
+  let n = String.length defaultText in
+    ( { start = 0
+      , schedule = { stop = 0, segments = [] }
+      , tick = 0
+      , text = defaultText
+      , parse = MainParser.init (Substring 0 defaultText)
+      , selection = ( n, n )
+      , subscribeToSelection = True
+      , chordBoxFocused = True
+      , suggestionBar = SuggestionBar.init mac
+      }
+    , Selection.setSelection ( n, n )
+    )
 
 defaultText : String
 defaultText =
@@ -63,6 +70,9 @@ type Msg
   | CurrentTime Float
   | PlayChord ( Chord, Float )
   | TextEdited String
+  | CheckSelection
+  | ReceivedSelection ( Int, Int )
+  | ChordBoxFocused Bool
   | SuggestionBarMsg SuggestionBar.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -138,6 +148,46 @@ update msg model =
         , Cmd.map SuggestionBarMsg suggestionBarCmd
         )
 
+    CheckSelection ->
+      ( model, Selection.checkSelection () )
+
+    ReceivedSelection selection ->
+      let
+        ( suggestionBar, suggestionBarCmd ) =
+          SuggestionBar.update
+            (SuggestionBar.ReceivedSelection selection)
+            model.suggestionBar
+      in
+        ( { model
+          | selection = selection
+          , subscribeToSelection = model.chordBoxFocused
+          , suggestionBar = suggestionBar
+          }
+        , Cmd.map SuggestionBarMsg suggestionBarCmd
+        )
+
+    ChordBoxFocused chordBoxFocused ->
+      let
+        ( suggestionBar, suggestionBarCmd ) =
+          SuggestionBar.update
+            (SuggestionBar.ChordBoxFocused chordBoxFocused)
+            model.suggestionBar
+      in
+        ( { model
+          | chordBoxFocused = chordBoxFocused
+          , subscribeToSelection =
+              model.subscribeToSelection || chordBoxFocused
+          , suggestionBar = suggestionBar
+          }
+        , if chordBoxFocused then
+            Cmd.batch
+              [ Selection.checkSelection ()
+              , Cmd.map SuggestionBarMsg suggestionBarCmd
+              ]
+          else
+            Cmd.map SuggestionBarMsg suggestionBarCmd
+        )
+
     SuggestionBarMsg msg ->
       let
         ( suggestionBar, suggestionBarCmd ) =
@@ -157,20 +207,20 @@ arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  let
-    suggestionBarSubs =
-      Sub.map
-        SuggestionBarMsg
-        (SuggestionBar.subscriptions model.suggestionBar)
-  in
-    case model.schedule.segments of
-      [] ->
-        suggestionBarSubs
-      _ ->
-        Sub.batch
-          [ AnimationFrame.times (always (NeedsTime CurrentTime))
-          , suggestionBarSubs
-          ]
+  Sub.batch
+    ( List.filterMap
+        identity
+        [ Just (Selection.receiveSelection ReceivedSelection)
+        , if model.subscribeToSelection then
+            Just (Time.every (1 * Time.second) (always CheckSelection))
+          else
+            Nothing
+        , if model.schedule.segments /= [] then
+            Just (AnimationFrame.times (always (NeedsTime CurrentTime)))
+          else
+            Nothing
+        ]
+    )
 
 -- VIEW
 
@@ -192,8 +242,8 @@ view model =
         ]
         [ textarea
             [ onInput TextEdited
-            , onFocus (SuggestionBarMsg SuggestionBar.ChordBoxFocus)
-            , onBlur (SuggestionBarMsg SuggestionBar.ChordBoxBlur)
+            , onFocus (ChordBoxFocused True)
+            , onBlur (ChordBoxFocused False)
             , spellcheck False
             , id "chordBox"
             , style

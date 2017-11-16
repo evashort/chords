@@ -1,7 +1,7 @@
-module SuggestionBar exposing
-  (Model, init, Msg(..), update, subscriptions, view)
+module SuggestionBar exposing (Model, init, Msg(..), update, view)
 
 import Selection
+import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
 import Html exposing (Html, div, span, text)
@@ -18,10 +18,9 @@ type alias Model =
   , recentlyCopied : Set String
   , hovered : Maybe Suggestion
   , focused : Maybe Suggestion
-  , copiedYet : Bool
+  , landingPad : Maybe Substring
+  , landingPadSelected : Bool
   , chordBoxFocused : Bool
-  , subscribeToSelection : Bool
-  , selection : ( Int, Int )
   }
 
 init : Bool -> Model
@@ -32,18 +31,15 @@ init mac =
   , recentlyCopied = Set.empty
   , hovered = Nothing
   , focused = Nothing
-  , copiedYet = False
+  , landingPad = Nothing
+  , landingPadSelected = False
   , chordBoxFocused = True
-  , subscribeToSelection = True
-  , selection = ( 0, 0 )
   }
 
 type Msg
   = SuggestionsChanged (List Suggestion)
-  | CheckSelection
   | ReceivedSelection ( Int, Int )
-  | ChordBoxFocus
-  | ChordBoxBlur
+  | ChordBoxFocused Bool
   | SuggestionMsg ( Suggestion, Suggestion.Msg )
   | RemoveCopied String
 
@@ -56,28 +52,27 @@ update msg model =
         , highlighted = Nothing
         , hovered = Nothing
         , focused = Nothing
-        , copiedYet = False
+        , landingPad = Nothing
+        , landingPadSelected = False
         }
       , Cmd.none
       )
-    CheckSelection ->
-      ( model, Selection.checkSelection () )
+
     ReceivedSelection selection ->
       ( { model
-        | selection = selection
-        , subscribeToSelection = model.chordBoxFocused
+        | landingPadSelected =
+            case model.landingPad of
+              Just landingPad ->
+                selection == Substring.range landingPad
+              Nothing ->
+                False
         }
       , Cmd.none
       )
-    ChordBoxFocus ->
-      ( { model
-        | chordBoxFocused = True
-        , subscribeToSelection = True
-        }
-      , Selection.checkSelection ()
-      )
-    ChordBoxBlur ->
-      ( { model | chordBoxFocused = False }, Cmd.none )
+
+    ChordBoxFocused chordBoxFocused ->
+      ( { model | chordBoxFocused = chordBoxFocused }, Cmd.none )
+
     SuggestionMsg (suggestion, Suggestion.Enter) ->
       ( { model
         | highlighted = Just suggestion
@@ -85,6 +80,7 @@ update msg model =
         }
       , Cmd.none
       )
+
     SuggestionMsg (suggestion, Suggestion.Leave) ->
       ( { model
         | highlighted = model.focused
@@ -92,6 +88,7 @@ update msg model =
         }
       , Cmd.none
       )
+
     SuggestionMsg (suggestion, Suggestion.Focus) ->
       ( { model
         | highlighted = Just suggestion
@@ -99,6 +96,7 @@ update msg model =
         }
       , Cmd.none
       )
+
     SuggestionMsg (suggestion, Suggestion.Blur) ->
       ( { model
         | highlighted = model.hovered
@@ -106,34 +104,24 @@ update msg model =
         }
       , Cmd.none
       )
+
     SuggestionMsg (suggestion, Suggestion.Copied) ->
-      let selection = Suggestion.selection suggestion in
-        ( { model
-          | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
-          , copiedYet = True
-          , selection = selection
-          }
-        , Cmd.batch
-            [ Selection.setSelection selection
-            , Task.perform
-                (always (RemoveCopied suggestion.s))
-                (Process.sleep (1 * Time.second))
-            ]
-        )
+      ( { model
+        | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
+        , landingPad = Just suggestion.firstRange
+        }
+      , Cmd.batch
+          [ Selection.setSelection (Substring.range suggestion.firstRange)
+          , Task.perform
+              (always (RemoveCopied suggestion.s))
+              (Process.sleep (1 * Time.second))
+          ]
+      )
+
     RemoveCopied s ->
       ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
       , Cmd.none
       )
-
-subscriptions : Model -> Sub Msg
-subscriptions model =
-  if model.subscribeToSelection then
-    Sub.batch
-      [ Time.every (1 * Time.second) (always CheckSelection)
-      , Selection.receiveSelection ReceivedSelection
-      ]
-  else
-    Selection.receiveSelection ReceivedSelection
 
 view : Model -> Html Msg
 view model =
@@ -167,10 +155,7 @@ getInstructions model =
       if model.focused /= Nothing && model.hovered == Nothing then
         "Space to copy or Shift-Tab to go back"
       else if model.chordBoxFocused then
-        if
-          model.copiedYet &&
-            model.selection == Suggestion.selection suggestion
-        then
+        if model.landingPadSelected then
           String.concat
             [ if model.mac then "Cmd" else "Ctrl"
             , "-V to paste over selected text"
