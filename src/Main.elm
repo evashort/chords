@@ -334,33 +334,31 @@ viewChordBox chordBoxText parse chordBox =
 
 getLayers : String -> MainParser.Model -> ChordBox -> List (List Highlight)
 getLayers chordBoxText parse chordBox =
-  List.filter
-    (not << List.isEmpty)
-    [ let
-        grays =
-          List.map
-            (Highlight "" "#ffffff" "#aaaaaa")
-            chordBox.highlightRanges
-      in
-        case chordBox.landingPadStart of
-          Just i ->
-            ( Highlight
-                (chordBox.modifierKey ++ "V to replace")
-                "#ffffff"
-                "#ff0000"
-                (Substring i "")
-            ) ::
-              grays
-          _ ->
+  [ let
+      grays =
+        List.map
+          (Highlight "" "#ffffff" "#aaaaaa")
+          chordBox.highlightRanges
+    in
+      case chordBox.landingPadStart of
+        Just i ->
+          ( Highlight
+              (chordBox.modifierKey ++ "V to replace")
+              "#ffffff"
+              "#ff0000"
+              (Substring i "")
+          ) ::
             grays
-    , MainParser.view parse
-    , [ Highlight
-          ""
-          "#000000"
-          "#ffffff"
-          (Substring 0 (chordBoxText ++ "\n"))
-      ]
+        _ ->
+          grays
+  , MainParser.view parse
+  , [ Highlight
+        ""
+        "#000000"
+        "#ffffff"
+        (Substring 0 (chordBoxText ++ "\n"))
     ]
+  ]
 
 viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg
 viewLine activeChord nextChord line =
