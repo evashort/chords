@@ -172,24 +172,43 @@ update msg model =
       ( model, Selection.checkSelection () )
 
     ReceivedSelection selection ->
-      ( { model
-        | selection = selection
-        , subscribeToSelection = model.chordBoxFocused
-        }
-      , Cmd.none
-      )
+      let
+        ( suggestionBar, suggestionBarCmd ) =
+          SuggestionBar.update
+            (SuggestionBar.ReceivedSelection selection)
+            model.suggestionBar
+      in
+        ( { model
+          | selection = selection
+          , subscribeToSelection = model.chordBoxFocused
+          , chordBox = updateChordBox suggestionBar model.chordBox
+          , suggestionBar = suggestionBar
+          }
+        , Cmd.map SuggestionBarMsg suggestionBarCmd
+        )
 
     ChordBoxFocused chordBoxFocused ->
-      ( { model
-        | chordBoxFocused = chordBoxFocused
-        , subscribeToSelection =
-            model.subscribeToSelection || chordBoxFocused
-        }
-      , if chordBoxFocused then
-          Selection.checkSelection ()
-        else
-          Cmd.none
-      )
+      let
+        ( suggestionBar, suggestionBarCmd ) =
+          SuggestionBar.update
+            (SuggestionBar.ChordBoxFocused chordBoxFocused)
+            model.suggestionBar
+      in
+        ( { model
+          | chordBoxFocused = chordBoxFocused
+          , subscribeToSelection =
+              model.subscribeToSelection || chordBoxFocused
+          , chordBox = updateChordBox suggestionBar model.chordBox
+          , suggestionBar = suggestionBar
+          }
+        , if chordBoxFocused then
+            Cmd.batch
+              [ Selection.checkSelection ()
+              , Cmd.map SuggestionBarMsg suggestionBarCmd
+              ]
+          else
+            Cmd.map SuggestionBarMsg suggestionBarCmd
+        )
 
     SuggestionBarMsg msg ->
       let
@@ -243,11 +262,6 @@ subscriptions model =
             Just (AnimationFrame.times (always (NeedsTime CurrentTime)))
           else
             Nothing
-        , Just
-            ( Sub.map
-                SuggestionBarMsg
-                (SuggestionBar.subscriptions model.suggestionBar)
-            )
         ]
     )
 
@@ -298,8 +312,6 @@ viewChordBox chordBoxText parse chordBox =
         [ onInput TextEdited
         , onFocus (ChordBoxFocused True)
         , onBlur (ChordBoxFocused False)
-        , onFocus (SuggestionBarMsg (SuggestionBar.ChordBoxFocused True))
-        , onBlur (SuggestionBarMsg (SuggestionBar.ChordBoxFocused False))
         , spellcheck False
         , id "chordBox"
         , style
