@@ -25,7 +25,7 @@ import Time
 main =
   Html.programWithFlags
     { init = init
-    , view = view
+    , view = Html.Lazy.lazy view
     , update = update
     , subscriptions = subscriptions
     }
@@ -43,12 +43,18 @@ type alias Model =
   , chordBoxFocused : Bool
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar.Model
+  , chordArea : ChordArea
   }
 
 type alias ChordBox =
   { modifierKey : String
   , highlightRanges : List Substring
   , landingPadStart : Maybe Int
+  }
+
+type alias ChordArea =
+  { activeChord : Maybe Chord
+  , nextChord : Maybe Chord
   }
 
 init : Bool -> ( Model, Cmd Msg )
@@ -74,6 +80,10 @@ init mac =
           , landingPadStart = SuggestionBar.landingPadStart suggestionBar
           }
       , suggestionBar = suggestionBar
+      , chordArea =
+          { activeChord = Nothing
+          , nextChord = Nothing
+          }
       }
     , Selection.setSelection ( n, n )
     )
@@ -102,13 +112,23 @@ update msg model =
 
     CurrentTime now ->
       ( if TickTime.nextBeat model.start now > model.schedule.stop then
-          { model
-          | start = 0
-          , schedule = { stop = 0, segments = [] }
-          , tick = 0
-          }
+          let schedule = { stop = 0, segments = [] } in
+            { model
+            | start = 0
+            , schedule = schedule
+            , tick = 0
+            , chordArea = updateChordArea model.chordArea schedule 0
+            }
         else
-          { model | tick = TickTime.toTick model.start now }
+          let tick = TickTime.toTick model.start now in
+            if tick /= model.tick then
+              { model
+              | tick = TickTime.toTick model.start now
+              , chordArea =
+                  updateChordArea model.chordArea model.schedule tick
+              }
+            else
+              model
       , Cmd.none
       )
 
@@ -135,11 +155,15 @@ update msg model =
             [ 0 ] :: arpeggioTail
       in let
         stop = beat + 16
+      in let
+        newSchedule =
+          Schedule.add stop { x = chord, start = beat } schedule
       in
         ( { model
           | start = start
-          , schedule =
-              Schedule.add stop { x = chord, start = beat } schedule
+          , schedule = newSchedule
+          , chordArea =
+              updateChordArea model.chordArea newSchedule model.tick
           }
         , AudioChange.playNotes
             mute
@@ -232,6 +256,23 @@ updateChordBox suggestionBar chordBox =
     else
       chordBox
 
+updateChordArea : ChordArea -> Schedule Chord -> Int -> ChordArea
+updateChordArea chordArea schedule tick =
+  let
+    activeChord = Maybe.map .x (Schedule.get tick schedule)
+  in let
+    nextChord = Maybe.map .x (Schedule.next tick schedule)
+  in
+    if
+      activeChord /= chordArea.activeChord ||
+        nextChord /= chordArea.nextChord
+    then
+      { activeChord = activeChord
+      , nextChord = nextChord
+      }
+    else
+      chordArea
+
 -- SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
@@ -263,20 +304,7 @@ view model =
     ]
     [ Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
-    , div
-        [ style
-            [ ( "min-height", "200px" )
-            , ( "font-size", "18pt" )
-            , ( "margin-right", "5px" )
-            , ( "margin-bottom", "55px" )
-            ]
-        ] <|
-        List.map
-          ( viewLine
-              (Maybe.map .x (Schedule.get model.tick model.schedule))
-              (Maybe.map .x (Schedule.next model.tick model.schedule))
-          )
-          (MainParser.getChords model.parse)
+    , Html.Lazy.lazy2 viewChordArea model.chordArea model.parse
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]
@@ -364,32 +392,45 @@ getLayers chordBoxText parse chordBox =
 viewSuggestionBar : SuggestionBar.Model -> Html Msg
 viewSuggestionBar = Html.map SuggestionBarMsg << SuggestionBar.view
 
-viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg
-viewLine activeChord nextChord line =
+viewChordArea : ChordArea -> MainParser.Model -> Html Msg
+viewChordArea chordArea parse =
+  div
+    [ style
+        [ ( "min-height", "200px" )
+        , ( "font-size", "18pt" )
+        , ( "margin-right", "5px" )
+        , ( "margin-bottom", "55px" )
+        ]
+    ]
+    (List.map (viewLine chordArea) (MainParser.getChords parse))
+
+viewLine : ChordArea -> List (Maybe CachedChord) -> Html Msg
+viewLine chordArea line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord activeChord nextChord) line)
+    (List.map (viewMaybeChord chordArea) line)
 
-viewMaybeChord : Maybe Chord -> Maybe Chord -> Maybe CachedChord -> Html Msg
-viewMaybeChord activeChord nextChord maybeChord =
+viewMaybeChord : ChordArea -> Maybe CachedChord -> Html Msg
+viewMaybeChord chordArea maybeChord =
   case maybeChord of
     Just chord ->
-      viewChord activeChord nextChord chord
+      viewChord chordArea chord
     Nothing ->
       viewSpace
 
-viewChord : Maybe Chord -> Maybe Chord -> CachedChord -> Html Msg
-viewChord activeChord nextChord chord =
+viewChord : ChordArea -> CachedChord -> Html Msg
+viewChord chordArea chord =
   let
     selected =
-      activeChord == Just chord.chord || nextChord == Just chord.chord
+      chordArea.activeChord == Just chord.chord ||
+        chordArea.nextChord == Just chord.chord
   in
     span
       [ style
           [ ( "border-style"
-            , if nextChord == Just chord.chord then
+            , if chordArea.nextChord == Just chord.chord then
                 "dashed"
               else
                 "solid"
