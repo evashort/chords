@@ -24,9 +24,9 @@ type alias Model =
   , chordBoxFocused : Bool
   }
 
-init : Bool -> Model
-init mac =
-  { modifierKey = if mac then "⌘" else "Ctrl+"
+init : String -> Model
+init modifierKey =
+  { modifierKey = modifierKey
   , suggestions = []
   , highlighted = Nothing
   , recentlyCopied = Set.empty

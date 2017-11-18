@@ -56,7 +56,9 @@ init mac =
   let
     n = String.length defaultText
   in let
-    suggestionBar = SuggestionBar.init mac
+    modifierKey = if mac then "⌘" else "Ctrl+"
+  in let
+    suggestionBar = SuggestionBar.init modifierKey
   in
     ( { start = 0
       , schedule = { stop = 0, segments = [] }
@@ -67,7 +69,7 @@ init mac =
       , subscribeToSelection = True
       , chordBoxFocused = True
       , chordBox =
-          { modifierKey = suggestionBar.modifierKey
+          { modifierKey = modifierKey
           , highlightRanges = SuggestionBar.highlightRanges suggestionBar
           , landingPadStart = SuggestionBar.landingPadStart suggestionBar
           }
@@ -235,11 +237,10 @@ updateChordBox suggestionBar chordBox =
   in
     if
       highlightRanges /= chordBox.highlightRanges ||
-        landingPadStart /= chordBox.landingPadStart ||
-          suggestionBar.modifierKey /= chordBox.modifierKey
+        landingPadStart /= chordBox.landingPadStart
     then
-      { modifierKey = suggestionBar.modifierKey
-      , highlightRanges = highlightRanges
+      { chordBox
+      | highlightRanges = highlightRanges
       , landingPadStart = landingPadStart
       }
     else
