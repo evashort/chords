@@ -37,7 +37,7 @@ viewBubble bubbleText =
     [ Html.span
         [ style
             [ ( "position", "absolute" )
-            , ( "z-index", "1" )
+            , ( "z-index", "2" )
             , ( "top", "calc(100% + 8px)" )
             , ( "background", "white" )
             , ( "border", "1px solid darkgray" )
@@ -51,7 +51,7 @@ viewBubble bubbleText =
     , Svg.svg
         [ style
             [ ( "position", "absolute" )
-            , ( "z-index", "1" )
+            , ( "z-index", "2" )
             , ( "top", "100%" )
             ]
         , width "9"
