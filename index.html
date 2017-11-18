@@ -44,6 +44,7 @@
           app.ports.receiveSelection.send(checkSelection());
         }
       );
+      app.ports.setChordBoxText.subscribe(setChordBoxText);
     </script>
   </body>
 </html>

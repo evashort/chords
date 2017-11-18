@@ -5,5 +5,4 @@ import Native.AudioTime
 import Task exposing (Task)
 
 now : Task x Float
-now =
-  Native.AudioTime.now
+now = Native.AudioTime.now

@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import AudioChange
 import AudioTime
@@ -19,11 +19,14 @@ import Html.Attributes exposing (href, style, spellcheck, id)
 import Html.Events exposing (on, onInput, onFocus, onBlur, onClick)
 import Html.Lazy
 import Json.Decode exposing (Decoder)
+import Navigation exposing (Location)
 import Task exposing (Task)
 import Time
+import Url
 
 main =
-  Html.programWithFlags
+  Navigation.programWithFlags
+    UrlChange
     { init = init
     , view = Html.Lazy.lazy view
     , update = update
@@ -38,6 +41,7 @@ type alias Model =
   , tick : Int
   , text : String
   , parse : MainParser.Model
+  , home : Bool
   , selection : ( Int, Int )
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
@@ -57,10 +61,12 @@ type alias ChordArea =
   , nextChord : Maybe Chord
   }
 
-init : Bool -> ( Model, Cmd Msg )
-init mac =
+init : Bool -> Location -> ( Model, Cmd Msg )
+init mac location =
   let
-    n = String.length defaultText
+    text = textFromLocation location
+  in let
+    n = String.length text
   in let
     modifierKey = if mac then "⌘" else "Ctrl+"
   in let
@@ -69,8 +75,9 @@ init mac =
     ( { start = 0
       , schedule = { stop = 0, segments = [] }
       , tick = 0
-      , text = defaultText
-      , parse = MainParser.init (Substring 0 defaultText)
+      , text = text
+      , parse = MainParser.init (Substring 0 text)
+      , home = True
       , selection = ( n, n )
       , subscribeToSelection = True
       , chordBoxFocused = True
@@ -88,6 +95,10 @@ init mac =
     , Selection.setSelection ( n, n )
     )
 
+textFromLocation : Location -> String
+textFromLocation location =
+  Maybe.withDefault defaultText (Url.hashParamValue "text" location)
+
 defaultText : String
 defaultText =
   "F   Csus4 C   G  G7\nDm7 FM7   _   E  E7\nDm  Asus4 Am  Em\nB0\n"
@@ -99,6 +110,7 @@ type Msg
   | CurrentTime Float
   | PlayChord ( Chord, Float )
   | TextEdited String
+  | UrlChange Location
   | CheckSelection
   | ReceivedSelection ( Int, Int )
   | ChordBoxFocused Bool
@@ -183,8 +195,34 @@ update msg model =
           { model
           | text = newText
           , parse = parse
+          , home = False
           }
-          []
+          [ if model.home then
+              Navigation.newUrl
+                ("#text=" ++ Url.percentEncode newText)
+            else
+              Navigation.modifyUrl
+                ("#text=" ++ Url.percentEncode newText)
+          ]
+
+    UrlChange location ->
+      let newText = textFromLocation location in
+        if newText /= model.text then
+          let
+            parse = MainParser.update (Substring 0 newText) model.parse
+          in let
+            suggestions = MainParser.getSuggestions parse
+          in
+            updateSuggestionBar
+              (SuggestionBar.SuggestionsChanged suggestions)
+              { model
+              | text = newText
+              , parse = parse
+              , home = True
+              }
+              [ setChordBoxText newText ]
+        else
+          ( model, Cmd.none )
 
     CheckSelection ->
       ( model, Selection.checkSelection () )
@@ -274,6 +312,8 @@ updateChordArea chordArea schedule tick =
       chordArea
 
 -- SUBSCRIPTIONS
+
+port setChordBoxText : String -> Cmd msg
 
 subscriptions : Model -> Sub Msg
 subscriptions model =

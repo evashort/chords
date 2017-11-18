@@ -33,3 +33,8 @@ function checkSelection() {
   chordBox = document.getElementById("chordBox");
   return [chordBox.selectionStart, chordBox.selectionEnd]
 }
+
+function setChordBoxText(text) {
+  chordBox = document.getElementById("chordBox");
+  chordBox.value = text;
+}
