@@ -60,16 +60,20 @@ update msg model =
       )
 
     ReceivedSelection selection ->
-      ( { model
-        | landingPadSelected =
-            case model.landingPad of
-              Just landingPad ->
-                selection == Substring.range landingPad
-              Nothing ->
-                False
-        }
-      , Cmd.none
-      )
+      let
+        landingPadSelected =
+          case model.landingPad of
+            Just landingPad ->
+              selection == Substring.range landingPad
+            Nothing ->
+              False
+      in
+        ( if landingPadSelected /= model.landingPadSelected then
+            { model | landingPadSelected = landingPadSelected }
+          else
+            model
+        , Cmd.none
+        )
 
     ChordBoxFocused chordBoxFocused ->
       ( { model | chordBoxFocused = chordBoxFocused }, Cmd.none )

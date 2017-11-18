@@ -16,7 +16,7 @@ import AnimationFrame
 import Html exposing
   (Html, Attribute, a, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck, id)
-import Html.Events exposing (on, onInput, onFocus, onBlur)
+import Html.Events exposing (on, onInput, onFocus, onBlur, onClick)
 import Html.Lazy
 import Json.Decode exposing (Decoder)
 import Task exposing (Task)
@@ -262,7 +262,7 @@ view model =
         ]
     ]
     [ Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
-    , Html.map SuggestionBarMsg (SuggestionBar.view model.suggestionBar)
+    , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
     , div
         [ style
             [ ( "min-height", "200px" )
@@ -298,6 +298,7 @@ viewChordBox chordBoxText parse chordBox =
         [ onInput TextEdited
         , onFocus (ChordBoxFocused True)
         , onBlur (ChordBoxFocused False)
+        , onLeftClick CheckSelection
         , spellcheck False
         , id "chordBox"
         , style
@@ -359,6 +360,9 @@ getLayers chordBoxText parse chordBox =
         (Substring 0 (chordBoxText ++ "\n"))
     ]
   ]
+
+viewSuggestionBar : SuggestionBar.Model -> Html Msg
+viewSuggestionBar = Html.map SuggestionBarMsg << SuggestionBar.view
 
 viewLine : Maybe Chord -> Maybe Chord -> List (Maybe CachedChord) -> Html Msg
 viewLine activeChord nextChord line =
@@ -426,6 +430,15 @@ onLeftDown : msg -> Attribute msg
 onLeftDown message =
   on
     "mousedown"
+    ( Json.Decode.andThen
+        (requireLeftButton message)
+        (Json.Decode.field "button" Json.Decode.int)
+    )
+
+onLeftClick : msg -> Attribute msg
+onLeftClick message =
+  on
+    "click"
     ( Json.Decode.andThen
         (requireLeftButton message)
         (Json.Decode.field "button" Json.Decode.int)
