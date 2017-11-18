@@ -66,25 +66,31 @@ init mac location =
   let
     text = textFromLocation location
   in let
+    parse = MainParser.init (Substring 0 text)
+  in let
+    suggestions = MainParser.getSuggestions parse
+  in let
     n = String.length text
   in let
     modifierKey = if mac then "⌘" else "Ctrl+"
   in let
-    suggestionBar = SuggestionBar.init modifierKey
+    suggestionBar = SuggestionBar.init modifierKey suggestions
   in
     ( { start = 0
       , schedule = { stop = 0, segments = [] }
       , tick = 0
       , text = text
-      , parse = MainParser.init (Substring 0 text)
+      , parse = parse
       , home = True
       , selection = ( n, n )
       , subscribeToSelection = True
       , chordBoxFocused = True
       , chordBox =
           { modifierKey = modifierKey
-          , highlightRanges = SuggestionBar.highlightRanges suggestionBar
-          , landingPadStart = SuggestionBar.landingPadStart suggestionBar
+          , highlightRanges =
+              SuggestionBar.highlightRanges suggestionBar
+          , landingPadStart =
+              SuggestionBar.landingPadStart suggestionBar
           }
       , suggestionBar = suggestionBar
       , chordArea =

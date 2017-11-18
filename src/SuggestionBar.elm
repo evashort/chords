@@ -24,10 +24,10 @@ type alias Model =
   , chordBoxFocused : Bool
   }
 
-init : String -> Model
-init modifierKey =
+init : String -> List Suggestion -> Model
+init modifierKey suggestions =
   { modifierKey = modifierKey
-  , suggestions = []
+  , suggestions = suggestions
   , highlighted = Nothing
   , recentlyCopied = Set.empty
   , hovered = Nothing
