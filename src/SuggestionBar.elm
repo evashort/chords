@@ -1,5 +1,7 @@
 module SuggestionBar exposing
-  (Model, init, Msg(..), update, landingPadStart, highlightRanges, view)
+  ( Model, init, Msg(..), update, landingPadStart, highlightRanges
+  , subscriptions, view
+  )
 
 import Selection
 import Substring exposing (Substring)
@@ -141,6 +143,10 @@ highlightRanges model =
       []
     Just suggestion ->
       suggestion.firstRange :: suggestion.ranges
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+  Selection.receiveSelection ReceivedSelection
 
 view : Model -> Html Msg
 view model =
