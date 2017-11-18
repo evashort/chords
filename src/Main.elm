@@ -153,80 +153,66 @@ update msg model =
         parse = MainParser.update (Substring 0 newText) model.parse
       in let
         suggestions = MainParser.getSuggestions parse
-      in let
-        ( suggestionBar, suggestionBarCmd ) =
-          SuggestionBar.update
-            (SuggestionBar.SuggestionsChanged suggestions)
-            model.suggestionBar
       in
-        ( { model
+        updateSuggestionBar
+          (SuggestionBar.SuggestionsChanged suggestions)
+          { model
           | text = newText
           , parse = parse
-          , chordBox = updateChordBox suggestionBar model.chordBox
-          , suggestionBar = suggestionBar
           }
-        , Cmd.map SuggestionBarMsg suggestionBarCmd
-        )
+          []
 
     CheckSelection ->
       ( model, Selection.checkSelection () )
 
     ReceivedSelection selection ->
-      let
-        ( suggestionBar, suggestionBarCmd ) =
-          SuggestionBar.update
-            (SuggestionBar.ReceivedSelection selection)
-            model.suggestionBar
-      in
-        ( { model
-          | selection = selection
-          , subscribeToSelection = model.chordBoxFocused
-          , chordBox = updateChordBox suggestionBar model.chordBox
-          , suggestionBar = suggestionBar
-          }
-        , Cmd.map SuggestionBarMsg suggestionBarCmd
-        )
+      updateSuggestionBar
+        (SuggestionBar.ReceivedSelection selection)
+        { model
+        | selection = selection
+        , subscribeToSelection = model.chordBoxFocused
+        }
+        []
 
     ChordBoxFocused chordBoxFocused ->
-      let
-        ( suggestionBar, suggestionBarCmd ) =
-          SuggestionBar.update
-            (SuggestionBar.ChordBoxFocused chordBoxFocused)
-            model.suggestionBar
-      in
-        ( { model
-          | chordBoxFocused = chordBoxFocused
-          , subscribeToSelection =
-              model.subscribeToSelection || chordBoxFocused
-          , chordBox = updateChordBox suggestionBar model.chordBox
-          , suggestionBar = suggestionBar
-          }
-        , if chordBoxFocused then
-            Cmd.batch
-              [ Selection.checkSelection ()
-              , Cmd.map SuggestionBarMsg suggestionBarCmd
-              ]
+      updateSuggestionBar
+        (SuggestionBar.ChordBoxFocused chordBoxFocused)
+        { model
+        | chordBoxFocused = chordBoxFocused
+        , subscribeToSelection =
+            model.subscribeToSelection || chordBoxFocused
+        }
+        ( if chordBoxFocused then
+            [ Selection.checkSelection () ]
           else
-            Cmd.map SuggestionBarMsg suggestionBarCmd
+            []
         )
 
     SuggestionBarMsg msg ->
-      let
-        ( suggestionBar, suggestionBarCmd ) =
-          SuggestionBar.update msg model.suggestionBar
-      in
-        ( { model
-          | chordBox = updateChordBox suggestionBar model.chordBox
-          , suggestionBar = suggestionBar
-          }
-        , Cmd.map SuggestionBarMsg suggestionBarCmd
-        )
+      updateSuggestionBar msg model []
 
 halfArpeggioTail : List (List Int)
 halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
 
 arpeggioTail : List (List Int)
 arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
+
+updateSuggestionBar :
+  SuggestionBar.Msg -> Model -> List (Cmd Msg) -> ( Model, Cmd Msg )
+updateSuggestionBar msg model cmds =
+  let
+    ( suggestionBar, suggestionBarCmd ) =
+      SuggestionBar.update msg model.suggestionBar
+  in
+    ( { model
+      | chordBox = updateChordBox suggestionBar model.chordBox
+      , suggestionBar = suggestionBar
+      }
+    , if List.isEmpty cmds then
+        Cmd.map SuggestionBarMsg suggestionBarCmd
+      else
+        Cmd.batch (Cmd.map SuggestionBarMsg suggestionBarCmd :: cmds)
+    )
 
 updateChordBox : SuggestionBar.Model -> ChordBox -> ChordBox
 updateChordBox suggestionBar chordBox =
