@@ -14,7 +14,7 @@ import TickTime
 
 import AnimationFrame
 import Html exposing
-  (Html, Attribute, a, div, pre, span, text, textarea)
+  (Html, Attribute, a, button, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck, id)
 import Html.Events exposing (on, onInput, onFocus, onBlur, onClick)
 import Html.Lazy
@@ -505,7 +505,6 @@ viewChord chordArea chord =
               else
                 "solid"
             )
-          , ( "width", "75px" )
           , ( "flex", "none" )
           , ( "border-width", "5px" )
           , ( "margin-right", "-5px" )
@@ -519,22 +518,39 @@ viewChord chordArea chord =
           , ( "border-radius", "10px" )
           ]
       ]
-      [ div
+      [ button
           [ onLeftDown (NeedsTime (PlayChord << (,) chord.chord))
           , style
               [ ( "background", CachedChord.bg chord )
               , ( "color", CachedChord.fg chord )
+              , ( "font", "inherit" )
+              , ( "width", "75px" )
               , ( "height", "75px" )
-              , ( "display", "flex" )
-              , ( "align-items", "center" )
-              , ( "justify-content", "center" )
+              , ( "padding", "0px 3px" )
+              , ( "border"
+                , "1px solid rgba(0, 0, 0, " ++
+                    toString
+                      ( if CachedChord.fg chord == "#ffffff" then
+                          0.8
+                        else
+                          0.3
+                      ) ++ ")"
+                )
               , ( "border-radius", "5px" )
-              , ( "box-shadow", "1px 1px 3px rgba(0, 0, 0, 0.6)" )
+              , ( "box-shadow"
+                , "inset 18px 34px 20px -20px rgba(255, 255, 255, " ++
+                    toString
+                      ( if CachedChord.fg chord == "#ffffff" then
+                          0.6
+                        else
+                          0.7
+                      ) ++ ")"
+                )
               , ( "cursor", "pointer" )
               , ( "white-space", "nowrap" )
               ]
           ]
-          [ div [] (CachedChord.view chord) ]
+          (CachedChord.view chord)
       ]
 
 onLeftDown : msg -> Attribute msg
