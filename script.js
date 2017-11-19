@@ -22,19 +22,47 @@ function changeAudio(changes) {
   }
 }
 
-function setSelection(range) {
-  chordBox = document.getElementById("chordBox");
-  chordBox.selectionStart = range[0];
-  chordBox.selectionEnd = range[1];
+var landingPad = null;
+
+function setSelection(selection) {
+  let chordBox = document.getElementById("chordBox");
+  chordBox.selectionStart = selection.start;
+  chordBox.selectionEnd = selection.stop;
   chordBox.focus();
+  return {
+    landingPad: landingPad,
+    selection: {
+      start: chordBox.selectionStart,
+      stop: chordBox.selectionEnd
+    }
+  };
+}
+
+function setLandingPad(newLandingPad) {
+  landingPad = newLandingPad;
+  return setSelection(newLandingPad.selection);
+}
+
+function removeLandingPad(source) {
+  if (landingPad != null && landingPad.source == source) {
+    landingPad = null;
+    return checkSelection();
+  }
+  return null;
 }
 
 function checkSelection() {
-  chordBox = document.getElementById("chordBox");
-  return [chordBox.selectionStart, chordBox.selectionEnd]
+  let chordBox = document.getElementById("chordBox");
+  return {
+    landingPad: landingPad,
+    selection: {
+      start: chordBox.selectionStart,
+      stop: chordBox.selectionEnd
+    }
+  };
 }
 
 function setChordBoxText(text) {
-  chordBox = document.getElementById("chordBox");
+  let chordBox = document.getElementById("chordBox");
   chordBox.value = text;
 }

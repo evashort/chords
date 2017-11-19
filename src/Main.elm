@@ -42,18 +42,17 @@ type alias Model =
   , text : String
   , parse : MainParser.Model
   , home : Bool
-  , selection : ( Int, Int )
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
+  , bubble : Maybe Highlight
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar.Model
   , chordArea : ChordArea
   }
 
 type alias ChordBox =
-  { modifierKey : String
-  , highlightRanges : List Substring
-  , landingPadStart : Maybe Int
+  { highlightRanges : List Substring
+  , bubble : Maybe Highlight
   }
 
 type alias ChordArea =
@@ -82,15 +81,13 @@ init mac location =
       , text = text
       , parse = parse
       , home = True
-      , selection = ( n, n )
       , subscribeToSelection = True
       , chordBoxFocused = True
+      , bubble = Nothing
       , chordBox =
-          { modifierKey = modifierKey
-          , highlightRanges =
+          { highlightRanges =
               SuggestionBar.highlightRanges suggestionBar
-          , landingPadStart =
-              SuggestionBar.landingPadStart suggestionBar
+          , bubble = Nothing
           }
       , suggestionBar = suggestionBar
       , chordArea =
@@ -98,7 +95,7 @@ init mac location =
           , nextChord = Nothing
           }
       }
-    , Selection.setSelection ( n, n )
+    , Selection.setSelection { start = n, stop = n }
     )
 
 textFromLocation : Location -> String
@@ -118,7 +115,7 @@ type Msg
   | TextEdited String
   | UrlChange Location
   | CheckSelection
-  | ReceivedSelection ( Int, Int )
+  | ReceivedSelection Selection.Model
   | ChordBoxFocused Bool
   | SuggestionBarMsg SuggestionBar.Msg
 
@@ -233,14 +230,50 @@ update msg model =
     CheckSelection ->
       ( model, Selection.checkSelection () )
 
-    ReceivedSelection selection ->
-      updateSuggestionBar
-        (SuggestionBar.ReceivedSelection selection)
-        { model
-        | selection = selection
-        , subscribeToSelection = model.chordBoxFocused
-        }
-        []
+    ReceivedSelection { landingPad, selection } ->
+      let
+        bubble =
+          case landingPad of
+            Nothing ->
+              Nothing
+            Just lp ->
+              if selection == lp.selection then
+                Just
+                  ( Highlight
+                      ( model.suggestionBar.modifierKey ++
+                          if
+                            lp.selection.start == lp.selection.stop
+                          then
+                            "V to paste here"
+                          else
+                            "V to replace"
+                      )
+                      ""
+                      ""
+                      (Substring lp.selection.start "")
+                  )
+              else
+                Nothing
+      in
+        updateSuggestionBar
+          ( SuggestionBar.LandingPadSelected
+              ( case landingPad of
+                  Nothing ->
+                    False
+                  Just lp ->
+                    lp.source == "suggestion" &&
+                      selection == lp.selection
+              )
+          )
+          { model
+          | bubble = bubble
+          , chordBox =
+              updateChordBoxBubble
+                bubble
+                model.chordBoxFocused
+                model.chordBox
+          }
+          []
 
     ChordBoxFocused chordBoxFocused ->
       updateSuggestionBar
@@ -249,12 +282,13 @@ update msg model =
         | chordBoxFocused = chordBoxFocused
         , subscribeToSelection =
             model.subscribeToSelection || chordBoxFocused
+        , chordBox =
+            updateChordBoxBubble
+              model.bubble
+              chordBoxFocused
+              model.chordBox
         }
-        ( if chordBoxFocused then
-            [ Selection.checkSelection () ]
-          else
-            []
-        )
+        []
 
     SuggestionBarMsg msg ->
       updateSuggestionBar msg model []
@@ -265,15 +299,31 @@ halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
 arpeggioTail : List (List Int)
 arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
 
+updateChordBoxBubble : Maybe Highlight -> Bool -> ChordBox -> ChordBox
+updateChordBoxBubble bubble chordBoxFocused chordBox =
+  let chordBoxBubble = if chordBoxFocused then bubble else Nothing in
+    if chordBoxBubble /= chordBox.bubble then
+      { chordBox | bubble = chordBoxBubble }
+    else
+      chordBox
+
 updateSuggestionBar :
   SuggestionBar.Msg -> Model -> List (Cmd Msg) -> ( Model, Cmd Msg )
 updateSuggestionBar msg model cmds =
   let
     ( suggestionBar, suggestionBarCmd ) =
       SuggestionBar.update msg model.suggestionBar
+  in let
+    highlightRanges = SuggestionBar.highlightRanges suggestionBar
+  in let
+    chordBox = model.chordBox
   in
     ( { model
-      | chordBox = updateChordBox suggestionBar model.chordBox
+      | chordBox =
+          if highlightRanges /= chordBox.highlightRanges then
+            { chordBox | highlightRanges = highlightRanges }
+          else
+            chordBox
       , suggestionBar = suggestionBar
       }
     , if List.isEmpty cmds then
@@ -281,24 +331,6 @@ updateSuggestionBar msg model cmds =
       else
         Cmd.batch (Cmd.map SuggestionBarMsg suggestionBarCmd :: cmds)
     )
-
-updateChordBox : SuggestionBar.Model -> ChordBox -> ChordBox
-updateChordBox suggestionBar chordBox =
-  let
-    highlightRanges = SuggestionBar.highlightRanges suggestionBar
-  in let
-    landingPadStart = SuggestionBar.landingPadStart suggestionBar
-  in
-    if
-      highlightRanges /= chordBox.highlightRanges ||
-        landingPadStart /= chordBox.landingPadStart
-    then
-      { chordBox
-      | highlightRanges = highlightRanges
-      , landingPadStart = landingPadStart
-      }
-    else
-      chordBox
 
 updateChordArea : ChordArea -> Schedule Chord -> Int -> ChordArea
 updateChordArea chordArea schedule tick =
@@ -326,7 +358,7 @@ subscriptions model =
   Sub.batch
     ( List.filterMap
         identity
-        [ Just (Selection.receiveSelection ReceivedSelection)
+        [ Just (Selection.receiveModel ReceivedSelection)
         , if model.subscribeToSelection then
             Just (Time.every (1 * Time.second) (always CheckSelection))
           else
@@ -415,17 +447,9 @@ getLayers chordBoxText parse chordBox =
           (Highlight "" "#ffffff" "#aaaaaa")
           chordBox.highlightRanges
     in
-      case chordBox.landingPadStart of
-        Just i ->
-          ( Highlight
-              (chordBox.modifierKey ++ "V to replace")
-              "#ffffff"
-              "#ff0000"
-              (Substring i "")
-          ) ::
-            grays
-        _ ->
-          grays
+      case chordBox.bubble of
+        Just bubble -> bubble :: grays
+        Nothing -> grays
   , MainParser.view parse
   , [ Highlight
         ""

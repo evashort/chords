@@ -1,5 +1,5 @@
 module SuggestionBar exposing
-  (Model, init, Msg(..), update, landingPadStart, highlightRanges, view)
+  (Model, init, Msg(..), update, highlightRanges, view)
 
 import Selection
 import Substring exposing (Substring)
@@ -19,7 +19,6 @@ type alias Model =
   , recentlyCopied : Set String
   , hovered : Maybe Suggestion
   , focused : Maybe Suggestion
-  , landingPad : Maybe Substring
   , landingPadSelected : Bool
   , chordBoxFocused : Bool
   }
@@ -32,14 +31,13 @@ init modifierKey suggestions =
   , recentlyCopied = Set.empty
   , hovered = Nothing
   , focused = Nothing
-  , landingPad = Nothing
   , landingPadSelected = False
   , chordBoxFocused = True
   }
 
 type Msg
   = SuggestionsChanged (List Suggestion)
-  | ReceivedSelection ( Int, Int )
+  | LandingPadSelected Bool
   | ChordBoxFocused Bool
   | SuggestionMsg ( Suggestion, Suggestion.Msg )
   | RemoveCopied String
@@ -53,27 +51,17 @@ update msg model =
         , highlighted = Nothing
         , hovered = Nothing
         , focused = Nothing
-        , landingPad = Nothing
-        , landingPadSelected = False
         }
-      , Cmd.none
+      , Selection.removeLandingPad "suggestion"
       )
 
-    ReceivedSelection selection ->
-      let
-        landingPadSelected =
-          case model.landingPad of
-            Just landingPad ->
-              selection == Substring.range landingPad
-            Nothing ->
-              False
-      in
-        ( if landingPadSelected /= model.landingPadSelected then
-            { model | landingPadSelected = landingPadSelected }
-          else
-            model
-        , Cmd.none
-        )
+    LandingPadSelected landingPadSelected ->
+      ( if landingPadSelected /= model.landingPadSelected then
+          { model | landingPadSelected = landingPadSelected }
+        else
+          model
+      , Cmd.none
+      )
 
     ChordBoxFocused chordBoxFocused ->
       ( { model | chordBoxFocused = chordBoxFocused }, Cmd.none )
@@ -113,10 +101,15 @@ update msg model =
     SuggestionMsg (suggestion, Suggestion.Copied) ->
       ( { model
         | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
-        , landingPad = Just suggestion.firstRange
         }
       , Cmd.batch
-          [ Selection.setSelection (Substring.range suggestion.firstRange)
+          [ Selection.setLandingPad
+              { source = "suggestion"
+              , selection =
+                  { start = suggestion.firstRange.i
+                  , stop = Substring.stop suggestion.firstRange
+                  }
+              }
           , Task.perform
               (always (RemoveCopied suggestion.s))
               (Process.sleep (1 * Time.second))
@@ -127,16 +120,6 @@ update msg model =
       ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
       , Cmd.none
       )
-
-landingPadStart : Model -> Maybe Int
-landingPadStart model =
-  case
-    ( model.landingPad, model.landingPadSelected, model.chordBoxFocused )
-  of
-    ( Just substring, True, True ) ->
-      Just substring.i
-    _ ->
-      Nothing
 
 highlightRanges : Model -> List Substring
 highlightRanges model =
