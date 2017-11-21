@@ -527,6 +527,8 @@ viewChord chordArea chord =
       [ button
           [ onLeftDown
               (NeedsTime (PlayChord << (,,) chord.cache.chord chord.id))
+          , onSpaceOrEnterDown
+              (NeedsTime (PlayChord << (,,) chord.cache.chord chord.id))
           , style
               [ ( "background", CachedChord.bg chord.cache )
               , ( "color", CachedChord.fg chord.cache )
@@ -583,6 +585,22 @@ requireLeftButton message button =
   case button of
     0 -> Json.Decode.succeed message
     _ -> Json.Decode.fail ("ignoring button " ++ toString button)
+
+onSpaceOrEnterDown : msg -> Attribute msg
+onSpaceOrEnterDown message =
+  on
+    "keydown"
+    ( Json.Decode.andThen
+        (requireSpaceOrEnter message)
+        (Json.Decode.field "which" Json.Decode.int)
+    )
+
+requireSpaceOrEnter : msg -> Int -> Decoder msg
+requireSpaceOrEnter message which =
+  case which of
+    13 -> Json.Decode.succeed message
+    32 -> Json.Decode.succeed message
+    _ -> Json.Decode.fail ("ignoring key " ++ toString which)
 
 viewSpace : Html msg
 viewSpace =
