@@ -2,8 +2,9 @@ port module Main exposing (..)
 
 import AudioChange
 import AudioTime
-import CachedChord exposing (CachedChord)
+import CachedChord
 import Chord exposing (Chord)
+import ChordParser exposing (IdChord)
 import Highlight exposing (Highlight)
 import MainParser
 import Schedule exposing (Schedule, Segment)
@@ -37,7 +38,7 @@ main =
 
 type alias Model =
   { start : Float
-  , schedule : Schedule Chord
+  , schedule : Schedule Int
   , tick : Int
   , text : String
   , parse : MainParser.Model
@@ -56,8 +57,8 @@ type alias ChordBox =
   }
 
 type alias ChordArea =
-  { activeChord : Maybe Chord
-  , nextChord : Maybe Chord
+  { activeChord : Int
+  , nextChord : Int
   }
 
 init : Bool -> Location -> ( Model, Cmd Msg )
@@ -91,8 +92,8 @@ init mac location =
           }
       , suggestionBar = suggestionBar
       , chordArea =
-          { activeChord = Nothing
-          , nextChord = Nothing
+          { activeChord = -1
+          , nextChord = -1
           }
       }
     , Selection.setSelection { start = n, stop = n }
@@ -111,7 +112,7 @@ defaultText =
 type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
-  | PlayChord ( Chord, Float )
+  | PlayChord ( Chord, Int, Float )
   | TextEdited String
   | UrlChange Location
   | CheckSelection
@@ -147,7 +148,7 @@ update msg model =
       , Cmd.none
       )
 
-    PlayChord ( chord, now ) ->
+    PlayChord ( chord, id, now ) ->
       let
         wouldBeat = TickTime.nextBeat model.start now
       in let
@@ -159,8 +160,8 @@ update msg model =
               ( model.start
               , wouldBeat
               , Schedule.dropBefore (wouldBeat - 9) model.schedule
-              , segment.start == wouldBeat - 8 && segment.x /= chord
-              , segment.x /= chord
+              , segment.start == wouldBeat - 8 && segment.x /= id
+              , segment.x /= id
               )
       in let
         arpeggio =
@@ -172,7 +173,7 @@ update msg model =
         stop = beat + 16
       in let
         newSchedule =
-          Schedule.add stop { x = chord, start = beat } schedule
+          Schedule.add stop { x = id, start = beat } schedule
       in
         ( { model
           | start = start
@@ -332,12 +333,17 @@ updateSuggestionBar msg model cmds =
         Cmd.batch (Cmd.map SuggestionBarMsg suggestionBarCmd :: cmds)
     )
 
-updateChordArea : ChordArea -> Schedule Chord -> Int -> ChordArea
+updateChordArea : ChordArea -> Schedule Int -> Int -> ChordArea
 updateChordArea chordArea schedule tick =
   let
-    activeChord = Maybe.map .x (Schedule.get tick schedule)
+    activeChord =
+      case Schedule.get tick schedule of
+        Just segment -> segment.x
+        Nothing -> -1
   in let
-    nextChord = Maybe.map .x (Schedule.next tick schedule)
+    nextChord = case Schedule.next tick schedule of
+      Just segment -> segment.x
+      Nothing -> -1
   in
     if
       activeChord /= chordArea.activeChord ||
@@ -474,7 +480,7 @@ viewChordArea chordArea parse =
     ]
     (List.map (viewLine chordArea) (MainParser.getChords parse))
 
-viewLine : ChordArea -> List (Maybe CachedChord) -> Html Msg
+viewLine : ChordArea -> List (Maybe IdChord) -> Html Msg
 viewLine chordArea line =
   div
     [ style
@@ -482,7 +488,7 @@ viewLine chordArea line =
     ]
     (List.map (viewMaybeChord chordArea) line)
 
-viewMaybeChord : ChordArea -> Maybe CachedChord -> Html Msg
+viewMaybeChord : ChordArea -> Maybe IdChord -> Html Msg
 viewMaybeChord chordArea maybeChord =
   case maybeChord of
     Just chord ->
@@ -490,17 +496,17 @@ viewMaybeChord chordArea maybeChord =
     Nothing ->
       viewSpace
 
-viewChord : ChordArea -> CachedChord -> Html Msg
+viewChord : ChordArea -> IdChord -> Html Msg
 viewChord chordArea chord =
   let
     selected =
-      chordArea.activeChord == Just chord.chord ||
-        chordArea.nextChord == Just chord.chord
+      chordArea.activeChord == chord.id ||
+        chordArea.nextChord == chord.id
   in
     span
       [ style
           [ ( "border-style"
-            , if chordArea.nextChord == Just chord.chord then
+            , if chordArea.nextChord == chord.id then
                 "dashed"
               else
                 "solid"
@@ -519,10 +525,11 @@ viewChord chordArea chord =
           ]
       ]
       [ button
-          [ onLeftDown (NeedsTime (PlayChord << (,) chord.chord))
+          [ onLeftDown
+              (NeedsTime (PlayChord << (,,) chord.cache.chord chord.id))
           , style
-              [ ( "background", CachedChord.bg chord )
-              , ( "color", CachedChord.fg chord )
+              [ ( "background", CachedChord.bg chord.cache )
+              , ( "color", CachedChord.fg chord.cache )
               , ( "font", "inherit" )
               , ( "width", "75px" )
               , ( "height", "75px" )
@@ -530,7 +537,7 @@ viewChord chordArea chord =
               , ( "border"
                 , "1px solid rgba(0, 0, 0, " ++
                     toString
-                      ( if CachedChord.fg chord == "#ffffff" then
+                      ( if CachedChord.fg chord.cache == "#ffffff" then
                           0.8
                         else
                           0.3
@@ -540,7 +547,7 @@ viewChord chordArea chord =
               , ( "box-shadow"
                 , "inset 18px 34px 20px -20px rgba(255, 255, 255, " ++
                     toString
-                      ( if CachedChord.fg chord == "#ffffff" then
+                      ( if CachedChord.fg chord.cache == "#ffffff" then
                           0.6
                         else
                           0.7
@@ -550,7 +557,7 @@ viewChord chordArea chord =
               , ( "white-space", "nowrap" )
               ]
           ]
-          (CachedChord.view chord)
+          (CachedChord.view chord.cache)
       ]
 
 onLeftDown : msg -> Attribute msg

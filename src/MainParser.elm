@@ -1,8 +1,7 @@
 module MainParser exposing
   (Model, init, update, view, getChords, getSuggestions)
 
-import CachedChord exposing (CachedChord)
-import ChordParser
+import ChordParser exposing (IdChord)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
@@ -39,7 +38,7 @@ view model =
     List.map (Highlight "" "#008000" "#ffffff") model.comments ++
       List.map (Highlight "" "#ffffff" "#ff0000") model.indents
 
-getChords : Model -> List (List (Maybe CachedChord))
+getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
 
 getSuggestions : Model -> List Suggestion

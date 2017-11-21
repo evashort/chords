@@ -1,5 +1,5 @@
 module ChordParser exposing
-  (Model, init, update, view, getChords, getSuggestions)
+  (IdChord, Model, init, update, view, getChords, getSuggestions)
 
 import CachedChord exposing (CachedChord)
 import ChordFromCode exposing (chordFromCode)
@@ -10,30 +10,53 @@ import Zipper
 
 import Dict exposing (Dict)
 
-type alias Model = List Word
+type alias IdChord =
+  { id : Int
+  , cache : CachedChord
+  }
+
+type alias Model =
+  { nextId : Int
+  , words : List Word
+  }
+
+type alias Word =
+  { substring : Substring
+  , chord : Maybe IdChord
+  }
 
 init : List Substring -> Model
-init = List.map parseChord
+init substrings =
+  let
+    ( words, nextId ) =
+      List.foldr parseChord ( [], 0 ) substrings
+  in
+    { nextId = nextId, words = words }
 
 update : List Substring -> Model -> Model
-update words model =
+update substrings model =
   let
-    doubleZipped = Zipper.doubleZip updateChord words model
+    doubleZipped =
+      Zipper.doubleZip updateChord substrings model.words
+  in let
+    ( newUpper, nextId ) =
+      List.foldr parseChord ( [], model.nextId ) doubleZipped.upper
   in
-    doubleZipped.left ++
-      (List.map parseChord doubleZipped.upper) ++
-        doubleZipped.right
+    { nextId = nextId
+    , words = doubleZipped.left ++ newUpper ++ doubleZipped.right
+    }
 
 view : Model -> List Highlight
-view = List.filterMap viewWord
+view model =
+  List.filterMap viewWord model.words
 
-getChords : Model -> List (List (Maybe CachedChord))
+getChords : Model -> List (List (Maybe IdChord))
 getChords model =
   List.filter
     (not << List.isEmpty)
     ( List.map
         (List.filterMap getChord)
-        (splitList isNewline model)
+        (splitList isNewline model.words)
     )
 
 isNewline : Word -> Bool
@@ -61,7 +84,7 @@ getSuggestions : Model -> List Suggestion
 getSuggestions model =
   List.sortBy
     (.i << .firstRange)
-    (Dict.values (List.foldl addSuggestion Dict.empty model))
+    (Dict.values (List.foldl addSuggestion Dict.empty model.words))
 
 addSuggestion :
   Word -> Dict String Suggestion -> Dict String Suggestion
@@ -70,12 +93,12 @@ addSuggestion word suggestions =
     Nothing ->
       suggestions
     Just chord ->
-      if word.substring.s == chord.codeName then
+      if word.substring.s == chord.cache.codeName then
         suggestions
       else
         Dict.update
-          chord.codeName
-          (updateSuggestion word chord)
+          chord.cache.codeName
+          (updateSuggestion word chord.cache)
           suggestions
 
 updateSuggestion :
@@ -95,16 +118,25 @@ updateSuggestion word chord maybeSuggestion =
         | ranges = word.substring :: suggestion.ranges
         }
 
-type alias Word =
-  { substring : Substring
-  , chord : Maybe CachedChord
-  }
-
-parseChord : Substring -> Word
-parseChord substring =
-  { substring = substring
-  , chord = Maybe.map CachedChord.fromChord (chordFromCode substring.s)
-  }
+parseChord : Substring -> ( List Word, Int ) -> ( List Word, Int )
+parseChord substring ( rest, nextId ) =
+  case chordFromCode substring.s of
+    Nothing ->
+      ( { substring = substring
+        , chord = Nothing
+        } :: rest
+      , nextId
+      )
+    Just chord ->
+      ( { substring = substring
+        , chord =
+            Just
+              { id = nextId
+              , cache = CachedChord.fromChord chord
+              }
+        } :: rest
+      , nextId + 1
+      )
 
 updateChord : Substring -> Word -> Maybe Word
 updateChord substring word =
@@ -113,7 +145,7 @@ updateChord substring word =
   else
     Nothing
 
-getChord : Word -> Maybe (Maybe CachedChord)
+getChord : Word -> Maybe (Maybe IdChord)
 getChord word =
   case word.chord of
     Nothing ->
@@ -122,7 +154,7 @@ getChord word =
       else
         Nothing
     Just chord ->
-      if word.substring.s == chord.codeName then
+      if word.substring.s == chord.cache.codeName then
         Just (Just chord)
       else
         Nothing
@@ -136,12 +168,12 @@ viewWord word =
       else
         Nothing
     Just chord ->
-      if word.substring.s == chord.codeName then
+      if word.substring.s == chord.cache.codeName then
         Just
           ( Highlight
               ""
-              (CachedChord.fg chord)
-              (CachedChord.bg chord)
+              (CachedChord.fg chord.cache)
+              (CachedChord.bg chord.cache)
               word.substring
           )
       else
