@@ -8,40 +8,57 @@ import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
 import Dict exposing (Dict)
-import Regex exposing (Regex, HowMany(..), Match)
 
-type alias Model =
-  { lines : List (List Word)
-  , indentation : List Substring
-  }
+type alias Model = List Word
 
 init : List Substring -> Model
-init = parse
+init = List.map parseChord
 
 update : List Substring -> Model -> Model
-update chordRanges model =
-  init chordRanges
+update words model =
+  List.map parseChord words
 
 view : Model -> List Highlight
-view model =
-  List.concatMap (List.filterMap viewWord) model.lines ++
-    List.map Highlight.suggestDeletion model.indentation
+view = List.filterMap viewWord
 
 getChords : Model -> List (List (Maybe CachedChord))
 getChords model =
   List.filter
     (not << List.isEmpty)
-    (List.map (List.filterMap getChord) model.lines)
+    ( List.map
+        (List.filterMap getChord)
+        (splitList isNewline model)
+    )
+
+isNewline : Word -> Bool
+isNewline word =
+  word.substring.s == "\n"
+
+splitList : (a -> Bool) -> List a -> List (List a)
+splitList pred xs =
+  let ( l, ls ) = splitListHelp pred xs in
+    l :: ls
+
+splitListHelp : (a -> Bool) -> List a -> ( List a, List (List a) )
+splitListHelp pred xs =
+  case xs of
+    x :: rest ->
+      let ( l, ls ) = splitListHelp pred rest in
+        if pred x then
+          ( [], l :: ls )
+        else
+          ( x :: l, ls )
+    [] ->
+      ( [], [] )
 
 getSuggestions : Model -> List Suggestion
 getSuggestions model =
   List.sortBy
     (.i << .firstRange)
-    ( Dict.values
-        (List.foldl addSuggestion Dict.empty (List.concat model.lines))
-    )
+    (Dict.values (List.foldl addSuggestion Dict.empty model))
 
-addSuggestion : Word -> Dict String Suggestion -> Dict String Suggestion
+addSuggestion :
+  Word -> Dict String Suggestion -> Dict String Suggestion
 addSuggestion word suggestions =
   case word.chord of
     Nothing ->
@@ -50,7 +67,10 @@ addSuggestion word suggestions =
       if word.substring.s == chord.codeName then
         suggestions
       else
-        Dict.update chord.codeName (updateSuggestion word chord) suggestions
+        Dict.update
+          chord.codeName
+          (updateSuggestion word chord)
+          suggestions
 
 updateSuggestion :
   Word -> CachedChord -> Maybe Suggestion -> Maybe Suggestion
@@ -68,33 +88,6 @@ updateSuggestion word chord maybeSuggestion =
         { suggestion
         | ranges = word.substring :: suggestion.ranges
         }
-
-parse : List Substring -> Model
-parse lines =
-  let lineResults = List.map parseLine lines in
-    { lines = List.map .words lineResults
-    , indentation = List.filterMap .indentation lineResults
-    }
-
-type alias LineResult =
-  { words : List Word
-  , indentation : Maybe Substring
-  }
-
-parseLine : Substring -> LineResult
-parseLine line =
-  case Substring.find (AtMost 1) (Regex.regex "^ +") line of
-    indentation :: _ ->
-      { words = []
-      , indentation = Just indentation
-      }
-    [] ->
-      { words =
-          List.map
-            parseChord
-            (Substring.find All (Regex.regex "[^ ]+") line)
-      , indentation = Nothing
-      }
 
 type alias Word =
   { substring : Substring

@@ -1,5 +1,5 @@
 module Substring exposing
-  ( Substring, stop, range, lines, left, dropLeft, before, after, find )
+  (Substring, stop, dropLeft, dropRight, before, after, find)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -12,21 +12,14 @@ stop : Substring -> Int
 stop { i, s } =
   i + String.length s
 
-range : Substring -> ( Int, Int )
-range { i, s } =
-  ( i, i + String.length s )
-
-lines : Substring -> List Substring
-lines = regexSplit All (Regex.regex "\\r\\n|\\r|\\n")
-
-left : Int -> Substring -> Substring
-left n { i, s } =
-  { i = i, s = String.left n s }
-
 dropLeft : Int -> Substring -> Substring
 dropLeft n substring =
   let s = String.dropLeft n substring.s in
     { i = stop substring - String.length s, s = s }
+
+dropRight : Int -> Substring -> Substring
+dropRight n { i, s } =
+  { i = i, s = String.dropRight n s }
 
 before : Int -> Substring -> Substring
 before x { i, s } =
@@ -44,23 +37,3 @@ find howMany regex { i, s } =
 fromMatch : Int -> Match -> Substring
 fromMatch i match =
   { i = i + match.index, s = match.match }
-
-regexSplit : HowMany -> Regex -> Substring -> List Substring
-regexSplit howMany regex substring =
-  let
-    matches =
-      Regex.find howMany regex substring.s ++
-        [ emptyMatch (String.length substring.s) ]
-  in
-    List.map2 (betweenMatches substring) (emptyMatch 0 :: matches) matches
-
-emptyMatch : Int -> Match
-emptyMatch index =
-  { match = "", submatches = [], index = index, number = 0 }
-
-betweenMatches : Substring -> Match -> Match -> Substring
-betweenMatches substring x y =
-  let xStop = x.index + String.length x.match in
-    { i = substring.i + xStop
-    , s = String.slice xStop y.index substring.s
-    }

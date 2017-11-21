@@ -12,28 +12,32 @@ import Regex exposing (Regex, HowMany(..), Match)
 type alias Model =
   { chordModel : ChordParser.Model
   , comments : List Substring
+  , indents : List Substring
   }
 
 init : Substring -> Model
 init substring =
   let parseResult = parse substring in
     { chordModel =
-        ChordParser.init parseResult.chordRanges
+        ChordParser.init parseResult.words
     , comments = parseResult.comments
+    , indents = parseResult.indents
     }
 
 update : Substring -> Model -> Model
-update substring model =
-  let parseResult = parse substring in
+update whole model =
+  let parseResult = parse whole in
     { chordModel =
-        ChordParser.update parseResult.chordRanges model.chordModel
+        ChordParser.update parseResult.words model.chordModel
     , comments = parseResult.comments
+    , indents = parseResult.indents
     }
 
 view : Model -> List Highlight
 view model =
   ChordParser.view model.chordModel ++
-    List.map (Highlight "" "#008000" "#ffffff") model.comments
+    List.map (Highlight "" "#008000" "#ffffff") model.comments ++
+      List.map (Highlight "" "#ffffff" "#ff0000") model.indents
 
 getChords : Model -> List (List (Maybe CachedChord))
 getChords = ChordParser.getChords << .chordModel
@@ -42,50 +46,70 @@ getSuggestions : Model -> List Suggestion
 getSuggestions = ChordParser.getSuggestions << .chordModel
 
 type alias ParseResult =
-  { chordRanges : List Substring
+  { words : List Substring
   , comments : List Substring
+  , indents : List Substring
   }
 
 parse : Substring -> ParseResult
-parse substring =
+parse whole =
   let
-    lineResults = List.map parseLine (Substring.lines substring)
+    lineResults =
+      List.map
+        parseLine
+        (Substring.find All (Regex.regex ".*\n?") whole)
   in
-    { chordRanges = List.filterMap .chordRange lineResults
+    { words = List.concatMap .words lineResults
     , comments = List.filterMap .comment lineResults
+    , indents = List.filterMap .indent lineResults
     }
 
 type alias LineResult =
-  { chordRange : Maybe Substring
+  { words : List Substring
   , comment : Maybe Substring
+  , indent : Maybe Substring
   }
 
 parseLine : Substring -> LineResult
 parseLine line =
-  if String.startsWith "#" line.s then
-    { chordRange = Nothing
-    , comment = Just line
-    }
-  else
-    case Regex.find (AtMost 1) (Regex.regex " +#") line.s of
-      match :: _ ->
-        { chordRange = Just (Substring.left match.index line)
-        , comment =
-            Just
-              ( Substring.dropLeft
-                  (match.index + String.length match.match - 1)
-                  line
-              )
-        }
-      [] ->
-        { chordRange =
-            case Regex.find (AtMost 1) (Regex.regex " +$") line.s of
-              match :: _ ->
-                let beforeSpace = Substring.left match.index line in
-                  case beforeSpace.s of
-                    "" -> Nothing
-                    _ -> Just beforeSpace
-              [] ->
-                Just line
-        , comment = Nothing
-        }
+  case Substring.find (AtMost 1) (Regex.regex "^#.*") line of
+    comment :: _ ->
+      { words = []
+      , comment = Just comment
+      , indent = Nothing
+      }
+    [] ->
+      let
+        comment =
+          case Substring.find (AtMost 1) (Regex.regex " #.*") line of
+            spaceAndComment :: _ ->
+              Just (Substring.dropLeft 1 spaceAndComment)
+            [] ->
+              Nothing
+      in let
+        code =
+          case comment of
+            Just c -> Substring.before c.i line
+            Nothing -> line
+      in
+        case
+          Substring.find (AtMost 1) (Regex.regex "^ +[^ \n]") code
+        of
+          indentAndChar :: _ ->
+            { words = []
+            , comment = comment
+            , indent = Just (Substring.dropRight 1 indentAndChar)
+            }
+          [] ->
+            let
+              words = Substring.find All (Regex.regex "[^ \n]+") code
+            in
+              { words =
+                  if words == [] then
+                    []
+                  else
+                    words ++
+                      Substring.find (AtMost 1) (Regex.regex "\n$") line
+              , comment = comment
+              , indent = Nothing
+              }

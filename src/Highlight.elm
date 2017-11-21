@@ -1,5 +1,4 @@
-module Highlight exposing
-  (Highlight, view, suggestDeletion, mergeLayers)
+module Highlight exposing (Highlight, view, mergeLayers)
 
 import Substring exposing (Substring)
 
@@ -111,9 +110,6 @@ viewNoBubble highlight =
             ]
             [ Html.text highlight.substring.s ]
         ]
-
-suggestDeletion : Substring -> Highlight
-suggestDeletion = Highlight "" "#ffffff" "#ff0000"
 
 mergeLayers : List (List Highlight) -> List Highlight
 mergeLayers layers =
