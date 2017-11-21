@@ -6,6 +6,7 @@ import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import Zipper
 
 import Dict exposing (Dict)
 
@@ -16,7 +17,12 @@ init = List.map parseChord
 
 update : List Substring -> Model -> Model
 update words model =
-  List.map parseChord words
+  let
+    doubleZipped = Zipper.doubleZip updateChord words model
+  in
+    doubleZipped.left ++
+      (List.map parseChord doubleZipped.upper) ++
+        doubleZipped.right
 
 view : Model -> List Highlight
 view = List.filterMap viewWord
@@ -99,6 +105,13 @@ parseChord substring =
   { substring = substring
   , chord = Maybe.map CachedChord.fromChord (chordFromCode substring.s)
   }
+
+updateChord : Substring -> Word -> Maybe Word
+updateChord substring word =
+  if substring.s == word.substring.s then
+    Just { word | substring = substring }
+  else
+    Nothing
 
 getChord : Word -> Maybe (Maybe CachedChord)
 getChord word =
