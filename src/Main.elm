@@ -40,6 +40,7 @@ type alias Model =
   { start : Float
   , schedule : Schedule Int
   , tick : Int
+  , xOverride : Maybe ( Int, Int )
   , text : String
   , parse : MainParser.Model
   , home : Bool
@@ -80,6 +81,7 @@ init mac location =
       , schedule = { stop = 0, segments = [] }
       , tick = 0
       , text = text
+      , xOverride = Nothing
       , parse = parse
       , home = True
       , subscribeToSelection = True
@@ -113,6 +115,8 @@ type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
   | PlayChord ( Chord, Int, Float )
+  | FocusHorizontal ( Bool, Int )
+  | FocusVertical ( Bool, Int )
   | TextEdited String
   | UrlChange Location
   | CheckSelection
@@ -178,6 +182,7 @@ update msg model =
         ( { model
           | start = start
           , schedule = newSchedule
+          , xOverride = Nothing
           , chordArea =
               updateChordArea model.chordArea newSchedule model.tick
           }
@@ -187,6 +192,61 @@ update msg model =
             (List.map (TickTime.get start) (List.range beat (stop - 1)))
             (List.map (List.map (Chord.get chord)) arpeggio)
         )
+
+    FocusHorizontal ( forwards, id ) ->
+      case
+        notBeforeJust
+          (List.tail <<
+            notBeforeTrue ((==) id << .id) <<
+              (if forwards then identity else List.reverse) <<
+                List.filterMap identity
+          )
+          (MainParser.getChords model.parse)
+      of
+        Just ( chord :: _, _ ) ->
+          ( { model | xOverride = Nothing }
+          , focusById (toString chord.id)
+          )
+        _ ->
+          ( model, Cmd.none )
+
+    FocusVertical ( forwards, id ) ->
+      case
+        notBeforeJust
+          (findTrue ((==) (Just id) << Maybe.map .id))
+          ( (if forwards then identity else List.reverse)
+              (MainParser.getChords model.parse)
+          )
+      of
+        Nothing ->
+          ( model, Cmd.none )
+        Just ( xDefault, lines ) ->
+          let
+            x =
+              case model.xOverride of
+                Nothing ->
+                  xDefault
+                Just ( overrideId, xOverride ) ->
+                  if overrideId == id then xOverride else xDefault
+          in
+            case
+              notBeforeJust
+                ( List.head <<
+                    reverseBeforeTrue ((<) x << Tuple.first) <<
+                      filterAndIndex
+                )
+                lines
+            of
+              Nothing ->
+                ( model, Cmd.none )
+              Just ( ( xNew, chord ), _ ) ->
+                ( { model
+                  | xOverride =
+                      if xNew /= x then Just ( chord.id, x )
+                      else Nothing
+                  }
+                , focusById (toString chord.id)
+                )
 
     TextEdited newText ->
       let
@@ -355,9 +415,62 @@ updateChordArea chordArea schedule tick =
     else
       chordArea
 
+notBeforeTrue : (a -> Bool) -> List a -> List a
+notBeforeTrue pred xs =
+  case xs of
+    [] -> []
+    x :: rest ->
+      if pred x then xs
+      else notBeforeTrue pred rest
+
+notBeforeJust : (a -> Maybe b) -> List a -> Maybe ( b, List a )
+notBeforeJust f xs =
+  case xs of
+    [] -> Nothing
+    x :: rest ->
+      case f x of
+        Just y -> Just ( y, rest )
+        Nothing -> notBeforeJust f rest
+
+findTrue : (a -> Bool) -> List a -> Maybe Int
+findTrue = findTrueHelp 0
+
+findTrueHelp : Int -> (a -> Bool) -> List a -> Maybe Int
+findTrueHelp i pred xs =
+  case xs of
+    [] -> Nothing
+    x :: rest ->
+      if pred x then Just i
+      else findTrueHelp (i + 1) pred rest
+
+filterAndIndex : List (Maybe a) -> List (Int, a)
+filterAndIndex xs =
+  List.filterMap identity (List.indexedMap filterAndIndexHelp xs)
+
+filterAndIndexHelp : Int -> Maybe a -> Maybe (Int, a)
+filterAndIndexHelp i x =
+  Maybe.map ((,) i) x
+
+reverseBeforeTrue : (a -> Bool) -> List a -> List a
+reverseBeforeTrue pred xs =
+  let ( left, right ) = splitBeforeTrue pred xs in
+    List.reverse left ++ right
+
+splitBeforeTrue : (a -> Bool) -> List a -> ( List a, List a )
+splitBeforeTrue pred xs =
+  case xs of
+    [] -> ( [], [] )
+    x :: rest ->
+      if pred x then ( [], xs )
+      else
+        let ( left, right ) = splitBeforeTrue pred rest in
+          ( x :: left, right )
+
 -- SUBSCRIPTIONS
 
 port setChordBoxText : String -> Cmd msg
+
+port focusById : String -> Cmd msg
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -531,7 +644,12 @@ viewChord chordArea chord =
           , onKeyDown
               [ ( 13, play )
               , ( 32, play )
+              , ( 37, FocusHorizontal ( False, chord.id ) )
+              , ( 38, FocusVertical ( False, chord.id ) )
+              , ( 39, FocusHorizontal ( True, chord.id ) )
+              , ( 40, FocusVertical ( True, chord.id ) )
               ]
+          , id (toString chord.id)
           , style
               [ ( "background", CachedChord.bg chord.cache )
               , ( "color", CachedChord.fg chord.cache )

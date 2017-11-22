@@ -66,3 +66,10 @@ function setChordBoxText(text) {
   let chordBox = document.getElementById("chordBox");
   chordBox.value = text;
 }
+
+function focusById(id) {
+  let el = document.getElementById(id);
+  if (el != null) {
+    el.focus();
+  }
+}
