@@ -502,6 +502,8 @@ viewChord chordArea chord =
     selected =
       chordArea.activeChord == chord.id ||
         chordArea.nextChord == chord.id
+  in let
+    play = NeedsTime (PlayChord << (,,) chord.cache.chord chord.id)
   in
     span
       [ style
@@ -525,10 +527,11 @@ viewChord chordArea chord =
           ]
       ]
       [ button
-          [ onLeftDown
-              (NeedsTime (PlayChord << (,,) chord.cache.chord chord.id))
-          , onSpaceOrEnterDown
-              (NeedsTime (PlayChord << (,,) chord.cache.chord chord.id))
+          [ onLeftDown play
+          , onKeyDown
+              [ ( 13, play )
+              , ( 32, play )
+              ]
           , style
               [ ( "background", CachedChord.bg chord.cache )
               , ( "color", CachedChord.fg chord.cache )
@@ -586,21 +589,25 @@ requireLeftButton message button =
     0 -> Json.Decode.succeed message
     _ -> Json.Decode.fail ("ignoring button " ++ toString button)
 
-onSpaceOrEnterDown : msg -> Attribute msg
-onSpaceOrEnterDown message =
+onKeyDown : List ( Int, msg ) -> Attribute msg
+onKeyDown messageMap =
   on
     "keydown"
     ( Json.Decode.andThen
-        (requireSpaceOrEnter message)
+        (pickMessage messageMap)
         (Json.Decode.field "which" Json.Decode.int)
     )
 
-requireSpaceOrEnter : msg -> Int -> Decoder msg
-requireSpaceOrEnter message which =
-  case which of
-    13 -> Json.Decode.succeed message
-    32 -> Json.Decode.succeed message
-    _ -> Json.Decode.fail ("ignoring key " ++ toString which)
+pickMessage : List ( Int, msg ) -> Int -> Decoder msg
+pickMessage messageMap which =
+  case messageMap of
+    ( key, message ) :: rest ->
+      if key == which then
+        Json.Decode.succeed message
+      else
+        pickMessage rest which
+    [] ->
+      Json.Decode.fail ("ignoring key " ++ toString which)
 
 viewSpace : Html msg
 viewSpace =
