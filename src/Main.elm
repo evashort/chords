@@ -40,7 +40,6 @@ type alias Model =
   { start : Float
   , schedule : Schedule Int
   , tick : Int
-  , xOverride : Maybe ( Int, Int )
   , text : String
   , parse : MainParser.Model
   , home : Bool
@@ -81,7 +80,6 @@ init mac location =
       , schedule = { stop = 0, segments = [] }
       , tick = 0
       , text = text
-      , xOverride = Nothing
       , parse = parse
       , home = True
       , subscribeToSelection = True
@@ -182,7 +180,6 @@ update msg model =
         ( { model
           | start = start
           , schedule = newSchedule
-          , xOverride = Nothing
           , chordArea =
               updateChordArea model.chordArea newSchedule model.tick
           }
@@ -196,17 +193,15 @@ update msg model =
     FocusHorizontal ( forwards, id ) ->
       case
         notBeforeJust
-          (List.tail <<
-            notBeforeTrue ((==) id << .id) <<
-              (if forwards then identity else List.reverse) <<
-                List.filterMap identity
+          ( List.tail <<
+              notBeforeTrue ((==) id << .id) <<
+                (if forwards then identity else List.reverse) <<
+                  List.filterMap identity
           )
           (MainParser.getChords model.parse)
       of
         Just ( chord :: _, _ ) ->
-          ( { model | xOverride = Nothing }
-          , focusById (toString chord.id)
-          )
+          ( model, focusById (toString chord.id) )
         _ ->
           ( model, Cmd.none )
 
@@ -220,33 +215,16 @@ update msg model =
       of
         Nothing ->
           ( model, Cmd.none )
-        Just ( xDefault, lines ) ->
-          let
-            x =
-              case model.xOverride of
-                Nothing ->
-                  xDefault
-                Just ( overrideId, xOverride ) ->
-                  if overrideId == id then xOverride else xDefault
-          in
-            case
-              notBeforeJust
-                ( List.head <<
-                    reverseBeforeTrue ((<) x << Tuple.first) <<
-                      filterAndIndex
-                )
-                lines
-            of
-              Nothing ->
-                ( model, Cmd.none )
-              Just ( ( xNew, chord ), _ ) ->
-                ( { model
-                  | xOverride =
-                      if xNew /= x then Just ( chord.id, x )
-                      else Nothing
-                  }
-                , focusById (toString chord.id)
-                )
+        Just ( x, lines ) ->
+          case
+            notBeforeJust
+              (Maybe.andThen identity << List.head << List.drop x)
+              lines
+          of
+            Nothing ->
+              ( model, Cmd.none )
+            Just ( chord, _ ) ->
+              ( model, focusById (toString chord.id) )
 
     TextEdited newText ->
       let
@@ -442,29 +420,6 @@ findTrueHelp i pred xs =
     x :: rest ->
       if pred x then Just i
       else findTrueHelp (i + 1) pred rest
-
-filterAndIndex : List (Maybe a) -> List (Int, a)
-filterAndIndex xs =
-  List.filterMap identity (List.indexedMap filterAndIndexHelp xs)
-
-filterAndIndexHelp : Int -> Maybe a -> Maybe (Int, a)
-filterAndIndexHelp i x =
-  Maybe.map ((,) i) x
-
-reverseBeforeTrue : (a -> Bool) -> List a -> List a
-reverseBeforeTrue pred xs =
-  let ( left, right ) = splitBeforeTrue pred xs in
-    List.reverse left ++ right
-
-splitBeforeTrue : (a -> Bool) -> List a -> ( List a, List a )
-splitBeforeTrue pred xs =
-  case xs of
-    [] -> ( [], [] )
-    x :: rest ->
-      if pred x then ( [], xs )
-      else
-        let ( left, right ) = splitBeforeTrue pred rest in
-          ( x :: left, right )
 
 -- SUBSCRIPTIONS
 
