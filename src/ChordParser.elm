@@ -25,11 +25,11 @@ type alias Word =
   , chord : Maybe IdChord
   }
 
-init : List Substring -> Model
-init substrings =
+init : Int -> List Substring -> Model
+init firstId substrings =
   let
     ( words, nextId ) =
-      List.foldr parseChord ( [], 0 ) substrings
+      List.foldr parseChord ( [], firstId ) substrings
   in
     { nextId = nextId, words = words }
 

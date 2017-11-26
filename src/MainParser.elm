@@ -14,11 +14,11 @@ type alias Model =
   , indents : List Substring
   }
 
-init : Substring -> Model
-init substring =
+init : Int -> Substring -> Model
+init firstId substring =
   let parseResult = parse substring in
     { chordModel =
-        ChordParser.init parseResult.words
+        ChordParser.init firstId parseResult.words
     , comments = parseResult.comments
     , indents = parseResult.indents
     }

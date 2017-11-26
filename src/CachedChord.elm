@@ -1,4 +1,5 @@
-module CachedChord exposing (CachedChord, fg, bg, view, fromChord)
+module CachedChord exposing
+  (CachedChord, fg, bg, borderOpacity, shineOpacity, view, fromChord)
 
 import Chord exposing (Chord)
 import Flavor exposing (Flavor)
@@ -27,6 +28,14 @@ bg x =
       0 -> a
       1 -> b
       _ -> c
+
+borderOpacity : CachedChord -> String
+borderOpacity x =
+  if x.flavor.fg == "#ffffff" then "0.8" else "0.3"
+
+shineOpacity : CachedChord -> String
+shineOpacity x =
+  if x.flavor.fg == "#ffffff" then "0.6" else "0.7"
 
 view : CachedChord -> List (Html msg)
 view x =

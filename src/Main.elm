@@ -5,6 +5,8 @@ import AudioTime
 import CachedChord
 import Chord exposing (Chord)
 import ChordParser exposing (IdChord)
+import CircleOfFifths
+import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Highlight exposing (Highlight)
 import MainParser
 import Schedule exposing (Schedule, Segment)
@@ -14,12 +16,10 @@ import SuggestionBar
 import TickTime
 
 import AnimationFrame
-import Html exposing
-  (Html, Attribute, a, button, div, pre, span, text, textarea)
+import Html exposing (Html, a, button, div, pre, span, text, textarea)
 import Html.Attributes exposing (href, style, spellcheck, id)
-import Html.Events exposing (on, onInput, onFocus, onBlur, onClick)
+import Html.Events exposing (onInput, onFocus, onBlur)
 import Html.Lazy
-import Json.Decode exposing (Decoder)
 import Navigation exposing (Location)
 import Task exposing (Task)
 import Time
@@ -66,7 +66,8 @@ init mac location =
   let
     text = textFromLocation location
   in let
-    parse = MainParser.init (Substring 0 text)
+    parse =
+      MainParser.init CircleOfFifths.chordCount (Substring 0 text)
   in let
     suggestions = MainParser.getSuggestions parse
   in let
@@ -457,6 +458,7 @@ view model =
     [ Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
     , Html.Lazy.lazy2 viewChordArea model.chordArea model.parse
+    , Html.Lazy.lazy viewCircleOfFifths model.chordArea
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]
@@ -540,10 +542,9 @@ viewChordArea : ChordArea -> MainParser.Model -> Html Msg
 viewChordArea chordArea parse =
   div
     [ style
-        [ ( "min-height", "200px" )
-        , ( "font-size", "18pt" )
+        [ ( "font-size", "18pt" )
         , ( "margin-right", "5px" )
-        , ( "margin-bottom", "55px" )
+        , ( "margin-bottom", "5px" )
         ]
     ]
     (List.map (viewLine chordArea) (MainParser.getChords parse))
@@ -614,22 +615,12 @@ viewChord chordArea chord =
               , ( "padding", "0px 3px" )
               , ( "border"
                 , "1px solid rgba(0, 0, 0, " ++
-                    toString
-                      ( if CachedChord.fg chord.cache == "#ffffff" then
-                          0.8
-                        else
-                          0.3
-                      ) ++ ")"
+                    CachedChord.borderOpacity chord.cache ++ ")"
                 )
               , ( "border-radius", "5px" )
               , ( "box-shadow"
                 , "inset 18px 34px 20px -20px rgba(255, 255, 255, " ++
-                    toString
-                      ( if CachedChord.fg chord.cache == "#ffffff" then
-                          0.6
-                        else
-                          0.7
-                      ) ++ ")"
+                    CachedChord.shineOpacity chord.cache ++ ")"
                 )
               , ( "cursor", "pointer" )
               , ( "white-space", "nowrap" )
@@ -637,50 +628,6 @@ viewChord chordArea chord =
           ]
           (CachedChord.view chord.cache)
       ]
-
-onLeftDown : msg -> Attribute msg
-onLeftDown message =
-  on
-    "mousedown"
-    ( Json.Decode.andThen
-        (requireLeftButton message)
-        (Json.Decode.field "button" Json.Decode.int)
-    )
-
-onLeftClick : msg -> Attribute msg
-onLeftClick message =
-  on
-    "click"
-    ( Json.Decode.andThen
-        (requireLeftButton message)
-        (Json.Decode.field "button" Json.Decode.int)
-    )
-
-requireLeftButton : msg -> Int -> Decoder msg
-requireLeftButton message button =
-  case button of
-    0 -> Json.Decode.succeed message
-    _ -> Json.Decode.fail ("ignoring button " ++ toString button)
-
-onKeyDown : List ( Int, msg ) -> Attribute msg
-onKeyDown messageMap =
-  on
-    "keydown"
-    ( Json.Decode.andThen
-        (pickMessage messageMap)
-        (Json.Decode.field "which" Json.Decode.int)
-    )
-
-pickMessage : List ( Int, msg ) -> Int -> Decoder msg
-pickMessage messageMap which =
-  case messageMap of
-    ( key, message ) :: rest ->
-      if key == which then
-        Json.Decode.succeed message
-      else
-        pickMessage rest which
-    [] ->
-      Json.Decode.fail ("ignoring key " ++ toString which)
 
 viewSpace : Html msg
 viewSpace =
@@ -692,3 +639,15 @@ viewSpace =
         ]
     ]
     []
+
+viewCircleOfFifths : ChordArea -> Html Msg
+viewCircleOfFifths chordArea =
+  Html.map
+    msgFromCircleOfFifths
+    (CircleOfFifths.view chordArea.activeChord chordArea.nextChord)
+
+msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
+msgFromCircleOfFifths msg =
+  case msg of
+    CircleOfFifths.PlayChord ( chord, id ) ->
+      NeedsTime (PlayChord << (,,) chord id)
