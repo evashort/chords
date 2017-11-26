@@ -17,8 +17,9 @@ import TickTime
 
 import AnimationFrame
 import Html exposing (Html, a, button, div, pre, span, text, textarea)
-import Html.Attributes exposing (href, style, spellcheck, id)
-import Html.Events exposing (onInput, onFocus, onBlur)
+import Html.Attributes exposing
+  (href, style, spellcheck, id, classList)
+import Html.Events exposing (onClick, onInput, onFocus, onBlur)
 import Html.Lazy
 import Navigation exposing (Location)
 import Task exposing (Task)
@@ -40,6 +41,7 @@ type alias Model =
   { start : Float
   , schedule : Schedule Int
   , tick : Int
+  , strum : Bool
   , text : String
   , parse : MainParser.Model
   , home : Bool
@@ -80,6 +82,7 @@ init mac location =
     ( { start = 0
       , schedule = { stop = 0, segments = [] }
       , tick = 0
+      , strum = False
       , text = text
       , parse = parse
       , home = True
@@ -114,6 +117,7 @@ type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
   | PlayChord ( Chord, Int, Float )
+  | SetStrum ( Bool, Float )
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
   | TextEdited String
@@ -153,42 +157,37 @@ update msg model =
 
     PlayChord ( chord, id, now ) ->
       let
-        wouldBeat = TickTime.nextBeat model.start now
-      in let
-        ( start, beat, schedule, highStart, mute ) =
-          case Schedule.get (wouldBeat - 1) model.schedule of
-            Nothing ->
-              ( now, 0, { stop = 0, segments = [] }, False, True )
-            Just segment ->
-              ( model.start
-              , wouldBeat
-              , Schedule.dropBefore (wouldBeat - 9) model.schedule
-              , segment.start == wouldBeat - 8 && segment.x /= id
-              , segment.x /= id
-              )
-      in let
-        arpeggio =
-          if highStart then
-            [ 0, 2 * List.length chord ] :: arpeggioTail
+        ( start, schedule, cmd ) =
+          if model.strum then
+            playStrum chord id now model.start model.schedule
           else
-            [ 0 ] :: arpeggioTail
+            playArpeggio chord id now model.start model.schedule
       in let
-        stop = beat + 16
-      in let
-        newSchedule =
-          Schedule.add stop { x = id, start = beat } schedule
+        tick = TickTime.toTick start now
       in
         ( { model
           | start = start
-          , schedule = newSchedule
+          , schedule = schedule
+          , tick = tick
           , chordArea =
-              updateChordArea model.chordArea newSchedule model.tick
+              updateChordArea model.chordArea schedule tick
           }
-        , AudioChange.playNotes
-            mute
-            now
-            (List.map (TickTime.get start) (List.range beat (stop - 1)))
-            (List.map (List.map (Chord.get chord)) arpeggio)
+        , cmd
+        )
+
+    SetStrum ( strum, now ) ->
+      if strum == model.strum then
+        ( model, Cmd.none)
+      else
+        ( let schedule = { stop = 0, segments = [] } in
+            { model
+            | start = 0
+            , schedule = schedule
+            , tick = 0
+            , strum = strum
+            , chordArea = updateChordArea model.chordArea schedule 0
+            }
+        , AudioChange.muteAllNotes now
         )
 
     FocusHorizontal ( forwards, id ) ->
@@ -333,6 +332,69 @@ update msg model =
     SuggestionBarMsg msg ->
       updateSuggestionBar msg model []
 
+playStrum :
+  Chord -> Int -> Float -> Float -> Schedule Int ->
+    ( Float, Schedule Int, Cmd msg )
+playStrum chord id now start schedule =
+  ( now
+  , { stop = 12, segments = [ { x = id, start = 0 } ] }
+  , AudioChange.playNotes
+      ( ( Maybe.map
+            .x
+            (Schedule.get (TickTime.toTick start now) schedule)
+        ) /=
+          Just id
+      )
+      now
+      ( List.map
+          ((+) now << (*) 0.08 << toFloat)
+          (List.range 0 (List.length chord))
+      )
+      ( List.map
+          (List.singleton << Chord.get chord)
+          (List.range 0 (List.length chord))
+      )
+  )
+
+playArpeggio :
+  Chord -> Int -> Float -> Float -> Schedule Int ->
+    ( Float, Schedule Int, Cmd msg )
+playArpeggio chord id now start schedule =
+  let
+    wouldBeat = TickTime.nextBeat start now
+  in let
+    ( newStart, beat, truncatedSchedule, highStart, mute ) =
+      case Schedule.get (wouldBeat - 1) schedule of
+        Nothing ->
+          ( now, 0, { stop = 0, segments = [] }, False, True )
+        Just segment ->
+          ( start
+          , wouldBeat
+          , Schedule.dropBefore (wouldBeat - 9) schedule
+          , segment.start == wouldBeat - 8 && segment.x /= id
+          , segment.x /= id
+          )
+  in let
+    arpeggio =
+      if highStart then
+        [ 0, 2 * List.length chord ] :: arpeggioTail
+      else
+        [ 0 ] :: arpeggioTail
+  in let
+    stop = beat + 16
+  in
+    ( newStart
+    , Schedule.add stop { x = id, start = beat } truncatedSchedule
+    , AudioChange.playNotes
+        mute
+        now
+        ( List.map
+            (TickTime.get newStart)
+            (List.range beat (stop - 1))
+        )
+        (List.map (List.map (Chord.get chord)) arpeggio)
+    )
+
 halfArpeggioTail : List (List Int)
 halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
 
@@ -455,7 +517,8 @@ view model =
         , ( "font-size", "10pt" )
         ]
     ]
-    [ Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
+    [ Html.Lazy.lazy viewPlayStyle model.strum
+    , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
     , Html.Lazy.lazy2 viewChordArea model.chordArea model.parse
     , Html.Lazy.lazy viewCircleOfFifths model.chordArea
@@ -464,6 +527,50 @@ view model =
             [ href "https://github.com/evanshort73/chords" ]
             [ text "GitHub" ]
         ]
+    ]
+
+viewPlayStyle : Bool -> Html Msg
+viewPlayStyle strum =
+  div
+    [ style
+        [ ( "height", "26px" )
+        , ( "margin-bottom", "5px" )
+        ]
+    ]
+    [ span []
+        [ Html.text "Play chords as " ]
+    , button
+        [ onClick (NeedsTime (SetStrum << (,) False))
+        , classList
+            [ ( "pressMe", True )
+            , ( "chosen", not strum )
+            ]
+        , style
+            [ ( "padding", "0px 3px" )
+            , ( "border-width", "1px" )
+            , ( "border-style", "solid" )
+            , ( "border-radius", "3px 0px 0px 3px" )
+            , ( "font", "inherit" )
+            , ( "height", "100%" )
+            ]
+        ]
+        [ Html.text "Arpeggio" ]
+    , button
+        [ onClick (NeedsTime (SetStrum << (,) True))
+        , classList
+            [ ( "pressMe", True )
+            , ( "extension", True )
+            , ( "chosen", strum )
+            ]
+        , style
+            [ ( "padding", "0px 3px" )
+            , ( "border-width", "1px" )
+            , ( "border-radius", "0px 3px 3px 0px" )
+            , ( "font", "inherit" )
+            , ( "height", "100%" )
+            ]
+        ]
+        [ Html.text "Strum" ]
     ]
 
 viewChordBox : String -> MainParser.Model -> ChordBox -> Html Msg

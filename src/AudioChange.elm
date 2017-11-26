@@ -1,4 +1,4 @@
-port module AudioChange exposing (playNotes)
+port module AudioChange exposing (muteAllNotes, playNotes)
 
 import Json.Decode
 import Json.Encode
@@ -18,6 +18,10 @@ type alias ChangeTime =
   { t : Float
   , before : Bool
   }
+
+muteAllNotes : Float -> Cmd msg
+muteAllNotes now =
+  changeAudio [ toJson (MuteAllNotes { t = now, before = False }) ]
 
 playNotes : Bool -> Float -> List Float -> List (List Int) -> Cmd msg
 playNotes mute now ts chords =

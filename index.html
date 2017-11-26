@@ -11,7 +11,7 @@
     <script src="elm.js"></script>
     <style>
       .pressMe {
-        border-color: darkgray;
+        border-color: darkgray; /* darkgray is lighter than gray */
         background: #e0e0e0;
         box-shadow: inset 9px 17px 10px -10px rgba(255, 255, 255, 1);
         transition-property: border-color, background-color, box-shadow;
@@ -27,6 +27,41 @@
         background: lightskyblue;
         box-shadow: inset 9px 17px 10px -10px rgba(255, 255, 255, 0.5);
         transition-duration: 0s;
+      }
+      .pressMe.chosen {
+        border-color: gray;
+        background: lightskyblue;
+        box-shadow: inset 9px 17px 10px -10px rgba(255, 255, 255, 0.5);
+        transition-duration: 0s;
+      }
+      .pressMe.extension {
+        border-style: solid;
+        border-left-style: none;
+        box-shadow: inset 0px 17px 10px -10px rgba(255, 255, 255, 1);
+      }
+      .pressMe.extension:hover {
+        border-style: solid;
+        border-left-style: none;
+        box-shadow: inset 0px 17px 10px -10px rgba(255, 255, 255, 0.7);
+      }
+      .pressMe.extension:active {
+        border-left-style: solid;
+        margin-left: -1px;
+        box-shadow: inset 0px 17px 10px -10px rgba(255, 255, 255, 0.5);
+      }
+      .pressMe.extension.chosen {
+        border-left-style: solid;
+        margin-left: -1px;
+        box-shadow: inset 0px 17px 10px -10px rgba(255, 255, 255, 0.5);
+      }
+      .pressMe.extension.middle {
+        border-right-color: darkgray;
+      }
+      .pressMe.extension.middle:active {
+        border-right-color: gray;
+      }
+      .pressMe.extension.middle.chosen {
+        border-right-color: gray;
       }
     </style>
   </head>
