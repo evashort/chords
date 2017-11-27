@@ -36,6 +36,12 @@ Synth.prototype.noteAt = function(t, f, decay = 1.5, peak = 0.5) {
       if (gain <= 0) {
         break;
       }
+    } else if (gain == minGain) {
+      let frequency = this.voices[i].getFrequencyAt(t, false);
+      let oldFrequency = quietestVoice.getFrequencyAt(t, false);
+      if (frequency < oldFrequency) {
+        quietestVoice = this.voices[i];
+      }
     }
   }
 
