@@ -10,7 +10,8 @@ type AudioChange
   | CancelFutureNotes ChangeTime
 
 type alias Note =
-  { t : Float
+  { decay : Float
+  , t : Float
   , f : Float
   }
 
@@ -23,8 +24,9 @@ muteAllNotes : Float -> Cmd msg
 muteAllNotes now =
   changeAudio [ toJson (MuteAllNotes { t = now, before = False }) ]
 
-playNotes : Bool -> Float -> List Float -> List (List Int) -> Cmd msg
-playNotes mute now ts chords =
+playNotes :
+  Float -> Bool -> Float -> List Float -> List (List Int) -> Cmd msg
+playNotes decay mute now ts chords =
   case ts of
     [] ->
       Cmd.none
@@ -45,7 +47,7 @@ playNotes mute now ts chords =
               ]
       in let
         noteChanges =
-          List.concat (List.map2 (toNoteChanges now) ts chords)
+          List.concat (List.map2 (toNoteChanges decay now) ts chords)
       in
         changeAudio (List.map toJson (cutoffChanges ++ noteChanges))
 
@@ -56,20 +58,21 @@ mtof : Int -> Float
 mtof m =
   440 * 2 ^ (toFloat (m - 69) / 12)
 
-toNoteChanges : Float -> Float -> List Int -> List AudioChange
-toNoteChanges now t chord =
-  List.map (NewNote << Note (max now t) << mtof) chord
+toNoteChanges : Float -> Float -> Float -> List Int -> List AudioChange
+toNoteChanges decay now t chord =
+  List.map (NewNote << Note decay (max now t) << mtof) chord
 
 port changeAudio : List Json.Encode.Value -> Cmd msg
 
 toJson : AudioChange -> Json.Encode.Value
 toJson change =
   case change of
-    NewNote { t, f } ->
+    NewNote { decay, t, f } ->
       Json.Encode.object
         [ ( "type", Json.Encode.string "note" )
         , ( "t", Json.Encode.float t )
         , ( "f", Json.Encode.float f )
+        , ( "decay", Json.Encode.float decay )
         ]
     MuteLoudestNote { t, before } ->
       Json.Encode.object

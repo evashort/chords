@@ -137,7 +137,10 @@ update msg model =
       ( model, Task.perform partialMsg AudioTime.now )
 
     CurrentTime now ->
-      ( if TickTime.nextBeat model.start now > model.schedule.stop then
+      ( if
+          not model.strum &&
+            TickTime.nextBeat model.start now > model.schedule.stop
+        then
           let schedule = { stop = 0, segments = [] } in
             { model
             | start = 0
@@ -147,7 +150,15 @@ update msg model =
             }
         else
           let tick = TickTime.toTick model.start now in
-            if tick /= model.tick then
+            if model.strum && tick >= model.schedule.stop then
+              let schedule = { stop = 0, segments = [] } in
+                { model
+                | start = 0
+                , schedule = schedule
+                , tick = 0
+                , chordArea = updateChordArea model.chordArea schedule 0
+                }
+            else if tick /= model.tick then
               { model
               | tick = TickTime.toTick model.start now
               , chordArea =
@@ -352,6 +363,7 @@ playStrum strumInterval chord id now start schedule =
   ( now
   , { stop = 12, segments = [ { x = id, start = 0 } ] }
   , AudioChange.playNotes
+      3
       ( ( Maybe.map
             .x
             (Schedule.get (TickTime.toTick start now) schedule)
@@ -399,6 +411,7 @@ playArpeggio chord id now start schedule =
     ( newStart
     , Schedule.add stop { x = id, start = beat } truncatedSchedule
     , AudioChange.playNotes
+        1.5
         mute
         now
         ( List.map

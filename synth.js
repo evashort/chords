@@ -18,10 +18,10 @@ Synth.prototype.start = function() {
   }
 }
 
-Synth.prototype.noteAt = function(t, f, peak = 0.5) {
+Synth.prototype.noteAt = function(t, f, decay = 1.5, peak = 0.5) {
   for (let i = 0; i < this.voices.length; i++) {
     if (this.voices[i].getFrequencyAt(t, false) == f) {
-      this.voices[i].noteAt(t, f, peak);
+      this.voices[i].noteAt(t, f, decay, peak);
       return;
     }
   }
@@ -39,7 +39,7 @@ Synth.prototype.noteAt = function(t, f, peak = 0.5) {
     }
   }
 
-  quietestVoice.noteAt(t, f, peak);
+  quietestVoice.noteAt(t, f, decay, peak);
 }
 
 Synth.prototype.muteLoudestNoteAt = function(t, ignoreJumps = false) {
@@ -62,8 +62,8 @@ Synth.prototype.muteAt = function(t, ignoreJumps = false) {
   }
 }
 
-Synth.prototype.ringOutAt = function(t, ignoreJumps = false) {
+Synth.prototype.ringOutAt = function(t, ignoreJumps = false, decay = 1.5) {
   for (let i = 0; i < this.voices.length; i++) {
-    this.voices[i].ringOutAt(t, ignoreJumps);
+    this.voices[i].ringOutAt(t, ignoreJumps, decay);
   }
 }
