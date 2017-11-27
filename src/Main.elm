@@ -16,9 +16,9 @@ import SuggestionBar
 import TickTime
 
 import AnimationFrame
-import Html exposing (Html, a, button, div, pre, span, text, textarea)
+import Html exposing (Html, a, button, div, pre, span, text, textarea, input)
 import Html.Attributes exposing
-  (href, style, spellcheck, id, classList)
+  (href, style, spellcheck, id, classList, type_)
 import Html.Events exposing (onClick, onInput, onFocus, onBlur)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -42,6 +42,7 @@ type alias Model =
   , schedule : Schedule Int
   , tick : Int
   , strum : Bool
+  , strumInterval : Float
   , text : String
   , parse : MainParser.Model
   , home : Bool
@@ -83,6 +84,7 @@ init mac location =
       , schedule = { stop = 0, segments = [] }
       , tick = 0
       , strum = False
+      , strumInterval = 0.06
       , text = text
       , parse = parse
       , home = True
@@ -118,6 +120,7 @@ type Msg
   | CurrentTime Float
   | PlayChord ( Chord, Int, Float )
   | SetStrum ( Bool, Float )
+  | SetStrumInterval String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
   | TextEdited String
@@ -159,7 +162,8 @@ update msg model =
       let
         ( start, schedule, cmd ) =
           if model.strum then
-            playStrum chord id now model.start model.schedule
+            playStrum
+              model.strumInterval chord id now model.start model.schedule
           else
             playArpeggio chord id now model.start model.schedule
       in let
@@ -189,6 +193,15 @@ update msg model =
             }
         , AudioChange.muteAllNotes now
         )
+
+    SetStrumInterval strumIntervalString ->
+      ( case String.toFloat strumIntervalString of
+          Ok strumInterval ->
+            { model | strumInterval = strumInterval }
+          Err _ ->
+            model
+      , Cmd.none
+      )
 
     FocusHorizontal ( forwards, id ) ->
       case
@@ -333,9 +346,9 @@ update msg model =
       updateSuggestionBar msg model []
 
 playStrum :
-  Chord -> Int -> Float -> Float -> Schedule Int ->
+  Float -> Chord -> Int -> Float -> Float -> Schedule Int ->
     ( Float, Schedule Int, Cmd msg )
-playStrum chord id now start schedule =
+playStrum strumInterval chord id now start schedule =
   ( now
   , { stop = 12, segments = [ { x = id, start = 0 } ] }
   , AudioChange.playNotes
@@ -347,7 +360,7 @@ playStrum chord id now start schedule =
       )
       now
       ( List.map
-          ((+) now << (*) 0.08 << toFloat)
+          ((+) now << (*) strumInterval << toFloat)
           (List.range 0 (List.length chord))
       )
       ( List.map
@@ -517,7 +530,7 @@ view model =
         , ( "font-size", "10pt" )
         ]
     ]
-    [ Html.Lazy.lazy viewPlayStyle model.strum
+    [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
     , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
     , Html.Lazy.lazy2 viewChordArea model.chordArea model.parse
@@ -529,49 +542,80 @@ view model =
         ]
     ]
 
-viewPlayStyle : Bool -> Html Msg
-viewPlayStyle strum =
+viewPlayStyle : Bool -> Float -> Html Msg
+viewPlayStyle strum strumInterval =
   div
     [ style
         [ ( "height", "26px" )
         , ( "margin-bottom", "5px" )
         ]
     ]
-    [ span []
-        [ Html.text "Play chords as " ]
-    , button
-        [ onClick (NeedsTime (SetStrum << (,) False))
-        , classList
-            [ ( "pressMe", True )
-            , ( "chosen", not strum )
+    ( List.concat
+        [ [ span []
+              [ Html.text "Play chords as " ]
+          , button
+              [ onClick (NeedsTime (SetStrum << (,) False))
+              , classList
+                  [ ( "pressMe", True )
+                  , ( "chosen", not strum )
+                  ]
+              , style
+                  [ ( "padding", "0px 3px" )
+                  , ( "border-width", "1px" )
+                  , ( "border-style", "solid" )
+                  , ( "border-radius", "3px 0px 0px 3px" )
+                  , ( "font", "inherit" )
+                  , ( "height", "100%" )
+                  ]
+              ]
+              [ Html.text "Arpeggio" ]
+          , button
+              [ onClick (NeedsTime (SetStrum << (,) True))
+              , classList
+                  [ ( "pressMe", True )
+                  , ( "extension", True )
+                  , ( "chosen", strum )
+                  ]
+              , style
+                  [ ( "padding", "0px 3px" )
+                  , ( "border-width", "1px" )
+                  , ( "border-radius", "0px 3px 3px 0px" )
+                  , ( "font", "inherit" )
+                  , ( "height", "100%" )
+                  , ( "margin-right", "5px" )
+                  ]
+              ]
+              [ Html.text "Strum" ]
+          ]
+        , if strum then
+            [ input
+                [ type_ "range"
+                , onInput SetStrumInterval
+                , Html.Attributes.min "0"
+                , Html.Attributes.max "0.1"
+                , Html.Attributes.step "0.02"
+                , Html.Attributes.value (toString strumInterval)
+                , style
+                    [ ( "height", "100%" )
+                    , ( "box-sizing", "border-box" )
+                    , ( "vertical-align", "top" )
+                    , ( "margin", "0px" )
+                    ]
+                ]
+                []
+            , span
+                [ style
+                    [ ( "margin-left", "5px")
+                    ]
+                ]
+                [ Html.text
+                    (toString (strumInterval * 1000) ++ "ms between notes")
+                ]
             ]
-        , style
-            [ ( "padding", "0px 3px" )
-            , ( "border-width", "1px" )
-            , ( "border-style", "solid" )
-            , ( "border-radius", "3px 0px 0px 3px" )
-            , ( "font", "inherit" )
-            , ( "height", "100%" )
-            ]
+          else
+            []
         ]
-        [ Html.text "Arpeggio" ]
-    , button
-        [ onClick (NeedsTime (SetStrum << (,) True))
-        , classList
-            [ ( "pressMe", True )
-            , ( "extension", True )
-            , ( "chosen", strum )
-            ]
-        , style
-            [ ( "padding", "0px 3px" )
-            , ( "border-width", "1px" )
-            , ( "border-radius", "0px 3px 3px 0px" )
-            , ( "font", "inherit" )
-            , ( "height", "100%" )
-            ]
-        ]
-        [ Html.text "Strum" ]
-    ]
+    )
 
 viewChordBox : String -> MainParser.Model -> ChordBox -> Html Msg
 viewChordBox chordBoxText parse chordBox =
