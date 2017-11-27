@@ -84,7 +84,7 @@ init mac location =
       , schedule = { stop = 0, segments = [] }
       , tick = 0
       , strum = False
-      , strumInterval = 0.06
+      , strumInterval = 0
       , text = text
       , parse = parse
       , home = True
