@@ -1,8 +1,14 @@
 var ac = new (window.AudioContext || window.webkitAudioContext)();
 
+var reverb = Freeverb(ac);
+reverb.roomSize = 0.2;
+reverb.wet.value = 0.3;
+reverb.dry.value = 0.55;
+reverb.connect(ac.destination);
+
 var lp = ac.createBiquadFilter();
-lp.frequency = 1800;
-lp.connect(ac.destination);
+lp.frequency = 2200;
+lp.connect(reverb);
 
 var synth = new Synth(6, ac);
 synth.connect(lp);
