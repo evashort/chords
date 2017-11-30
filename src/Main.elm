@@ -603,7 +603,7 @@ viewPlayStyle : Bool -> Float -> Html Msg
 viewPlayStyle strum strumInterval =
   div
     [ style
-        [ ( "height", "26px" )
+        [ ( "line-height", "26px" )
         , ( "margin-bottom", "5px" )
         ]
     ]
@@ -622,7 +622,7 @@ viewPlayStyle strum strumInterval =
                   , ( "border-style", "solid" )
                   , ( "border-radius", "3px 0px 0px 3px" )
                   , ( "font", "inherit" )
-                  , ( "height", "100%" )
+                  , ( "line-height", "24px" )
                   ]
               ]
               [ Html.text "Arpeggio" ]
@@ -638,8 +638,7 @@ viewPlayStyle strum strumInterval =
                   , ( "border-width", "1px" )
                   , ( "border-radius", "0px 3px 3px 0px" )
                   , ( "font", "inherit" )
-                  , ( "height", "100%" )
-                  , ( "margin-right", "5px" )
+                  , ( "line-height", "24px" )
                   ]
               ]
               [ Html.text "Strum" ]
@@ -653,18 +652,14 @@ viewPlayStyle strum strumInterval =
                 , Html.Attributes.step "0.02"
                 , Html.Attributes.value (toString strumInterval)
                 , style
-                    [ ( "height", "100%" )
-                    , ( "box-sizing", "border-box" )
+                    [ ( "margin", "0px 5px" )
+                    , ( "height", "26px" )
                     , ( "vertical-align", "top" )
-                    , ( "margin", "0px" )
+                    , ( "box-sizing", "border-box" )
                     ]
                 ]
                 []
-            , span
-                [ style
-                    [ ( "margin-left", "5px")
-                    ]
-                ]
+            , span []
                 [ Html.text
                     (toString (strumInterval * 1000) ++ "ms between notes")
                 ]
@@ -683,56 +678,49 @@ viewOctaveBase octaveBase =
   in
     div
       [ style
-          [ ( "height", "26px" )
+          [ ( "line-height", "26px" )
           , ( "margin-bottom", "5px" )
           ]
       ]
       [ span []
           [ Html.text "Root octave " ]
+      , input
+          [ type_ "number"
+          , onInput SetOctave
+          , Html.Attributes.value (toString octave)
+          , Html.Attributes.size 2
+          , Html.Attributes.min "-2"
+          , Html.Attributes.max "6"
+          , style
+              [ ( "width", "3em" )
+              ]
+          ]
+          []
+      , input
+          [ type_ "range"
+          , onInput SetOctaveStart
+          , Html.Attributes.min "0"
+          , Html.Attributes.max "11"
+          , Html.Attributes.value (toString octaveOffset)
+          , style
+              [ ( "margin", "0px 5px" )
+              , ( "height", "26px" )
+              , ( "vertical-align", "top" )
+              , ( "box-sizing", "border-box" )
+              ]
+          ]
+          []
       , span []
-        [ input
-            [ type_ "number"
-            , onInput SetOctave
-            , Html.Attributes.value (toString octave)
-            , Html.Attributes.size 2
-            , Html.Attributes.min "-2"
-            , Html.Attributes.max "6"
-            , style
-                [ ( "width", "3em" )
-                , ( "margin-right", "5px" )
-                ]
-            ]
-            []
-        , input
-            [ type_ "range"
-            , onInput SetOctaveStart
-            , Html.Attributes.min "0"
-            , Html.Attributes.max "11"
-            , Html.Attributes.value (toString octaveOffset)
-            , style
-                [ ( "height", "100%" )
-                , ( "box-sizing", "border-box" )
-                , ( "vertical-align", "top" )
-                , ( "margin", "0px" )
-                ]
-            ]
-            []
-        , span
-            [ style
-                [ ( "margin-left", "5px")
-                ]
-            ]
-            [ Html.text
-                ( String.concat
-                    [ getFlatName octaveOffset
-                    , toString octave
-                    , " to "
-                    , getSharpName ((octaveOffset + 11) % 12)
-                    , toString (octave + min octaveOffset 1)
-                    ]
-                )
-            ]
-        ]
+          [ Html.text
+              ( String.concat
+                  [ getFlatName octaveOffset
+                  , toString octave
+                  , " to "
+                  , getSharpName ((octaveOffset + 11) % 12)
+                  , toString (octave + min octaveOffset 1)
+                  ]
+              )
+          ]
       ]
 
 getSharpName : Int -> String
