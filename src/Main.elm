@@ -16,6 +16,7 @@ import SuggestionBar
 import TickTime
 
 import AnimationFrame
+import Array
 import Html exposing (Html, a, button, div, pre, span, text, textarea, input)
 import Html.Attributes exposing
   (href, style, spellcheck, id, classList, type_)
@@ -43,6 +44,7 @@ type alias Model =
   , tick : Int
   , strum : Bool
   , strumInterval : Float
+  , octaveBase : Int
   , text : String
   , parse : MainParser.Model
   , home : Bool
@@ -85,6 +87,7 @@ init mac location =
       , tick = 0
       , strum = False
       , strumInterval = 0
+      , octaveBase = 48
       , text = text
       , parse = parse
       , home = True
@@ -121,6 +124,8 @@ type Msg
   | PlayChord ( Chord, Int, Float )
   | SetStrum ( Bool, Float )
   | SetStrumInterval String
+  | SetOctave String
+  | SetOctaveStart String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
   | TextEdited String
@@ -171,12 +176,26 @@ update msg model =
 
     PlayChord ( chord, id, now ) ->
       let
+        root = Chord.get chord 0
+      in let
+        oRoot =
+          if 48 <= root && root < 60 then
+            (root - model.octaveBase) % 12 + model.octaveBase
+          else
+            root
+      in let
+        oChord =
+          if oRoot /= root then
+            List.map ((+) (oRoot - root)) chord
+          else
+            chord
+      in let
         ( start, schedule, cmd ) =
           if model.strum then
             playStrum
-              model.strumInterval chord id now model.start model.schedule
+              model.strumInterval oChord id now model.start model.schedule
           else
-            playArpeggio chord id now model.start model.schedule
+            playArpeggio oChord id now model.start model.schedule
       in let
         tick = TickTime.toTick start now
       in
@@ -209,6 +228,30 @@ update msg model =
       ( case String.toFloat strumIntervalString of
           Ok strumInterval ->
             { model | strumInterval = strumInterval }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
+    SetOctave octaveString ->
+      ( case String.toInt octaveString of
+          Ok octave ->
+            { model
+            | octaveBase =
+                12 * (octave + 2) + model.octaveBase % 12
+            }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
+    SetOctaveStart octaveOffsetString ->
+      ( case String.toInt octaveOffsetString of
+          Ok octaveOffset ->
+            { model
+            | octaveBase =
+                model.octaveBase - (model.octaveBase % 12) + octaveOffset
+            }
           Err _ ->
             model
       , Cmd.none
@@ -544,6 +587,7 @@ view model =
         ]
     ]
     [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
+    , Html.Lazy.lazy viewOctaveBase model.octaveBase
     , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
     , Html.Lazy.lazy2 viewChordArea model.chordArea model.parse
@@ -628,6 +672,93 @@ viewPlayStyle strum strumInterval =
           else
             []
         ]
+    )
+
+viewOctaveBase : Int -> Html Msg
+viewOctaveBase octaveBase =
+  let
+    octaveOffset = octaveBase % 12
+  in let
+    octave = (octaveBase - octaveOffset) // 12 - 2
+  in
+    div
+      [ style
+          [ ( "height", "26px" )
+          , ( "margin-bottom", "5px" )
+          ]
+      ]
+      [ span []
+          [ Html.text "Root octave " ]
+      , span []
+        [ input
+            [ type_ "number"
+            , onInput SetOctave
+            , Html.Attributes.value (toString octave)
+            , Html.Attributes.size 2
+            , Html.Attributes.min "-2"
+            , Html.Attributes.max "6"
+            , style
+                [ ( "width", "3em" )
+                , ( "margin-right", "5px" )
+                ]
+            ]
+            []
+        , input
+            [ type_ "range"
+            , onInput SetOctaveStart
+            , Html.Attributes.min "0"
+            , Html.Attributes.max "11"
+            , Html.Attributes.value (toString octaveOffset)
+            , style
+                [ ( "height", "100%" )
+                , ( "box-sizing", "border-box" )
+                , ( "vertical-align", "top" )
+                , ( "margin", "0px" )
+                ]
+            ]
+            []
+        , span
+            [ style
+                [ ( "margin-left", "5px")
+                ]
+            ]
+            [ Html.text
+                ( String.concat
+                    [ getFlatName octaveOffset
+                    , toString octave
+                    , " to "
+                    , getSharpName ((octaveOffset + 11) % 12)
+                    , toString (octave + min octaveOffset 1)
+                    ]
+                )
+            ]
+        ]
+      ]
+
+getSharpName : Int -> String
+getSharpName note =
+  Maybe.withDefault
+    ""
+    ( Array.get
+        note
+        ( Array.fromList
+            [ "C", "C♯", "D", "D♯", "E"
+            , "F", "F♯", "G", "G♯", "A", "A♯", "B"
+            ]
+        )
+    )
+
+getFlatName : Int -> String
+getFlatName note =
+  Maybe.withDefault
+    ""
+    ( Array.get
+        note
+        ( Array.fromList
+            [ "C", "D♭", "D", "E♭", "E"
+            , "F", "G♭", "G", "A♭", "A", "B♭", "B"
+            ]
+        )
     )
 
 viewChordBox : String -> MainParser.Model -> ChordBox -> Html Msg
