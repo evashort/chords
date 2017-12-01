@@ -24,7 +24,7 @@ fg x =
 bg : CachedChord -> String
 bg x =
   let ( a, b, c ) = x.flavor.bg in
-    case Chord.get x.chord 0 % 3 of
+    case Chord.get x.chord x.i % 3 of
       0 -> a
       1 -> b
       _ -> c
