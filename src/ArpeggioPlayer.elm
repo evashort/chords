@@ -1,6 +1,6 @@
 module ArpeggioPlayer exposing (ArpeggioPlayer, play)
 
-import AudioChange exposing (Note)
+import AudioChange exposing (AudioChange(..), Note)
 import Chord exposing (Chord)
 import PlayStatus exposing (PlayStatus, PlaySegment)
 
@@ -21,7 +21,7 @@ leniency = 0.05
 
 play :
   Chord -> Int -> Float -> Float -> ArpeggioPlayer ->
-    ( ArpeggioPlayer, Cmd msg, List PlaySegment )
+    ( ArpeggioPlayer, List AudioChange, List PlaySegment )
 play chord id now beatInterval player =
   let
     openingsNotAfter = dropOpeningsAfter now player.openings
@@ -33,16 +33,16 @@ play chord id now beatInterval player =
           if now <= opening.endTime then openingsNotAfter
           else []
   in let
-    ( beat, mute, highStart ) =
+    ( beat, oldId, highStart ) =
       case truncatedOpenings of
         [] ->
-          ( now / beatInterval, False, False )
+          ( now / beatInterval, -1, False )
         opening :: _ ->
           ( if opening.beatInterval == beatInterval then
               opening.beat
             else
               opening.beat * beatInterval / opening.beatInterval
-          , opening.id /= id
+          , opening.id
           , opening.highStart && opening.id /= id
           )
   in let
@@ -65,7 +65,9 @@ play chord id now beatInterval player =
     arpeggio =
       if highStart then highArpeggio else lowArpeggio
   in let
-    notes = List.map (toNote chord beatInterval beat) arpeggio
+    notes = List.map (toNote chord now beatInterval beat) arpeggio
+  in let
+    startTime = beat * beatInterval
   in let
     schedule =
       List.concat
@@ -74,7 +76,7 @@ play chord id now beatInterval player =
               []
             opening :: _ ->
               [ { status = { active = opening.id, next = id }
-                , stop = beat * beatInterval
+                , stop = startTime
                 }
               ]
         , [ { status = { active = id, next = -1 }
@@ -84,7 +86,15 @@ play chord id now beatInterval player =
         ]
   in
     ( { player | openings = newOpenings }
-    , AudioChange.playNotes 1.5 mute now notes
+    , List.concat
+        [ [ if oldId == id then
+              CancelFutureNotes { t = startTime, before = now < startTime }
+            else
+              MuteAllNotes { t = startTime, before = now < startTime }
+          , SetDecay 1.5
+          ]
+        , List.map AddNote notes
+        ]
     , PlayStatus.dropBefore now schedule
     )
 
@@ -99,10 +109,10 @@ dropOpeningsAfter t openings =
           if previousOpening.endTime < t then openings
           else dropOpeningsAfter t previousOpenings
 
-toNote : Chord -> Float -> Float -> IndexNote -> Note
-toNote chord beatInterval startBeat { offset, beat, i } =
+toNote : Chord -> Float -> Float -> Float -> IndexNote -> Note
+toNote chord now beatInterval startBeat { offset, beat, i } =
   let pitch = Chord.get chord i + offset in
-    { t = beatInterval * (startBeat + beat)
+    { t = max now (beatInterval * (startBeat + beat))
     , f = 440 * 2 ^ (toFloat (pitch - 69) / 12)
     }
 

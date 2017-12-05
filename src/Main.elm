@@ -1,7 +1,7 @@
 port module Main exposing (..)
 
 import ArpeggioPlayer exposing (ArpeggioPlayer)
-import AudioChange exposing (Note)
+import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
 import CachedChord
 import Chord exposing (Chord)
@@ -78,7 +78,7 @@ init mac location =
     ( { arpeggioPlayer = { openings = [] }
       , schedule = []
       , strum = False
-      , strumInterval = 0
+      , strumInterval = 0.06
       , octaveBase = 48
       , text = text
       , parse = parse
@@ -153,13 +153,14 @@ update msg model =
           else
             chord
       in let
-        ( arpeggioPlayer, cmd, schedule ) =
+        ( arpeggioPlayer, changes, schedule ) =
           if model.strum then
             let
-              ( cmd, schedule ) =
-                playStrum model.strumInterval oChord id now model.schedule
+              ( changes, schedule ) =
+                playStrum
+                  model.strumInterval oChord id now model.schedule
             in
-              ( model.arpeggioPlayer, cmd, schedule )
+              ( model.arpeggioPlayer, changes, schedule )
           else
             ArpeggioPlayer.play oChord id now (60 / 85) model.arpeggioPlayer
       in
@@ -167,7 +168,7 @@ update msg model =
           | schedule = schedule
           , arpeggioPlayer = arpeggioPlayer
           }
-        , cmd
+        , AudioChange.perform changes
         )
 
     SetStrum ( strum, now ) ->
@@ -180,7 +181,8 @@ update msg model =
             , arpeggioPlayer = { openings = [] }
             , strum = strum
             }
-        , AudioChange.muteAllNotes now
+        , AudioChange.perform
+            [ MuteAllNotes { t = now, before = False } ]
         )
 
     SetStrumInterval strumIntervalString ->
@@ -360,19 +362,23 @@ update msg model =
 
 playStrum :
   Float -> Chord -> Int -> Float -> List PlaySegment ->
-    ( Cmd msg, List PlaySegment )
+    ( List AudioChange, List PlaySegment )
 playStrum strumInterval chord id now schedule =
-  ( AudioChange.playNotes
-      3
-      ( case PlayStatus.dropBefore now schedule of
-          [] -> False
-          segment :: _ -> segment.status.active /= id
-      )
-      now
-      ( List.map
-          (toNote strumInterval chord now)
+  ( List.concat
+      [ [ case PlayStatus.dropBefore now schedule of
+            [] ->
+              CancelFutureNotes { t = now, before = False }
+            segment :: _ ->
+              if segment.status.active == id then
+                CancelFutureNotes { t = now, before = False }
+              else
+                MuteAllNotes { t = now, before = False }
+        , SetDecay 3
+        ]
+      , List.map
+          (AddNote << toNote strumInterval chord now)
           (List.range 0 (List.length chord))
-      )
+      ]
   , [ { status = { active = id, next = -1 }, stop = now + 2.25 } ]
   )
 
