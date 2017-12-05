@@ -1,4 +1,4 @@
-port module AudioChange exposing (muteAllNotes, playNotes)
+port module AudioChange exposing (Note, muteAllNotes, playNotes)
 
 import Json.Decode
 import Json.Encode
@@ -24,17 +24,16 @@ muteAllNotes : Float -> Cmd msg
 muteAllNotes now =
   changeAudio [ toJson (MuteAllNotes { t = now, before = False }) ]
 
-playNotes :
-  Float -> Bool -> Float -> List Float -> List (List Int) -> Cmd msg
-playNotes decay mute now ts chords =
-  case ts of
+playNotes : Float -> Bool -> Float -> List Note -> Cmd msg
+playNotes decay mute now notes =
+  case notes of
     [] ->
       Cmd.none
-    t :: _ ->
+    note :: _ ->
       let
         cutoffChanges =
-          if now + latency >= t then
-            let notBeforeNote = max now t in
+          if now + latency >= note.t then
+            let notBeforeNote = max now note.t in
               if mute then
                 [ MuteAllNotes { t = notBeforeNote, before = False } ]
               else
@@ -43,11 +42,10 @@ playNotes decay mute now ts chords =
                 ]
           else
               [ (if mute then MuteAllNotes else CancelFutureNotes)
-                  { t = t, before = True }
+                  { t = note.t, before = True }
               ]
       in let
-        noteChanges =
-          List.concat (List.map2 (toNoteChanges now) ts chords)
+        noteChanges = List.map (NewNote << notBefore now) notes
       in
         changeAudio
           ( List.map
@@ -58,13 +56,10 @@ playNotes decay mute now ts chords =
 latency : Float
 latency = 0.01
 
-mtof : Int -> Float
-mtof m =
-  440 * 2 ^ (toFloat (m - 69) / 12)
-
-toNoteChanges : Float -> Float -> List Int -> List AudioChange
-toNoteChanges now t chord =
-  List.map (NewNote << Note (max now t) << mtof) chord
+notBefore : Float -> Note -> Note
+notBefore t note =
+  if note.t >= t then note
+  else { note | t = t }
 
 port changeAudio : List Json.Encode.Value -> Cmd msg
 

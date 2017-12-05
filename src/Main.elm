@@ -1,6 +1,7 @@
 port module Main exposing (..)
 
-import AudioChange
+import ArpeggioPlayer exposing (ArpeggioPlayer)
+import AudioChange exposing (Note)
 import AudioTime
 import CachedChord
 import Chord exposing (Chord)
@@ -9,11 +10,10 @@ import CircleOfFifths
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Highlight exposing (Highlight)
 import MainParser
-import Schedule exposing (Schedule, Segment)
+import PlayStatus exposing (PlayStatus, PlaySegment)
 import Selection
 import Substring exposing (Substring)
 import SuggestionBar
-import TickTime
 
 import AnimationFrame
 import Array
@@ -39,9 +39,8 @@ main =
 -- MODEL
 
 type alias Model =
-  { start : Float
-  , schedule : Schedule Int
-  , tick : Int
+  { arpeggioPlayer : ArpeggioPlayer
+  , schedule : List PlaySegment
   , strum : Bool
   , strumInterval : Float
   , octaveBase : Int
@@ -53,17 +52,11 @@ type alias Model =
   , bubble : Maybe Highlight
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar.Model
-  , chordArea : ChordArea
   }
 
 type alias ChordBox =
   { highlightRanges : List Substring
   , bubble : Maybe Highlight
-  }
-
-type alias ChordArea =
-  { activeChord : Int
-  , nextChord : Int
   }
 
 init : Bool -> Location -> ( Model, Cmd Msg )
@@ -82,9 +75,8 @@ init mac location =
   in let
     suggestionBar = SuggestionBar.init modifierKey suggestions
   in
-    ( { start = 0
-      , schedule = { stop = 0, segments = [] }
-      , tick = 0
+    ( { arpeggioPlayer = { openings = [] }
+      , schedule = []
       , strum = False
       , strumInterval = 0
       , octaveBase = 48
@@ -100,10 +92,6 @@ init mac location =
           , bubble = Nothing
           }
       , suggestionBar = suggestionBar
-      , chordArea =
-          { activeChord = -1
-          , nextChord = -1
-          }
       }
     , Selection.setSelection { start = n, stop = n }
     )
@@ -142,35 +130,10 @@ update msg model =
       ( model, Task.perform partialMsg AudioTime.now )
 
     CurrentTime now ->
-      ( if
-          not model.strum &&
-            TickTime.nextBeat model.start now > model.schedule.stop
-        then
-          let schedule = { stop = 0, segments = [] } in
-            { model
-            | start = 0
-            , schedule = schedule
-            , tick = 0
-            , chordArea = updateChordArea model.chordArea schedule 0
-            }
+      ( if PlayStatus.canDropBefore now model.schedule then
+          { model | schedule = PlayStatus.dropBefore now model.schedule }
         else
-          let tick = TickTime.toTick model.start now in
-            if model.strum && tick >= model.schedule.stop then
-              let schedule = { stop = 0, segments = [] } in
-                { model
-                | start = 0
-                , schedule = schedule
-                , tick = 0
-                , chordArea = updateChordArea model.chordArea schedule 0
-                }
-            else if tick /= model.tick then
-              { model
-              | tick = TickTime.toTick model.start now
-              , chordArea =
-                  updateChordArea model.chordArea model.schedule tick
-              }
-            else
-              model
+          model
       , Cmd.none
       )
 
@@ -190,21 +153,19 @@ update msg model =
           else
             chord
       in let
-        ( start, schedule, cmd ) =
+        ( arpeggioPlayer, cmd, schedule ) =
           if model.strum then
-            playStrum
-              model.strumInterval oChord id now model.start model.schedule
+            let
+              ( cmd, schedule ) =
+                playStrum model.strumInterval oChord id now model.schedule
+            in
+              ( model.arpeggioPlayer, cmd, schedule )
           else
-            playArpeggio oChord id now model.start model.schedule
-      in let
-        tick = TickTime.toTick start now
+            ArpeggioPlayer.play oChord id now (60 / 85) model.arpeggioPlayer
       in
         ( { model
-          | start = start
-          , schedule = schedule
-          , tick = tick
-          , chordArea =
-              updateChordArea model.chordArea schedule tick
+          | schedule = schedule
+          , arpeggioPlayer = arpeggioPlayer
           }
         , cmd
         )
@@ -215,11 +176,9 @@ update msg model =
       else
         ( let schedule = { stop = 0, segments = [] } in
             { model
-            | start = 0
-            , schedule = schedule
-            , tick = 0
+            | schedule = []
+            , arpeggioPlayer = { openings = [] }
             , strum = strum
-            , chordArea = updateChordArea model.chordArea schedule 0
             }
         , AudioChange.muteAllNotes now
         )
@@ -400,75 +359,29 @@ update msg model =
       updateSuggestionBar msg model []
 
 playStrum :
-  Float -> Chord -> Int -> Float -> Float -> Schedule Int ->
-    ( Float, Schedule Int, Cmd msg )
-playStrum strumInterval chord id now start schedule =
-  ( now
-  , { stop = 12, segments = [ { x = id, start = 0 } ] }
-  , AudioChange.playNotes
+  Float -> Chord -> Int -> Float -> List PlaySegment ->
+    ( Cmd msg, List PlaySegment )
+playStrum strumInterval chord id now schedule =
+  ( AudioChange.playNotes
       3
-      ( ( Maybe.map
-            .x
-            (Schedule.get (TickTime.toTick start now) schedule)
-        ) /=
-          Just id
+      ( case PlayStatus.dropBefore now schedule of
+          [] -> False
+          segment :: _ -> segment.status.active /= id
       )
       now
       ( List.map
-          ((+) now << (*) strumInterval << toFloat)
+          (toNote strumInterval chord now)
           (List.range 0 (List.length chord))
       )
-      ( List.map
-          (List.singleton << Chord.get chord)
-          (List.range 0 (List.length chord))
-      )
+  , [ { status = { active = id, next = -1 }, stop = now + 2.25 } ]
   )
 
-playArpeggio :
-  Chord -> Int -> Float -> Float -> Schedule Int ->
-    ( Float, Schedule Int, Cmd msg )
-playArpeggio chord id now start schedule =
-  let
-    wouldBeat = TickTime.nextBeat start now
-  in let
-    ( newStart, beat, truncatedSchedule, highStart, mute ) =
-      case Schedule.get (wouldBeat - 1) schedule of
-        Nothing ->
-          ( now, 0, { stop = 0, segments = [] }, False, True )
-        Just segment ->
-          ( start
-          , wouldBeat
-          , Schedule.dropBefore (wouldBeat - 9) schedule
-          , segment.start == wouldBeat - 8 && segment.x /= id
-          , segment.x /= id
-          )
-  in let
-    arpeggio =
-      if highStart then
-        [ 0, 2 * List.length chord ] :: arpeggioTail
-      else
-        [ 0 ] :: arpeggioTail
-  in let
-    stop = beat + 16
-  in
-    ( newStart
-    , Schedule.add stop { x = id, start = beat } truncatedSchedule
-    , AudioChange.playNotes
-        1.5
-        mute
-        now
-        ( List.map
-            (TickTime.get newStart)
-            (List.range beat (stop - 1))
-        )
-        (List.map (List.map (Chord.get chord)) arpeggio)
-    )
-
-halfArpeggioTail : List (List Int)
-halfArpeggioTail = [ [ 1 ], [ 2 ], [ 3 ], [ 4 ], [ 5 ], [ 3 ], [ 4 ] ]
-
-arpeggioTail : List (List Int)
-arpeggioTail = halfArpeggioTail ++ [ 0, 6 ] :: halfArpeggioTail
+toNote : Float -> Chord -> Float -> Int -> Note
+toNote strumInterval chord now i =
+  let pitch = Chord.get chord i in
+    { t = now + strumInterval * toFloat i
+    , f = 440 * 2 ^ (toFloat (pitch - 69) / 12)
+    }
 
 updateChordBoxBubble : Maybe Highlight -> Bool -> ChordBox -> ChordBox
 updateChordBoxBubble bubble chordBoxFocused chordBox =
@@ -502,28 +415,6 @@ updateSuggestionBar msg model cmds =
       else
         Cmd.batch (Cmd.map SuggestionBarMsg suggestionBarCmd :: cmds)
     )
-
-updateChordArea : ChordArea -> Schedule Int -> Int -> ChordArea
-updateChordArea chordArea schedule tick =
-  let
-    activeChord =
-      case Schedule.get tick schedule of
-        Just segment -> segment.x
-        Nothing -> -1
-  in let
-    nextChord = case Schedule.next tick schedule of
-      Just segment -> segment.x
-      Nothing -> -1
-  in
-    if
-      activeChord /= chordArea.activeChord ||
-        nextChord /= chordArea.nextChord
-    then
-      { activeChord = activeChord
-      , nextChord = nextChord
-      }
-    else
-      chordArea
 
 notBeforeTrue : (a -> Bool) -> List a -> List a
 notBeforeTrue pred xs =
@@ -569,7 +460,7 @@ subscriptions model =
             Just (Time.every (1 * Time.second) (always CheckSelection))
           else
             Nothing
-        , if model.schedule.segments /= [] then
+        , if model.schedule /= [] then
             Just (AnimationFrame.times (always (NeedsTime CurrentTime)))
           else
             Nothing
@@ -580,24 +471,25 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  div
-    [ style
-        [ ( "font-family", "Arial, Helvetica, sans-serif" )
-        , ( "font-size", "10pt" )
-        ]
-    ]
-    [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
-    , Html.Lazy.lazy viewOctaveBase model.octaveBase
-    , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
-    , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
-    , Html.Lazy.lazy2 viewChordArea model.chordArea model.parse
-    , Html.Lazy.lazy viewCircleOfFifths model.chordArea
-    , div []
-        [ a
-            [ href "https://github.com/evanshort73/chords" ]
-            [ text "GitHub" ]
-        ]
-    ]
+  let playStatus = PlayStatus.current model.schedule in
+    div
+      [ style
+          [ ( "font-family", "Arial, Helvetica, sans-serif" )
+          , ( "font-size", "10pt" )
+          ]
+      ]
+      [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
+      , Html.Lazy.lazy viewOctaveBase model.octaveBase
+      , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
+      , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
+      , Html.Lazy.lazy2 viewChordArea playStatus model.parse
+      , Html.Lazy.lazy viewCircleOfFifths playStatus
+      , div []
+          [ a
+              [ href "https://github.com/evanshort73/chords" ]
+              [ text "GitHub" ]
+          ]
+      ]
 
 viewPlayStyle : Bool -> Float -> Html Msg
 viewPlayStyle strum strumInterval =
@@ -821,8 +713,8 @@ getLayers chordBoxText parse chordBox =
 viewSuggestionBar : SuggestionBar.Model -> Html Msg
 viewSuggestionBar = Html.map SuggestionBarMsg << SuggestionBar.view
 
-viewChordArea : ChordArea -> MainParser.Model -> Html Msg
-viewChordArea chordArea parse =
+viewChordArea : PlayStatus -> MainParser.Model -> Html Msg
+viewChordArea playStatus parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -830,37 +722,36 @@ viewChordArea chordArea parse =
         , ( "margin-bottom", "5px" )
         ]
     ]
-    (List.map (viewLine chordArea) (MainParser.getChords parse))
+    (List.map (viewLine playStatus) (MainParser.getChords parse))
 
-viewLine : ChordArea -> List (Maybe IdChord) -> Html Msg
-viewLine chordArea line =
+viewLine : PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord chordArea) line)
+    (List.map (viewMaybeChord playStatus) line)
 
-viewMaybeChord : ChordArea -> Maybe IdChord -> Html Msg
-viewMaybeChord chordArea maybeChord =
+viewMaybeChord : PlayStatus -> Maybe IdChord -> Html Msg
+viewMaybeChord playStatus maybeChord =
   case maybeChord of
     Just chord ->
-      viewChord chordArea chord
+      viewChord playStatus chord
     Nothing ->
       viewSpace
 
-viewChord : ChordArea -> IdChord -> Html Msg
-viewChord chordArea chord =
+viewChord : PlayStatus -> IdChord -> Html Msg
+viewChord playStatus chord =
   let
     selected =
-      chordArea.activeChord == chord.id ||
-        chordArea.nextChord == chord.id
+      playStatus.active == chord.id || playStatus.next == chord.id
   in let
     play = NeedsTime (PlayChord << (,,) chord.cache.chord chord.id)
   in
     span
       [ style
           [ ( "border-style"
-            , if chordArea.nextChord == chord.id then
+            , if playStatus.next == chord.id then
                 "dashed"
               else
                 "solid"
@@ -923,11 +814,9 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : ChordArea -> Html Msg
-viewCircleOfFifths chordArea =
-  Html.map
-    msgFromCircleOfFifths
-    (CircleOfFifths.view chordArea.activeChord chordArea.nextChord)
+viewCircleOfFifths : PlayStatus -> Html Msg
+viewCircleOfFifths playStatus =
+  Html.map msgFromCircleOfFifths (CircleOfFifths.view playStatus)
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

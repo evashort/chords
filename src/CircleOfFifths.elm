@@ -4,6 +4,7 @@ import CachedChord
 import Chord exposing (Chord)
 import ChordParser exposing (IdChord)
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
+import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
@@ -51,8 +52,8 @@ nthMinorChord firstId i =
 type Msg
   = PlayChord ( Chord, Int )
 
-view : Int -> Int -> Html Msg
-view activeChord nextChord =
+view : PlayStatus -> Html Msg
+view playStatus =
   Svg.svg
       [ width "500"
       , height "500"
@@ -114,16 +115,10 @@ view activeChord nextChord =
           , List.concatMap
               List.concat
               [ List.indexedMap
-                  ( viewChord
-                      activeChord nextChord
-                      (areaAverage 100 247.5) 247.5
-                  )
+                  (viewChord playStatus (areaAverage 100 247.5) 247.5)
                   majorChords
               , List.indexedMap
-                  ( viewChord
-                      activeChord nextChord
-                      100 (areaAverage 100 247.5)
-                  )
+                  (viewChord playStatus 100 (areaAverage 100 247.5))
                   minorChords
               ]
           ]
@@ -133,11 +128,11 @@ areaAverage : Float -> Float -> Float
 areaAverage x y =
   sqrt (0.5 * (x * x + y * y))
 
-viewChord : Int -> Int -> Float -> Float -> Int -> IdChord -> List (Svg Msg)
-viewChord activeChord nextChord rInner rOuter i chord =
+viewChord : PlayStatus -> Float -> Float -> Int -> IdChord -> List (Svg Msg)
+viewChord playStatus rInner rOuter i chord =
   List.filterMap
     identity
-    [ if activeChord == chord.id || nextChord == chord.id then
+    [ if playStatus.active == chord.id || playStatus.next == chord.id then
         Just
           ( path
               [ fill "none"
@@ -145,7 +140,7 @@ viewChord activeChord nextChord rInner rOuter i chord =
               , strokeWidth "5"
               , strokeLinejoin "round"
               , strokeDasharray
-                  (if nextChord == chord.id then "10, 10" else "none")
+                  (if playStatus.next == chord.id then "10, 10" else "none")
               , d (twelfth 0 rInner rOuter i)
               ]
               []
