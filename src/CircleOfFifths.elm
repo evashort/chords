@@ -9,7 +9,7 @@ import Player exposing (PlayStatus)
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
 import Html.Events exposing (on)
-import Svg exposing (Svg, svg, defs, linearGradient, path, text_)
+import Svg exposing (Svg, svg, defs, linearGradient, path, text_, rect)
 import Svg.Attributes exposing
   ( width, height, viewBox
   , d, fill, opacity
@@ -197,20 +197,27 @@ viewChord playStatus rInner rOuter i chord =
             (2 * pi * (0.25 - toFloat i / 12))
       in
         Just
-          ( text_
-              [ Svg.Attributes.x (toString x)
-              , Svg.Attributes.y (toString (y + 9))
-              , textAnchor "middle"
-              , style [ ( "pointer-events", "none" ) ]
-              ]
-              [ Svg.text
-                  ( if stopButton then
-                      "⏹"
-                    else
-                      chord.cache.prettyNamesake ++
+          ( if stopButton then
+              rect
+                [ Svg.Attributes.x (toString (x - 10))
+                , Svg.Attributes.y (toString (y - 10))
+                , width "20"
+                , height "20"
+                , style [ ( "pointer-events", "none" ) ]
+                ]
+                []
+            else
+              text_
+                [ Svg.Attributes.x (toString x)
+                , Svg.Attributes.y (toString (y + 9))
+                , textAnchor "middle"
+                , style [ ( "pointer-events", "none" ) ]
+                ]
+                [ Svg.text
+                    ( chord.cache.prettyNamesake ++
                         chord.cache.flavor.prettyName
-                  )
-              ]
+                    )
+                ]
           )
     ]
 

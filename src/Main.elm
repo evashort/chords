@@ -836,7 +836,17 @@ viewChord playStatus chord =
               ]
           ]
           ( if stopButton then
-              [ Html.text "⏹" ]
+              [ Html.span
+                  [ style
+                     [ ( "background", CachedChord.fg chord.cache )
+                     , ( "width", "20px" )
+                     , ( "height", "20px" )
+                     , ( "display", "inline-block" )
+                     , ( "vertical-align", "middle" )
+                     ]
+                  ]
+                  []
+              ]
             else
               CachedChord.view chord.cache
           )
