@@ -1,6 +1,5 @@
 port module Main exposing (..)
 
-import ArpeggioPlayer exposing (ArpeggioPlayer)
 import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
 import CachedChord
@@ -10,7 +9,7 @@ import CircleOfFifths
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Highlight exposing (Highlight)
 import MainParser
-import PlayStatus exposing (PlayStatus, PlaySegment)
+import Player exposing (Player, PlayStatus)
 import Selection
 import Substring exposing (Substring)
 import SuggestionBar
@@ -39,8 +38,7 @@ main =
 -- MODEL
 
 type alias Model =
-  { arpeggioPlayer : ArpeggioPlayer
-  , schedule : List PlaySegment
+  { player : Player
   , strum : Bool
   , strumInterval : Float
   , octaveBase : Int
@@ -75,8 +73,7 @@ init mac location =
   in let
     suggestionBar = SuggestionBar.init modifierKey suggestions
   in
-    ( { arpeggioPlayer = { openings = [] }
-      , schedule = []
+    ( { player = { openings = [], schedule = [] }
       , strum = False
       , strumInterval = 0.06
       , octaveBase = 48
@@ -110,7 +107,7 @@ type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
   | PlayChord ( Chord, Int, Float )
-  | SetStrum ( Bool, Float )
+  | SetStrum Bool
   | SetStrumInterval String
   | SetOctave String
   | SetOctaveStart String
@@ -130,10 +127,9 @@ update msg model =
       ( model, Task.perform partialMsg AudioTime.now )
 
     CurrentTime now ->
-      ( if PlayStatus.canDropBefore now model.schedule then
-          { model | schedule = PlayStatus.dropBefore now model.schedule }
-        else
-          model
+      ( case Player.setTime now model.player of
+          Nothing -> model
+          Just player -> { model | player = player }
       , Cmd.none
       )
 
@@ -153,37 +149,21 @@ update msg model =
           else
             chord
       in let
-        ( arpeggioPlayer, changes, schedule ) =
+        ( player, changes ) =
           if model.strum then
-            let
-              ( changes, schedule ) =
-                playStrum
-                  model.strumInterval oChord id now model.schedule
-            in
-              ( model.arpeggioPlayer, changes, schedule )
+            Player.playStrum model.strumInterval oChord id now model.player
           else
-            ArpeggioPlayer.play oChord id now (60 / 85) model.arpeggioPlayer
+            Player.playArpeggio (60 / 85) oChord id now model.player
       in
-        ( { model
-          | schedule = schedule
-          , arpeggioPlayer = arpeggioPlayer
-          }
+        ( { model | player = player }
         , AudioChange.perform changes
         )
 
-    SetStrum ( strum, now ) ->
-      if strum == model.strum then
-        ( model, Cmd.none)
-      else
-        ( let schedule = { stop = 0, segments = [] } in
-            { model
-            | schedule = []
-            , arpeggioPlayer = { openings = [] }
-            , strum = strum
-            }
-        , AudioChange.perform
-            [ MuteAllNotes { t = now, before = False } ]
-        )
+    SetStrum strum ->
+      ( if strum == model.strum then model
+        else { model | strum = strum }
+      , Cmd.none
+      )
 
     SetStrumInterval strumIntervalString ->
       ( case String.toFloat strumIntervalString of
@@ -360,35 +340,6 @@ update msg model =
     SuggestionBarMsg msg ->
       updateSuggestionBar msg model []
 
-playStrum :
-  Float -> Chord -> Int -> Float -> List PlaySegment ->
-    ( List AudioChange, List PlaySegment )
-playStrum strumInterval chord id now schedule =
-  ( List.concat
-      [ [ case PlayStatus.dropBefore now schedule of
-            [] ->
-              CancelFutureNotes { t = now, before = False }
-            segment :: _ ->
-              if segment.status.active == id then
-                CancelFutureNotes { t = now, before = False }
-              else
-                MuteAllNotes { t = now, before = False }
-        , SetDecay 3
-        ]
-      , List.map
-          (AddNote << toNote strumInterval chord now)
-          (List.range 0 (List.length chord))
-      ]
-  , [ { status = { active = id, next = -1 }, stop = now + 2.25 } ]
-  )
-
-toNote : Float -> Chord -> Float -> Int -> Note
-toNote strumInterval chord now i =
-  let pitch = Chord.get chord i in
-    { t = now + strumInterval * toFloat i
-    , f = 440 * 2 ^ (toFloat (pitch - 69) / 12)
-    }
-
 updateChordBoxBubble : Maybe Highlight -> Bool -> ChordBox -> ChordBox
 updateChordBoxBubble bubble chordBoxFocused chordBox =
   let chordBoxBubble = if chordBoxFocused then bubble else Nothing in
@@ -466,7 +417,7 @@ subscriptions model =
             Just (Time.every (1 * Time.second) (always CheckSelection))
           else
             Nothing
-        , if model.schedule /= [] then
+        , if Player.willChange model.player then
             Just (AnimationFrame.times (always (NeedsTime CurrentTime)))
           else
             Nothing
@@ -477,25 +428,24 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  let playStatus = PlayStatus.current model.schedule in
-    div
-      [ style
-          [ ( "font-family", "Arial, Helvetica, sans-serif" )
-          , ( "font-size", "10pt" )
-          ]
-      ]
-      [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
-      , Html.Lazy.lazy viewOctaveBase model.octaveBase
-      , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
-      , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
-      , Html.Lazy.lazy2 viewChordArea playStatus model.parse
-      , Html.Lazy.lazy viewCircleOfFifths playStatus
-      , div []
-          [ a
-              [ href "https://github.com/evanshort73/chords" ]
-              [ text "GitHub" ]
-          ]
-      ]
+  div
+    [ style
+        [ ( "font-family", "Arial, Helvetica, sans-serif" )
+        , ( "font-size", "10pt" )
+        ]
+    ]
+    [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
+    , Html.Lazy.lazy viewOctaveBase model.octaveBase
+    , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
+    , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
+    , Html.Lazy.lazy2 viewChordArea model.player model.parse
+    , Html.Lazy.lazy viewCircleOfFifths model.player
+    , div []
+        [ a
+            [ href "https://github.com/evanshort73/chords" ]
+            [ text "GitHub" ]
+        ]
+    ]
 
 viewPlayStyle : Bool -> Float -> Html Msg
 viewPlayStyle strum strumInterval =
@@ -509,7 +459,7 @@ viewPlayStyle strum strumInterval =
         [ [ span []
               [ Html.text "Play chords as " ]
           , button
-              [ onClick (NeedsTime (SetStrum << (,) False))
+              [ onClick (SetStrum False)
               , classList
                   [ ( "pressMe", True )
                   , ( "chosen", not strum )
@@ -525,7 +475,7 @@ viewPlayStyle strum strumInterval =
               ]
               [ Html.text "Arpeggio" ]
           , button
-              [ onClick (NeedsTime (SetStrum << (,) True))
+              [ onClick (SetStrum True)
               , classList
                   [ ( "pressMe", True )
                   , ( "extension", True )
@@ -719,8 +669,8 @@ getLayers chordBoxText parse chordBox =
 viewSuggestionBar : SuggestionBar.Model -> Html Msg
 viewSuggestionBar = Html.map SuggestionBarMsg << SuggestionBar.view
 
-viewChordArea : PlayStatus -> MainParser.Model -> Html Msg
-viewChordArea playStatus parse =
+viewChordArea : Player -> MainParser.Model -> Html Msg
+viewChordArea player parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -728,7 +678,10 @@ viewChordArea playStatus parse =
         , ( "margin-bottom", "5px" )
         ]
     ]
-    (List.map (viewLine playStatus) (MainParser.getChords parse))
+    ( List.map
+        (viewLine (Player.playStatus player))
+        (MainParser.getChords parse)
+    )
 
 viewLine : PlayStatus -> List (Maybe IdChord) -> Html Msg
 viewLine playStatus line =
@@ -820,9 +773,11 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : PlayStatus -> Html Msg
-viewCircleOfFifths playStatus =
-  Html.map msgFromCircleOfFifths (CircleOfFifths.view playStatus)
+viewCircleOfFifths : Player -> Html Msg
+viewCircleOfFifths player =
+  Html.map
+    msgFromCircleOfFifths
+    (CircleOfFifths.view (Player.playStatus player))
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

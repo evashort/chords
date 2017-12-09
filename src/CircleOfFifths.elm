@@ -4,7 +4,7 @@ import CachedChord
 import Chord exposing (Chord)
 import ChordParser exposing (IdChord)
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
-import PlayStatus exposing (PlayStatus)
+import Player exposing (PlayStatus)
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
