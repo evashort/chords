@@ -41,6 +41,7 @@ type alias Model =
   { player : Player
   , strum : Bool
   , strumInterval : Float
+  , bpm : Int
   , octaveBase : Int
   , text : String
   , parse : MainParser.Model
@@ -76,6 +77,7 @@ init mac location =
     ( { player = { openings = [], schedule = [] }
       , strum = False
       , strumInterval = 0.06
+      , bpm = 85
       , octaveBase = 48
       , text = text
       , parse = parse
@@ -109,6 +111,7 @@ type Msg
   | PlayChord ( Chord, Int, Float )
   | SetStrum Bool
   | SetStrumInterval String
+  | SetBpm String
   | SetOctave String
   | SetOctaveStart String
   | FocusHorizontal ( Bool, Int )
@@ -153,7 +156,8 @@ update msg model =
           if model.strum then
             Player.playStrum model.strumInterval oChord id now model.player
           else
-            Player.playArpeggio (60 / 85) oChord id now model.player
+            Player.playArpeggio
+              (60 / toFloat model.bpm) oChord id now model.player
       in
         ( { model | player = player }
         , AudioChange.perform changes
@@ -167,10 +171,15 @@ update msg model =
 
     SetStrumInterval strumIntervalString ->
       ( case String.toFloat strumIntervalString of
-          Ok strumInterval ->
-            { model | strumInterval = strumInterval }
-          Err _ ->
-            model
+          Ok strumInterval -> { model | strumInterval = strumInterval }
+          Err _ -> model
+      , Cmd.none
+      )
+
+    SetBpm bpmString ->
+      ( case String.toInt bpmString of
+          Ok bpm -> { model | bpm = bpm }
+          Err _ -> model
       , Cmd.none
       )
 
@@ -435,6 +444,7 @@ view model =
         ]
     ]
     [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
+    , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.octaveBase
     , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
     , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
@@ -516,6 +526,32 @@ viewPlayStyle strum strumInterval =
             []
         ]
     )
+
+viewBpm : Int -> Html Msg
+viewBpm bpm =
+  div
+    [ style
+        [ ( "line-height", "26px" )
+        , ( "margin-bottom", "5px" )
+        ]
+    ]
+    [ span []
+        [ Html.text "Tempo " ]
+    , input
+        [ type_ "number"
+        , onInput SetBpm
+        , Html.Attributes.value (toString bpm)
+        , Html.Attributes.size 3
+        , Html.Attributes.min "60"
+        , Html.Attributes.max "120"
+        , style
+            [ ( "width", "4em" )
+            ]
+        ]
+        []
+    , span []
+        [ Html.text " BPM" ]
+    ]
 
 viewOctaveBase : Int -> Html Msg
 viewOctaveBase octaveBase =
