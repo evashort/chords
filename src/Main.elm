@@ -39,7 +39,7 @@ main =
 
 type alias Model =
   { player : Player
-  , strum : Bool
+  , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
   , octaveBase : Int
@@ -52,6 +52,11 @@ type alias Model =
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar.Model
   }
+
+type PlayStyle
+  = ArpeggioStyle
+  | StrumStyle
+  | PadStyle
 
 type alias ChordBox =
   { highlightRanges : List Substring
@@ -75,7 +80,7 @@ init mac location =
     suggestionBar = SuggestionBar.init modifierKey suggestions
   in
     ( { player = { openings = [], schedule = [] }
-      , strum = False
+      , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
       , octaveBase = 48
@@ -109,7 +114,8 @@ type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
   | PlayChord ( Chord, Int, Float )
-  | SetStrum Bool
+  | StopChord Float
+  | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | SetBpm String
   | SetOctave String
@@ -153,19 +159,32 @@ update msg model =
             chord
       in let
         ( player, changes ) =
-          if model.strum then
-            Player.playStrum model.strumInterval oChord id now model.player
-          else
-            Player.playArpeggio
-              (60 / toFloat model.bpm) oChord id now model.player
+          case model.playStyle of
+            ArpeggioStyle ->
+              Player.playArpeggio
+                (60 / toFloat model.bpm) oChord id now model.player
+            StrumStyle ->
+              Player.playStrum
+              model.strumInterval oChord id now model.player
+            PadStyle ->
+              Player.playPad oChord id now model.player
       in
         ( { model | player = player }
         , AudioChange.perform changes
         )
 
-    SetStrum strum ->
-      ( if strum == model.strum then model
-        else { model | strum = strum }
+    StopChord now ->
+      let
+        ( player, changes ) =
+          Player.stopPlaying now model.player
+      in
+        ( { model | player = player }
+        , AudioChange.perform changes
+        )
+
+    SetPlayStyle playStyle ->
+      ( if playStyle == model.playStyle then model
+        else { model | playStyle = playStyle }
       , Cmd.none
       )
 
@@ -443,7 +462,7 @@ view model =
         , ( "font-size", "10pt" )
         ]
     ]
-    [ Html.Lazy.lazy2 viewPlayStyle model.strum model.strumInterval
+    [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
     , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.octaveBase
     , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
@@ -457,8 +476,8 @@ view model =
         ]
     ]
 
-viewPlayStyle : Bool -> Float -> Html Msg
-viewPlayStyle strum strumInterval =
+viewPlayStyle : PlayStyle -> Float -> Html Msg
+viewPlayStyle playStyle strumInterval =
   div
     [ style
         [ ( "line-height", "26px" )
@@ -469,10 +488,11 @@ viewPlayStyle strum strumInterval =
         [ [ span []
               [ Html.text "Play chords as " ]
           , button
-              [ onClick (SetStrum False)
+              [ onClick (SetPlayStyle ArpeggioStyle)
               , classList
                   [ ( "pressMe", True )
-                  , ( "chosen", not strum )
+                  , ( "extended", True )
+                  , ( "chosen", playStyle == ArpeggioStyle )
                   ]
               , style
                   [ ( "padding", "0px 3px" )
@@ -485,11 +505,27 @@ viewPlayStyle strum strumInterval =
               ]
               [ Html.text "Arpeggio" ]
           , button
-              [ onClick (SetStrum True)
+              [ onClick (SetPlayStyle StrumStyle)
               , classList
                   [ ( "pressMe", True )
                   , ( "extension", True )
-                  , ( "chosen", strum )
+                  , ( "middle", True )
+                  , ( "chosen", playStyle == StrumStyle )
+                  ]
+              , style
+                  [ ( "padding", "0px 3px" )
+                  , ( "border-width", "1px" )
+                  , ( "font", "inherit" )
+                  , ( "line-height", "24px" )
+                  ]
+              ]
+              [ Html.text "Strum" ]
+          , button
+              [ onClick (SetPlayStyle PadStyle)
+              , classList
+                  [ ( "pressMe", True )
+                  , ( "extension", True )
+                  , ( "chosen", playStyle == PadStyle )
                   ]
               , style
                   [ ( "padding", "0px 3px" )
@@ -499,9 +535,9 @@ viewPlayStyle strum strumInterval =
                   , ( "line-height", "24px" )
                   ]
               ]
-              [ Html.text "Strum" ]
+              [ Html.text "Pad" ]
           ]
-        , if strum then
+        , if playStyle == StrumStyle then
             [ input
                 [ type_ "range"
                 , onInput SetStrumInterval
@@ -741,7 +777,11 @@ viewChord playStatus chord =
     selected =
       playStatus.active == chord.id || playStatus.next == chord.id
   in let
-    play = NeedsTime (PlayChord << (,,) chord.cache.chord chord.id)
+    stopButton = playStatus.active == chord.id && playStatus.stoppable
+  in let
+    play =
+      if stopButton then NeedsTime StopChord
+      else NeedsTime (PlayChord << (,,) chord.cache.chord chord.id)
   in
     span
       [ style
@@ -795,7 +835,11 @@ viewChord playStatus chord =
               , ( "white-space", "nowrap" )
               ]
           ]
-          (CachedChord.view chord.cache)
+          ( if stopButton then
+              [ Html.text "⏹" ]
+            else
+              CachedChord.view chord.cache
+          )
       ]
 
 viewSpace : Html msg
@@ -820,3 +864,5 @@ msgFromCircleOfFifths msg =
   case msg of
     CircleOfFifths.PlayChord ( chord, id ) ->
       NeedsTime (PlayChord << (,,) chord id)
+    CircleOfFifths.StopChord ->
+      NeedsTime StopChord

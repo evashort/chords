@@ -7,6 +7,8 @@ type AudioChange
   = AddNote Note
   | MuteAllNotes ChangeTime
   | CancelFutureNotes ChangeTime
+  | SetAttack Float
+  | SetPeak Float
   | SetDecay Float
 
 type alias Note =
@@ -44,6 +46,16 @@ toJson change =
         [ ( "type", Json.Encode.string "cancel" )
         , ( "t", Json.Encode.float t )
         , ( "before", Json.Encode.bool before )
+        ]
+    SetAttack attack ->
+      Json.Encode.object
+        [ ( "type", Json.Encode.string "attack" )
+        , ( "attack", Json.Encode.float attack )
+        ]
+    SetPeak peak ->
+      Json.Encode.object
+        [ ( "type", Json.Encode.string "peak" )
+        , ( "peak", Json.Encode.float peak )
         ]
     SetDecay decay ->
       Json.Encode.object

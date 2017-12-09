@@ -22,10 +22,21 @@ Voice.prototype.start = function() {
   this.carrier.start();
 }
 
-Voice.prototype.noteAt = function(t, f, decay = 1.5, peak = 0.5) {
+Voice.prototype.noteAt = function(
+  t, f, attack = 0, peak = 0.5, decay = 1.5, sameFrequency = false
+) {
   this.fEnv.jumpAt(t, f);
-  this.env.jumpAt(t, peak);
-  this.env.curve(t, t + decay, 0);
+  if (attack > 0) {
+    if (!sameFrequency) {
+      this.env.jumpAt(t, 0);
+    }
+    this.env.line(t, t + attack, peak);
+  } else {
+    this.env.jumpAt(t, peak);
+  }
+  if (decay < Infinity) {
+    this.env.curve(t, t + attack + decay, 0);
+  }
 }
 
 Voice.prototype.muteAt = function(t, ignoreJumps = false) {
@@ -35,7 +46,9 @@ Voice.prototype.muteAt = function(t, ignoreJumps = false) {
 
 Voice.prototype.ringOutAt = function(t, ignoreJumps = false, decay = 1.5) {
   this.fEnv.truncateAt(t, ignoreJumps);
-  this.env.curve(t, t + decay, 0, ignoreJumps);
+  if (decay < Infinity) {
+    this.env.curve(t, t + decay, 0, ignoreJumps);
+  }
 }
 
 Voice.prototype.getGainAt = function(t, ignoreJumps = false) {

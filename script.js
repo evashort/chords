@@ -22,6 +22,10 @@ function changeAudio(changes) {
       synth.muteAt(changes[i].t, changes[i].before);
     } else if (changes[i].type == "cancel") {
       synth.ringOutAt(changes[i].t, changes[i].before);
+    } else if (changes[i].type == "attack") {
+      synth.attack = changes[i].attack;
+    } else if (changes[i].type == "peak") {
+      synth.peak = changes[i].peak;
     } else if (changes[i].type == "decay") {
       synth.decay = changes[i].decay;
     }

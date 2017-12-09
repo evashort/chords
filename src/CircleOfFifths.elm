@@ -51,6 +51,7 @@ nthMinorChord firstId i =
 
 type Msg
   = PlayChord ( Chord, Int )
+  | StopChord
 
 view : PlayStatus -> Html Msg
 view playStatus =
@@ -148,7 +149,11 @@ viewChord playStatus rInner rOuter i chord =
       else
         Nothing
     , let
-        play = PlayChord ( chord.cache.chord, chord.id )
+        stopButton = playStatus.active == chord.id && playStatus.stoppable
+      in let
+        play =
+          if stopButton then StopChord
+          else PlayChord ( chord.cache.chord, chord.id )
       in
         Just
           ( path
@@ -184,6 +189,8 @@ viewChord playStatus rInner rOuter i chord =
             []
         )
     , let
+        stopButton = playStatus.active == chord.id && playStatus.stoppable
+      in let
         ( x, y ) =
           polar
             (0.5 * (rInner + rOuter))
@@ -197,8 +204,11 @@ viewChord playStatus rInner rOuter i chord =
               , style [ ( "pointer-events", "none" ) ]
               ]
               [ Svg.text
-                  ( chord.cache.prettyNamesake ++
-                      chord.cache.flavor.prettyName
+                  ( if stopButton then
+                      "⏹"
+                    else
+                      chord.cache.prettyNamesake ++
+                        chord.cache.flavor.prettyName
                   )
               ]
           )

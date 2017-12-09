@@ -4,6 +4,8 @@ function Synth(voiceCount, audioContext) {
   for (let i = 0; i < voiceCount; i++) {
     this.voices.push(new Voice(this.audioContext));
   }
+  this.attack = 0;
+  this.peak = 0.5;
   this.decay = 1.5;
 }
 
@@ -19,18 +21,19 @@ Synth.prototype.start = function() {
   }
 }
 
-Synth.prototype.noteAt = function(t, f, peak = 0.5) {
+Synth.prototype.noteAt = function(t, f) {
   for (let i = 0; i < this.voices.length; i++) {
     if (this.voices[i].getFrequencyAt(t, false) == f) {
-      this.voices[i].noteAt(t, f, this.decay, peak);
+      this.voices[i].noteAt(t, f, this.attack, this.peak, this.decay, true);
       return;
     }
   }
 
   let minGain = Infinity;
   let quietestVoice = null;
+  let peakTime = t + this.attack;
   for (let i = 0; i < this.voices.length; i++) {
-    let gain = this.voices[i].getGainAt(t, false);
+    let gain = this.voices[i].getGainAt(peakTime, false);
     if (gain < minGain) {
       minGain = gain;
       quietestVoice = this.voices[i];
@@ -38,15 +41,15 @@ Synth.prototype.noteAt = function(t, f, peak = 0.5) {
         break;
       }
     } else if (gain == minGain) {
-      let frequency = this.voices[i].getFrequencyAt(t, false);
-      let oldFrequency = quietestVoice.getFrequencyAt(t, false);
+      let frequency = this.voices[i].getFrequencyAt(peakTime, false);
+      let oldFrequency = quietestVoice.getFrequencyAt(peakTime, false);
       if (frequency < oldFrequency) {
         quietestVoice = this.voices[i];
       }
     }
   }
 
-  quietestVoice.noteAt(t, f, this.decay, peak);
+  quietestVoice.noteAt(t, f, this.attack, this.peak, this.decay);
 }
 
 Synth.prototype.muteAt = function(t, ignoreJumps = false) {

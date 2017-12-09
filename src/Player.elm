@@ -1,6 +1,6 @@
 module Player exposing
-  ( Player, setTime, willChange, PlayStatus, playStatus, playStrum
-  , playArpeggio
+  ( Player, setTime, willChange, PlayStatus, playStatus, stopPlaying
+  , playPad, playStrum, playArpeggio
   )
 
 import AudioChange exposing (AudioChange(..), Note)
@@ -45,54 +45,83 @@ dropSegmentsBefore now segments =
 
 willChange : Player -> Bool
 willChange player =
-  player.schedule /= []
+  case player.schedule of
+    [] -> False
+    segment :: _ -> segment.stop < infinity
 
 type alias PlayStatus =
   { active : Int
   , next : Int
+  , stoppable : Bool
   }
 
 playStatus : Player -> PlayStatus
 playStatus player =
   case player.schedule of
     [] ->
-      { active = -1, next = -1 }
+      { active = -1, next = -1, stoppable = False }
     [ segment ] ->
-      { active = segment.id, next = -1 }
+      { active = segment.id
+      , next = -1
+      , stoppable = segment.stop == infinity
+      }
     segment :: nextSegment :: _ ->
-      { active = segment.id, next = nextSegment.id }
+      { active = segment.id
+      , next = nextSegment.id
+      , stoppable = segment.stop == infinity
+      }
+
+stopPlaying : Float -> Player -> ( Player, List AudioChange )
+stopPlaying now player =
+  ( { openings = [], schedule = [] }
+  , [ MuteAllNotes { t = now, before = False } ]
+  )
+
+playPad : Chord -> Int -> Float -> Player -> ( Player, List AudioChange )
+playPad chord id now player =
+  ( { player
+    | openings = []
+    , schedule = [ { id = id, stop = infinity } ]
+    }
+  , List.concat
+      [ stopOldChord now id now player.schedule
+      , [ SetAttack 0.2
+        , SetPeak 0.25
+        , SetDecay infinity
+        ]
+      , let
+          notes =
+            List.map
+              (strumNote 0 chord now)
+              (List.range 0 (List.length chord))
+        in
+          List.map AddNote notes
+      ]
+  )
 
 playStrum :
   Float -> Chord -> Int -> Float -> Player ->
     ( Player, List AudioChange )
 playStrum strumInterval chord id now player =
-  let
-    currentSchedule = dropSegmentsBefore now player.schedule
-  in
-    ( { player
-      | openings = []
-      , schedule = [ { id = id, stop = now + 2.25 } ]
-      }
-    , List.concat
-        [ [ let
-              mute =
-                case currentSchedule of
-                  [] -> False
-                  segment :: _ -> segment.id /= id
-            in
-              (if mute then MuteAllNotes else CancelFutureNotes)
-                { t = now, before = False }
-          , SetDecay 3
-          ]
-        , let
-            notes =
-              List.map
-                (strumNote strumInterval chord now)
-                (List.range 0 (List.length chord))
-          in
-            List.map AddNote notes
+  ( { player
+    | openings = []
+    , schedule = [ { id = id, stop = now + 2.25 } ]
+    }
+  , List.concat
+      [ stopOldChord now id now player.schedule
+      , [ SetAttack 0
+        , SetPeak 0.5
+        , SetDecay 3
         ]
-    )
+      , let
+          notes =
+            List.map
+              (strumNote strumInterval chord now)
+              (List.range 0 (List.length chord))
+        in
+          List.map AddNote notes
+      ]
+  )
 
 strumNote : Float -> Chord -> Float -> Int -> Note
 strumNote strumInterval chord now i =
@@ -168,16 +197,9 @@ playArpeggio beatInterval chord id now player =
       , schedule = truncatedSchedule ++ additionalSchedule
       }
     , List.concat
-        [ [ let
-              mute =
-                case currentSchedule of
-                  [] -> False
-                  segment :: _ -> segment.id /= id
-            in
-              (if mute then MuteAllNotes else CancelFutureNotes)
-                { t = max now startTime
-                , before = now < startTime
-                }
+        [ stopOldChord startTime id now currentSchedule
+        , [ SetAttack 0
+          , SetPeak 0.5
           , SetDecay 1.5
           ]
         , let
@@ -246,3 +268,25 @@ lowArpeggio =
   , IndexNote 0 3.5 3
   , IndexNote 0 3.75 4
   ]
+
+stopOldChord : Float -> Int -> Float -> List Segment -> List AudioChange
+stopOldChord startTime id now schedule =
+  let
+    changeTime =
+      { t = max now startTime
+      , before = now < startTime
+      }
+  in
+    case dropSegmentsBefore now schedule of
+      [] ->
+        [ CancelFutureNotes changeTime ]
+      segment :: _ ->
+        if segment.stop == infinity then
+          [ SetDecay 0.5, CancelFutureNotes changeTime ]
+        else if segment.id /= id then
+          [ MuteAllNotes changeTime ]
+        else
+          [ CancelFutureNotes changeTime ]
+
+infinity : Float
+infinity = 1/0
