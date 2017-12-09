@@ -1,6 +1,5 @@
 port module AudioChange exposing (AudioChange(..), Note, ChangeTime, perform)
 
-import Json.Decode
 import Json.Encode
 
 type AudioChange

@@ -27,6 +27,7 @@ import Task exposing (Task)
 import Time
 import Url
 
+main : Program Bool Model Msg
 main =
   Navigation.programWithFlags
     UrlChange

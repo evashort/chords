@@ -8,7 +8,6 @@ import Player exposing (PlayStatus)
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
-import Html.Events exposing (on)
 import Svg exposing (Svg, svg, defs, linearGradient, path, text_, rect)
 import Svg.Attributes exposing
   ( width, height, viewBox
