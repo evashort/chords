@@ -1,5 +1,6 @@
 module Suggestion exposing (Suggestion, Msg(..), view, selection)
 
+import CachedChord exposing (CachedChord)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 
@@ -9,9 +10,7 @@ import Html.Events exposing
   (onMouseEnter, onMouseLeave, onFocus, onBlur, onClick)
 
 type alias Suggestion =
-  { s : String
-  , fg : String
-  , bg : String
+  { cache : CachedChord
   , firstRange : Substring
   , ranges : List Substring
   }
@@ -23,8 +22,8 @@ type Msg
   | Blur
   | Copied
 
-view : Bool -> Suggestion -> Html Msg
-view recentlyCopied suggestion =
+view : Int -> Bool -> Suggestion -> Html Msg
+view key recentlyCopied suggestion =
   span
     [ style
         [ ( "display", "inline-flex" )
@@ -68,7 +67,7 @@ view recentlyCopied suggestion =
             "onclick"
             ( String.concat
                 [ "document.getElementById(\""
-                , suggestion.s
+                , suggestion.cache.codeName
                 , "\").select(); document.execCommand(\"Copy\");"
                 ]
             )
@@ -97,7 +96,7 @@ view recentlyCopied suggestion =
         ]
         [ textarea
             [ readonly True
-            , id suggestion.s
+            , id suggestion.cache.codeName
             , style
                 [ ( "font", "inherit" )
                 , ( "width", "100%" )
@@ -114,7 +113,7 @@ view recentlyCopied suggestion =
                 , ( "background", "transparent" )
                 ]
             ]
-            [ text suggestion.s ]
+            [ text suggestion.cache.codeName ]
         , pre
             [ style
                 [ ( "font", "inherit" )
@@ -129,9 +128,9 @@ view recentlyCopied suggestion =
             [ ( Highlight.view
                   ( Highlight
                       ""
-                      suggestion.fg
-                      suggestion.bg
-                      (Substring 0 suggestion.s)
+                      (CachedChord.fg suggestion.cache)
+                      (CachedChord.bg key suggestion.cache)
+                      (Substring 0 suggestion.cache.codeName)
                   )
               )
             ]

@@ -16,9 +16,10 @@ import SuggestionBar
 
 import AnimationFrame
 import Array
-import Html exposing (Html, a, button, div, pre, span, text, textarea, input)
+import Html exposing
+  (Html, a, button, div, pre, span, text, textarea, input, select, option)
 import Html.Attributes exposing
-  (href, style, spellcheck, id, classList, type_)
+  (href, style, spellcheck, id, classList, type_, value, selected)
 import Html.Events exposing (onClick, onInput, onFocus, onBlur)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -43,8 +44,7 @@ type alias Model =
   , strumInterval : Float
   , bpm : Int
   , octaveBase : Int
-  , text : String
-  , parse : MainParser.Model
+  , key : Int
   , home : Bool
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
@@ -59,7 +59,9 @@ type PlayStyle
   | PadStyle
 
 type alias ChordBox =
-  { highlightRanges : List Substring
+  { text : String
+  , parse : MainParser.Model
+  , highlightRanges : List Substring
   , bubble : Maybe Highlight
   }
 
@@ -84,14 +86,15 @@ init mac location =
       , strumInterval = 0.06
       , bpm = 85
       , octaveBase = 48
-      , text = text
-      , parse = parse
+      , key = 0
       , home = True
       , subscribeToSelection = True
       , chordBoxFocused = True
       , bubble = Nothing
       , chordBox =
-          { highlightRanges =
+          { text = text
+          , parse = parse
+          , highlightRanges =
               SuggestionBar.highlightRanges suggestionBar
           , bubble = Nothing
           }
@@ -120,6 +123,7 @@ type Msg
   | SetBpm String
   | SetOctave String
   | SetOctaveStart String
+  | SetKey String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
   | TextEdited String
@@ -226,6 +230,13 @@ update msg model =
       , Cmd.none
       )
 
+    SetKey keyString ->
+      ( case String.toInt keyString of
+          Ok key -> { model | key = key }
+          Err _ -> model
+      , Cmd.none
+      )
+
     FocusHorizontal ( forwards, id ) ->
       case
         notBeforeJust
@@ -234,7 +245,7 @@ update msg model =
                 (if forwards then identity else List.reverse) <<
                   List.filterMap identity
           )
-          (MainParser.getChords model.parse)
+          (MainParser.getChords model.chordBox.parse)
       of
         Just ( chord :: _, _ ) ->
           ( model, focusById (toString chord.id) )
@@ -246,7 +257,7 @@ update msg model =
         notBeforeJust
           (findTrue ((==) (Just id) << Maybe.map .id))
           ( (if forwards then identity else List.reverse)
-              (MainParser.getChords model.parse)
+              (MainParser.getChords model.chordBox.parse)
           )
       of
         Nothing ->
@@ -264,15 +275,17 @@ update msg model =
 
     TextEdited newText ->
       let
-        parse = MainParser.update (Substring 0 newText) model.parse
+        chordBox = model.chordBox
+      in let
+        parse = MainParser.update (Substring 0 newText) chordBox.parse
       in let
         suggestions = MainParser.getSuggestions parse
       in
         updateSuggestionBar
           (SuggestionBar.SuggestionsChanged suggestions)
           { model
-          | text = newText
-          , parse = parse
+          | chordBox =
+              { chordBox | text = newText, parse = parse }
           , home = False
           }
           [ if model.home then
@@ -285,17 +298,19 @@ update msg model =
 
     UrlChange location ->
       let newText = textFromLocation location in
-        if newText /= model.text then
+        if newText /= model.chordBox.text then
           let
-            parse = MainParser.update (Substring 0 newText) model.parse
+            chordBox = model.chordBox
+          in let
+            parse = MainParser.update (Substring 0 newText) chordBox.parse
           in let
             suggestions = MainParser.getSuggestions parse
           in
             updateSuggestionBar
               (SuggestionBar.SuggestionsChanged suggestions)
               { model
-              | text = newText
-              , parse = parse
+              | chordBox =
+                  { chordBox | text = newText, parse = parse }
               , home = True
               }
               [ setChordBoxText newText ]
@@ -465,10 +480,12 @@ view model =
     [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
     , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.octaveBase
-    , Html.Lazy.lazy3 viewChordBox model.text model.parse model.chordBox
-    , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
-    , Html.Lazy.lazy2 viewChordArea model.player model.parse
-    , Html.Lazy.lazy viewCircleOfFifths model.player
+    , Html.Lazy.lazy viewKey model.key
+    , Html.Lazy.lazy2 viewChordBox model.key model.chordBox
+    , Html.Lazy.lazy2 viewSuggestionBar model.key model.suggestionBar
+    , Html.Lazy.lazy3
+        viewChordArea model.key model.player model.chordBox.parse
+    , Html.Lazy.lazy2 viewCircleOfFifths model.key model.player
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]
@@ -544,7 +561,7 @@ viewPlayStyle playStyle strumInterval =
                 , Html.Attributes.min "0"
                 , Html.Attributes.max "0.1"
                 , Html.Attributes.step "0.02"
-                , Html.Attributes.value (toString strumInterval)
+                , value (toString strumInterval)
                 , style
                     [ ( "margin", "0px 5px" )
                     , ( "height", "26px" )
@@ -576,7 +593,7 @@ viewBpm bpm =
     , input
         [ type_ "number"
         , onInput SetBpm
-        , Html.Attributes.value (toString bpm)
+        , value (toString bpm)
         , Html.Attributes.size 3
         , Html.Attributes.min "60"
         , Html.Attributes.max "120"
@@ -607,7 +624,7 @@ viewOctaveBase octaveBase =
       , input
           [ type_ "number"
           , onInput SetOctave
-          , Html.Attributes.value (toString octave)
+          , value (toString octave)
           , Html.Attributes.size 2
           , Html.Attributes.min "-2"
           , Html.Attributes.max "6"
@@ -621,7 +638,7 @@ viewOctaveBase octaveBase =
           , onInput SetOctaveStart
           , Html.Attributes.min "0"
           , Html.Attributes.max "11"
-          , Html.Attributes.value (toString octaveOffset)
+          , value (toString octaveOffset)
           , style
               [ ( "margin", "0px 5px" )
               , ( "height", "26px" )
@@ -669,8 +686,36 @@ getFlatName note =
         )
     )
 
-viewChordBox : String -> MainParser.Model -> ChordBox -> Html Msg
-viewChordBox chordBoxText parse chordBox =
+viewKey : Int -> Html Msg
+viewKey key =
+  div
+    [ style
+        [ ( "line-height", "26px" )
+        , ( "margin-bottom", "5px" )
+        ]
+    ]
+    [ span []
+        [ Html.text "Key signature " ]
+    , select
+        [ onInput SetKey
+        ]
+        [ option [ value "0", selected (key == 0) ] [ Html.text "C / Am" ]
+        , option [ value "7", selected (key == 7) ] [ Html.text "G / Em" ]
+        , option [ value "2", selected (key == 2) ] [ Html.text "D / Bm" ]
+        , option [ value "9", selected (key == 9) ] [ Html.text "A / F♯m" ]
+        , option [ value "4", selected (key == 4) ] [ Html.text "E / C♯m" ]
+        , option [ value "11", selected (key == 11) ] [ Html.text "B / G♯m" ]
+        , option [ value "6", selected (key == 6) ] [ Html.text "G♭ / E♭m" ]
+        , option [ value "1", selected (key == 1) ] [ Html.text "D♭ / B♭m" ]
+        , option [ value "8", selected (key == 8) ] [ Html.text "A♭ / Fm" ]
+        , option [ value "3", selected (key == 3) ] [ Html.text "E♭ / Cm" ]
+        , option [ value "10", selected (key == 10) ] [ Html.text "B♭ / Gm" ]
+        , option [ value "5", selected (key == 5) ] [ Html.text "F / Dm" ]
+        ]
+    ]
+
+viewChordBox : Int -> ChordBox -> Html Msg
+viewChordBox key chordBox =
   div
     [ style
         [ ( "width", "500px" )
@@ -700,7 +745,7 @@ viewChordBox chordBoxText parse chordBox =
             , ( "background", "transparent" )
             ]
         ]
-        [ text chordBoxText ]
+        [ text chordBox.text ]
     , pre
         [ style
             [ ( "font", "inherit" )
@@ -714,12 +759,12 @@ viewChordBox chordBoxText parse chordBox =
         ]
         ( List.map
             Highlight.view
-            (Highlight.mergeLayers (getLayers chordBoxText parse chordBox))
+            (Highlight.mergeLayers (getLayers key chordBox))
         )
     ]
 
-getLayers : String -> MainParser.Model -> ChordBox -> List (List Highlight)
-getLayers chordBoxText parse chordBox =
+getLayers : Int -> ChordBox -> List (List Highlight)
+getLayers key chordBox =
   [ let
       grays =
         List.map
@@ -729,20 +774,21 @@ getLayers chordBoxText parse chordBox =
       case chordBox.bubble of
         Just bubble -> bubble :: grays
         Nothing -> grays
-  , MainParser.view parse
+  , MainParser.view key chordBox.parse
   , [ Highlight
         ""
         "#000000"
         "#ffffff"
-        (Substring 0 (chordBoxText ++ "\n"))
+        (Substring 0 (chordBox.text ++ "\n"))
     ]
   ]
 
-viewSuggestionBar : SuggestionBar.Model -> Html Msg
-viewSuggestionBar = Html.map SuggestionBarMsg << SuggestionBar.view
+viewSuggestionBar : Int -> SuggestionBar.Model -> Html Msg
+viewSuggestionBar key suggestionBar =
+  Html.map SuggestionBarMsg (SuggestionBar.view key suggestionBar)
 
-viewChordArea : Player -> MainParser.Model -> Html Msg
-viewChordArea player parse =
+viewChordArea : Int -> Player -> MainParser.Model -> Html Msg
+viewChordArea key player parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -751,28 +797,28 @@ viewChordArea player parse =
         ]
     ]
     ( List.map
-        (viewLine (Player.playStatus player))
+        (viewLine key (Player.playStatus player))
         (MainParser.getChords parse)
     )
 
-viewLine : PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine playStatus line =
+viewLine : Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine key playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord playStatus) line)
+    (List.map (viewMaybeChord key playStatus) line)
 
-viewMaybeChord : PlayStatus -> Maybe IdChord -> Html Msg
-viewMaybeChord playStatus maybeChord =
+viewMaybeChord : Int -> PlayStatus -> Maybe IdChord -> Html Msg
+viewMaybeChord key playStatus maybeChord =
   case maybeChord of
     Just chord ->
-      viewChord playStatus chord
+      viewChord key playStatus chord
     Nothing ->
       viewSpace
 
-viewChord : PlayStatus -> IdChord -> Html Msg
-viewChord playStatus chord =
+viewChord : Int -> PlayStatus -> IdChord -> Html Msg
+viewChord key playStatus chord =
   let
     selected =
       playStatus.active == chord.id || playStatus.next == chord.id
@@ -816,7 +862,7 @@ viewChord playStatus chord =
               ]
           , id (toString chord.id)
           , style
-              [ ( "background", CachedChord.bg chord.cache )
+              [ ( "background", CachedChord.bg key chord.cache )
               , ( "color", CachedChord.fg chord.cache )
               , ( "font", "inherit" )
               , ( "width", "75px" )
@@ -863,11 +909,11 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : Player -> Html Msg
-viewCircleOfFifths player =
+viewCircleOfFifths : Int -> Player -> Html Msg
+viewCircleOfFifths key player =
   Html.map
     msgFromCircleOfFifths
-    (CircleOfFifths.view (Player.playStatus player))
+    (CircleOfFifths.view key (Player.playStatus player))
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

@@ -46,9 +46,9 @@ update substrings model =
     , words = doubleZipped.left ++ newUpper ++ doubleZipped.right
     }
 
-view : Model -> List Highlight
-view model =
-  List.filterMap viewWord model.words
+view : Int -> Model -> List Highlight
+view key model =
+  List.filterMap (viewWord key) model.words
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords model =
@@ -103,13 +103,11 @@ addSuggestion word suggestions =
 
 updateSuggestion :
   Word -> CachedChord -> Maybe Suggestion -> Maybe Suggestion
-updateSuggestion word chord maybeSuggestion =
+updateSuggestion word cache maybeSuggestion =
   Just <|
     case maybeSuggestion of
       Nothing ->
-        { s = chord.codeName
-        , fg = CachedChord.fg chord
-        , bg = CachedChord.bg chord
+        { cache = cache
         , firstRange = word.substring
         , ranges = []
         }
@@ -159,8 +157,8 @@ getChord word =
       else
         Nothing
 
-viewWord : Word -> Maybe Highlight
-viewWord word =
+viewWord : Int -> Word -> Maybe Highlight
+viewWord key word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
@@ -173,7 +171,7 @@ viewWord word =
           ( Highlight
               ""
               (CachedChord.fg chord.cache)
-              (CachedChord.bg chord.cache)
+              (CachedChord.bg key chord.cache)
               word.substring
           )
       else

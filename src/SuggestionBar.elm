@@ -100,7 +100,8 @@ update msg model =
 
     SuggestionMsg (suggestion, Suggestion.Copied) ->
       ( { model
-        | recentlyCopied = Set.insert suggestion.s model.recentlyCopied
+        | recentlyCopied =
+            Set.insert suggestion.cache.codeName model.recentlyCopied
         }
       , Cmd.batch
           [ Selection.setLandingPad
@@ -111,7 +112,7 @@ update msg model =
                   }
               }
           , Task.perform
-              (always (RemoveCopied suggestion.s))
+              (always (RemoveCopied suggestion.cache.codeName))
               (Process.sleep (1 * Time.second))
           ]
       )
@@ -129,8 +130,8 @@ highlightRanges model =
     Just suggestion ->
       suggestion.firstRange :: suggestion.ranges
 
-view : Model -> Html Msg
-view model =
+view : Int -> Model -> Html Msg
+view key model =
   if List.isEmpty model.suggestions then
     div [] []
   else
@@ -142,15 +143,19 @@ view model =
           , ( "align-items", "flex-start" )
           ]
       ]
-      ( (List.map (viewSuggestion model.recentlyCopied) model.suggestions) ++
-          [ span
-              [ style
-                  [ ( "line-height", "1.28em" )
-                  , ( "min-height", "2.56em" )
-                  , ( "margin-left", "2px" )
-                  ]
-              ]
-              [ text (getInstructions model) ]
+      ( List.concat
+          [ List.map
+              (viewSuggestion key model.recentlyCopied)
+              model.suggestions
+          , [ span
+                [ style
+                    [ ( "line-height", "1.28em" )
+                    , ( "min-height", "2.56em" )
+                    , ( "margin-left", "2px" )
+                    ]
+                ]
+                [ text (getInstructions model) ]
+            ]
           ]
       )
 
@@ -171,8 +176,12 @@ getInstructions model =
     _ ->
       ""
 
-viewSuggestion : Set String -> Suggestion -> Html Msg
-viewSuggestion recentlyCopied suggestion =
+viewSuggestion : Int -> Set String -> Suggestion -> Html Msg
+viewSuggestion key recentlyCopied suggestion =
   Html.map
     (SuggestionMsg << (,) suggestion)
-    (Suggestion.view (Set.member suggestion.s recentlyCopied) suggestion)
+    ( Suggestion.view
+        key
+        (Set.member suggestion.cache.codeName recentlyCopied)
+        suggestion
+    )

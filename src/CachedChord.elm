@@ -21,10 +21,10 @@ fg : CachedChord -> String
 fg x =
   x.flavor.fg
 
-bg : CachedChord -> String
-bg x =
+bg : Int -> CachedChord -> String
+bg key x =
   let ( a, b, c ) = x.flavor.bg in
-    case Chord.get x.chord x.i % 3 of
+    case (Chord.get x.chord x.i - key) % 3 of
       0 -> a
       1 -> b
       _ -> c

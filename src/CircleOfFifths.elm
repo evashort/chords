@@ -21,12 +21,13 @@ import Svg.Attributes exposing
 chordCount : Int
 chordCount = 24
 
-majorChords : List IdChord
-majorChords = List.map (nthMajorChord 0) (List.range 0 11)
+majorChords : Int -> List IdChord
+majorChords rotation =
+  List.map (nthMajorChord 0) (List.range rotation (rotation + 11))
 
 nthMajorChord : Int -> Int -> IdChord
 nthMajorChord firstId i =
-  { id = firstId + i
+  { id = firstId + i % 12
   , cache =
       CachedChord.fromChord
         ( List.map
@@ -35,12 +36,13 @@ nthMajorChord firstId i =
         )
   }
 
-minorChords : List IdChord
-minorChords = List.map (nthMinorChord 12) (List.range 0 11)
+minorChords : Int -> List IdChord
+minorChords rotation =
+  List.map (nthMinorChord 12) (List.range rotation (rotation + 11))
 
 nthMinorChord : Int -> Int -> IdChord
 nthMinorChord firstId i =
-  { id = firstId + i
+  { id = firstId + i % 12
   , cache =
       CachedChord.fromChord
         ( List.map
@@ -53,8 +55,8 @@ type Msg
   = PlayChord ( Chord, Int )
   | StopChord
 
-view : PlayStatus -> Html Msg
-view playStatus =
+view : Int -> PlayStatus -> Html Msg
+view key playStatus =
   Svg.svg
       [ width "500"
       , height "500"
@@ -116,11 +118,11 @@ view playStatus =
           , List.concatMap
               List.concat
               [ List.indexedMap
-                  (viewChord playStatus (areaAverage 100 247.5) 247.5)
-                  majorChords
+                  (viewChord key playStatus (areaAverage 100 247.5) 247.5)
+                  (majorChords (key * 7))
               , List.indexedMap
-                  (viewChord playStatus 100 (areaAverage 100 247.5))
-                  minorChords
+                  (viewChord key playStatus 100 (areaAverage 100 247.5))
+                  (minorChords (key * 7))
               ]
           ]
       )
@@ -129,8 +131,9 @@ areaAverage : Float -> Float -> Float
 areaAverage x y =
   sqrt (0.5 * (x * x + y * y))
 
-viewChord : PlayStatus -> Float -> Float -> Int -> IdChord -> List (Svg Msg)
-viewChord playStatus rInner rOuter i chord =
+viewChord :
+  Int -> PlayStatus -> Float -> Float -> Int -> IdChord -> List (Svg Msg)
+viewChord key playStatus rInner rOuter i chord =
   List.filterMap
     identity
     [ if playStatus.active == chord.id || playStatus.next == chord.id then
@@ -162,7 +165,7 @@ viewChord playStatus rInner rOuter i chord =
                   [ ( 13, play )
                   , ( 32, play )
                   ]
-              , fill (CachedChord.bg chord.cache)
+              , fill (CachedChord.bg key chord.cache)
               , attribute "tabindex" "0"
               , style [ ( "cursor", "pointer" ) ]
               , d (twelfth 5 rInner rOuter i)

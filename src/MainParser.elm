@@ -32,9 +32,9 @@ update whole model =
     , indents = parseResult.indents
     }
 
-view : Model -> List Highlight
-view model =
-  ChordParser.view model.chordModel ++
+view : Int -> Model -> List Highlight
+view key model =
+  ChordParser.view key model.chordModel ++
     List.map (Highlight "" "#008000" "#ffffff") model.comments ++
       List.map (Highlight "" "#ffffff" "#ff0000") model.indents
 
