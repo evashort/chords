@@ -563,7 +563,7 @@ viewOctaveBase octaveBase =
               ( String.concat
                   [ getFlatName octaveOffset
                   , toString octave
-                  , " to "
+                  , " through "
                   , getSharpName ((octaveOffset + 11) % 12)
                   , toString (octave + min octaveOffset 1)
                   ]
