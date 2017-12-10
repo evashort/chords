@@ -1,5 +1,7 @@
 module CachedChord exposing
-  (CachedChord, fg, bg, borderOpacity, shineOpacity, view, fromChord)
+  ( CachedChord, fg, bg, borderOpacity, shineOpacity, view, fromChord
+  , transposeRootOctave
+  )
 
 import Chord exposing (Chord)
 import Flavor exposing (Flavor)
@@ -16,6 +18,33 @@ type alias CachedChord =
   , prettyNamesake : String
   , prettyRoot : String
   }
+
+transposeRootOctave : Int -> CachedChord -> CachedChord
+transposeRootOctave octaveBase cache =
+  let
+    root = Chord.get cache.chord 0
+  in let
+    newRoot =
+      if 48 <= root && root < 60 then
+        (root - octaveBase) % 12 + octaveBase
+      else
+        root
+  in
+    transposeByOctaves ((newRoot - root) // 12) cache
+
+transposeByOctaves : Int -> CachedChord -> CachedChord
+transposeByOctaves octaves cache =
+  if octaves == 0 then
+    cache
+  else
+    addRoot
+      { cache
+      | chord = List.map ((+) (12 * octaves)) cache.chord
+      , staffMap = List.map ((+) (7 * octaves)) cache.staffMap
+      , codeName =
+          String.concat (List.take 1 (String.split "/" cache.codeName))
+      , prettyRoot = ""
+      }
 
 fg : CachedChord -> String
 fg x =
@@ -72,8 +101,21 @@ fromChord chord =
         (List.map ((+) staffNamesake) flavor.staffOffsets)
   in let
     ( codeNamesake, prettyNamesake ) = getNoteNames chord staffMap i ""
-  in let
-    root = Chord.get chord 0
+  in
+    addRoot
+      { chord = chord
+      , i = i
+      , flavor = flavor
+      , staffMap = staffMap
+      , codeName = codeNamesake ++ flavor.codeName
+      , prettyNamesake = prettyNamesake
+      , prettyRoot = ""
+      }
+
+addRoot : CachedChord -> CachedChord
+addRoot cache =
+  let
+    root = Chord.get cache.chord 0
   in let
     octaveName =
       case (root - root % 12) // 12 - 2 of
@@ -81,21 +123,16 @@ fromChord chord =
         octave -> toString octave
   in let
     ( codeRoot, prettyRoot ) =
-      case ( octaveName, i ) of
+      case ( octaveName, cache.i ) of
         ( "", 0 ) -> ( "", "" )
-        _ -> getNoteNames chord staffMap 0 octaveName
+        _ -> getNoteNames cache.chord cache.staffMap 0 octaveName
   in
-    { chord = chord
-    , i = i
-    , flavor = flavor
-    , staffMap = staffMap
-    , codeName =
-        String.concat
-          [ codeNamesake
-          , flavor.codeName
-          , if codeRoot == "" then "" else "/" ++ codeRoot
-          ]
-    , prettyNamesake = prettyNamesake
+    { cache
+    | codeName =
+        if codeRoot /= "" then
+          cache.codeName ++ "/" ++ codeRoot
+        else
+          cache.codeName
     , prettyRoot = prettyRoot
     }
 

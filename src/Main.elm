@@ -3,7 +3,6 @@ port module Main exposing (..)
 import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
 import CachedChord
-import Chord exposing (Chord)
 import ChordParser exposing (IdChord)
 import CircleOfFifths
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
@@ -117,7 +116,7 @@ defaultText =
 type Msg
   = NeedsTime (Float -> Msg)
   | CurrentTime Float
-  | PlayChord ( Chord, Int, Float )
+  | PlayChord ( IdChord, Float )
   | StopChord Float
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
@@ -147,32 +146,23 @@ update msg model =
       , Cmd.none
       )
 
-    PlayChord ( chord, id, now ) ->
+    PlayChord ( chord, now ) ->
       let
-        root = Chord.get chord 0
+        newCache =
+          CachedChord.transposeRootOctave model.octaveBase chord.cache
       in let
-        oRoot =
-          if 48 <= root && root < 60 then
-            (root - model.octaveBase) % 12 + model.octaveBase
-          else
-            root
-      in let
-        oChord =
-          if oRoot /= root then
-            List.map ((+) (oRoot - root)) chord
-          else
-            chord
+        x = newCache.chord
       in let
         ( player, changes ) =
           case model.playStyle of
             ArpeggioStyle ->
               Player.playArpeggio
-                (60 / toFloat model.bpm) oChord id now model.player
+                (60 / toFloat model.bpm) x chord.id now model.player
             StrumStyle ->
               Player.playStrum
-              model.strumInterval oChord id now model.player
+              model.strumInterval x chord.id now model.player
             PadStyle ->
-              Player.playPad oChord id now model.player
+              Player.playPad x chord.id now model.player
       in
         ( { model | player = player }
         , AudioChange.perform changes
@@ -828,7 +818,7 @@ viewChord key playStatus chord =
   in let
     play =
       if stopButton then NeedsTime StopChord
-      else NeedsTime (PlayChord << (,,) chord.cache.chord chord.id)
+      else NeedsTime (PlayChord << (,) chord)
   in
     span
       [ style
@@ -919,7 +909,7 @@ viewCircleOfFifths key player =
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =
   case msg of
-    CircleOfFifths.PlayChord ( chord, id ) ->
-      NeedsTime (PlayChord << (,,) chord id)
+    CircleOfFifths.PlayChord chord ->
+      NeedsTime (PlayChord << (,) chord)
     CircleOfFifths.StopChord ->
       NeedsTime StopChord

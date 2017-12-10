@@ -28,12 +28,28 @@ setTime : Float -> Player -> Maybe Player
 setTime now player =
   case player.schedule of
     [] ->
-      Nothing
+      if shouldDeleteOpenings now player.openings then
+        Just { player | openings = [] }
+      else
+        Nothing
     segment :: rest ->
       if now < segment.stop then
         Nothing
       else
-        Just { player | schedule = dropSegmentsBefore now rest }
+        case dropSegmentsBefore now rest of
+          [] ->
+            if shouldDeleteOpenings now player.openings then
+              Just { openings = [], schedule = [] }
+            else
+              Just { player | schedule = [] }
+          newSchedule ->
+            Just { player | schedule = newSchedule }
+
+shouldDeleteOpenings : Float -> List Opening -> Bool
+shouldDeleteOpenings now openings =
+  case openings of
+    [] -> False
+    opening :: _ -> now > opening.endTime
 
 dropSegmentsBefore : Float -> List Segment -> List Segment
 dropSegmentsBefore now segments =
@@ -46,7 +62,7 @@ dropSegmentsBefore now segments =
 willChange : Player -> Bool
 willChange player =
   case player.schedule of
-    [] -> False
+    [] -> player.openings /= []
     segment :: _ -> segment.stop < infinity
 
 type alias PlayStatus =

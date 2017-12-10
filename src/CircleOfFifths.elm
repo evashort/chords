@@ -1,7 +1,6 @@
 module CircleOfFifths exposing (chordCount, view, Msg(..))
 
 import CachedChord
-import Chord exposing (Chord)
 import ChordParser exposing (IdChord)
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Player exposing (PlayStatus)
@@ -51,7 +50,7 @@ nthMinorChord firstId i =
   }
 
 type Msg
-  = PlayChord ( Chord, Int )
+  = PlayChord ( IdChord )
   | StopChord
 
 view : Int -> PlayStatus -> Html Msg
@@ -155,7 +154,7 @@ viewChord key playStatus rInner rOuter i chord =
       in let
         play =
           if stopButton then StopChord
-          else PlayChord ( chord.cache.chord, chord.id )
+          else PlayChord chord
       in
         Just
           ( path
