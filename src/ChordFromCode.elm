@@ -11,13 +11,17 @@ chordFromCode code =
     Nothing ->
       Nothing
     Just ( chordCode, Nothing ) ->
-      fromCodeDefaultRoot chordCode
+      fromCodeGivenOctave 2 chordCode
     Just ( chordCode, Just rootCode ) ->
       case rootFromCode rootCode of
         Nothing ->
-          Nothing
+          case String.toInt rootCode of
+            Err _ ->
+              Nothing
+            Ok octave ->
+              fromCodeGivenOctave octave chordCode
         Just root ->
-          case fromCodeDefaultRoot chordCode of
+          case fromCodeGivenOctave 2 chordCode of
             Nothing ->
               Nothing
             Just namesakeChord ->
@@ -43,8 +47,8 @@ normalizeSeparatorChar char =
     '⁄' -> '/'
     _ -> char
 
-fromCodeDefaultRoot : String -> Maybe Chord
-fromCodeDefaultRoot code =
+fromCodeGivenOctave : Int -> String -> Maybe Chord
+fromCodeGivenOctave octave code =
   case noteAndSomethingFromCode code of
     Nothing ->
       Nothing
@@ -53,7 +57,7 @@ fromCodeDefaultRoot code =
         Nothing ->
           Nothing
         Just offsets ->
-          Just (List.map ((+) (48 + pitch)) offsets)
+          Just (List.map ((+) (12 * (octave + 2) + pitch)) offsets)
 
 rootFromCode : String -> Maybe Int
 rootFromCode code =

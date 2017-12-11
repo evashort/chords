@@ -123,9 +123,8 @@ addRoot cache =
         octave -> toString octave
   in let
     ( codeRoot, prettyRoot ) =
-      case ( octaveName, cache.i ) of
-        ( "", 0 ) -> ( "", "" )
-        _ -> getNoteNames cache.chord cache.staffMap 0 octaveName
+      if cache.i == 0 then ( octaveName, octaveName )
+      else getNoteNames cache.chord cache.staffMap 0 octaveName
   in
     { cache
     | codeName =
