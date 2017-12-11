@@ -2,7 +2,7 @@ module History exposing (History, add, finishSequence, view)
 
 import CachedChord exposing (CachedChord)
 
-import Html exposing (Html, div, span, text)
+import Html exposing (Html, div, mark, span, text)
 import Html.Attributes exposing (style)
 
 type alias History =
@@ -30,8 +30,8 @@ finishSequence history =
   else
     { history | current = [] }
 
-view : List (List CachedChord) -> Html msg
-view sequences =
+view : Int -> List (List CachedChord) -> Html msg
+view key sequences =
   span
     [ style
         [ ( "display", "inline-block" )
@@ -47,12 +47,25 @@ view sequences =
             , ( "font-size", "13pt" )
             ]
         ]
-        (List.map viewSequence sequences)
+        (List.map (viewSequence key) sequences)
     ]
 
-viewSequence : List CachedChord -> Html msg
-viewSequence sequence =
+viewSequence : Int -> List CachedChord -> Html msg
+viewSequence key sequence =
   div []
-    [ text
-        (String.join " " (List.map .codeName (List.reverse sequence)))
+    ( List.intersperse
+        (text " ")
+        (List.map (viewChord key) (List.reverse sequence))
+    )
+
+viewChord : Int -> CachedChord -> Html msg
+viewChord key cache =
+  mark
+    [ style
+        [ ( "background", CachedChord.bg key cache )
+        , ( "color", CachedChord.fg cache )
+        , ( "border-radius", "3px" )
+        ]
+    ]
+    [ text cache.codeName
     ]

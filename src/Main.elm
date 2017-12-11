@@ -499,7 +499,8 @@ view model =
     , Html.Lazy.lazy3
         viewChordArea model.chordLens model.player model.chordBox.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
-    , Html.Lazy.lazy History.view model.history.sequences
+    , Html.Lazy.lazy2
+        History.view model.chordLens.key model.history.sequences
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]
