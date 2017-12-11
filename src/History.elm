@@ -23,9 +23,12 @@ add cache history =
 
 finishSequence : History -> History
 finishSequence history =
-  { sequences = List.take 10 (history.current :: history.sequences)
-  , current = []
-  }
+  if List.length history.current > 1 then
+    { sequences = List.take 10 (history.current :: history.sequences)
+    , current = []
+    }
+  else
+    { history | current = [] }
 
 view : List (List CachedChord) -> Html msg
 view sequences =
