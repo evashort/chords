@@ -7,6 +7,7 @@ import ChordParser exposing (IdChord)
 import CircleOfFifths
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Highlight exposing (Highlight)
+import History exposing (History)
 import MainParser
 import Player exposing (Player, PlayStatus)
 import Selection
@@ -40,6 +41,7 @@ main =
 
 type alias Model =
   { player : Player
+  , history : History
   , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
@@ -82,6 +84,7 @@ init mac location =
     suggestionBar = SuggestionBar.init modifierKey suggestions
   in
     ( { player = { openings = [], schedule = [] }
+      , history = { sequences = [], current = [] }
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
@@ -142,7 +145,15 @@ update msg model =
     CurrentTime now ->
       ( case Player.setTime now model.player of
           Nothing -> model
-          Just player -> { model | player = player }
+          Just ( player, sequenceFinished ) ->
+            { model
+            | player = player
+            , history =
+                if sequenceFinished then
+                  History.finishSequence model.history
+                else
+                  model.history
+            }
       , Cmd.none
       )
 
@@ -153,8 +164,19 @@ update msg model =
       in let
         x = newCache.chord
       in let
-        player =
-          Maybe.withDefault model.player (Player.setTime now model.player)
+        ( player, sequenceFinished ) =
+          Maybe.withDefault
+            ( model.player, False )
+            (Player.setTime now model.player)
+      in let
+        newHistory =
+          History.add
+            newCache
+            ( if sequenceFinished then
+                History.finishSequence model.history
+              else
+                model.history
+            )
       in let
         ( newPlayer, changes ) =
           case model.playStyle of
@@ -166,7 +188,7 @@ update msg model =
             PadStyle ->
               Player.playPad x chord.id now player
       in
-        ( { model | player = newPlayer }
+        ( { model | player = newPlayer, history = newHistory }
         , AudioChange.perform changes
         )
 
@@ -175,7 +197,10 @@ update msg model =
         ( player, changes ) =
           Player.stopPlaying now model.player
       in
-        ( { model | player = player }
+        ( { model
+          | player = player
+          , history = History.finishSequence model.history
+          }
         , AudioChange.perform changes
         )
 
@@ -479,6 +504,7 @@ view model =
     , Html.Lazy.lazy3
         viewChordArea model.key model.player model.chordBox.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.key model.player
+    , Html.Lazy.lazy History.view model.history.sequences
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]

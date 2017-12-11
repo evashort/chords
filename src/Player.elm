@@ -24,12 +24,13 @@ type alias Segment =
   , stop : Float
   }
 
-setTime : Float -> Player -> Maybe Player
+-- bool is true when chord sequence finishes
+setTime : Float -> Player -> Maybe ( Player, Bool )
 setTime now player =
   case player.schedule of
     [] ->
       if shouldDeleteOpenings now player.openings then
-        Just { player | openings = [] }
+        Just ( { player | openings = [] }, True )
       else
         Nothing
     segment :: rest ->
@@ -39,11 +40,11 @@ setTime now player =
         case dropSegmentsBefore now rest of
           [] ->
             if shouldDeleteOpenings now player.openings then
-              Just { openings = [], schedule = [] }
+              Just ( { openings = [], schedule = [] }, True )
             else
-              Just { player | schedule = [] }
+              Just ( { player | schedule = [] }, player.openings == [] )
           newSchedule ->
-            Just { player | schedule = newSchedule }
+            Just ( { player | schedule = newSchedule }, False )
 
 shouldDeleteOpenings : Float -> List Opening -> Bool
 shouldDeleteOpenings now openings =
