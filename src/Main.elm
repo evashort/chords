@@ -130,8 +130,7 @@ type Msg
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | SetBpm String
-  | SetOctave String
-  | SetOctaveStart String
+  | SetOctaveBase String
   | SetKey String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
@@ -227,33 +226,12 @@ update msg model =
       , Cmd.none
       )
 
-    SetOctave octaveString ->
-      ( case String.toInt octaveString of
-          Ok octave ->
+    SetOctaveBase octaveBaseString ->
+      ( case String.toInt octaveBaseString of
+          Ok octaveBase ->
             let chordLens = model.chordLens in
               { model
-              | chordLens =
-                  { chordLens
-                  | octaveBase =
-                      12 * (octave + 2) + chordLens.octaveBase % 12
-                  }
-              }
-          Err _ ->
-            model
-      , Cmd.none
-      )
-
-    SetOctaveStart octaveOffsetString ->
-      ( case String.toInt octaveOffsetString of
-          Ok octaveOffset ->
-            let chordLens = model.chordLens in
-              { model
-              | chordLens =
-                  { chordLens
-                  | octaveBase =
-                      chordLens.octaveBase - (chordLens.octaveBase % 12) +
-                        octaveOffset
-                  }
+              | chordLens = { chordLens | octaveBase = octaveBase }
               }
           Err _ ->
             model
@@ -644,57 +622,45 @@ viewBpm bpm =
 
 viewOctaveBase : Int -> Html Msg
 viewOctaveBase octaveBase =
-  let
-    octaveOffset = octaveBase % 12
-  in let
-    octave = (octaveBase - octaveOffset) // 12 - 2
-  in
-    div
-      [ style
-          [ ( "line-height", "26px" )
-          , ( "margin-bottom", "5px" )
-          ]
-      ]
-      [ span []
-          [ Html.text "Root octave " ]
-      , input
-          [ type_ "number"
-          , onInput SetOctave
-          , value (toString octave)
-          , Html.Attributes.size 2
-          , Html.Attributes.min "-2"
-          , Html.Attributes.max "6"
-          , style
-              [ ( "width", "3em" )
-              ]
-          ]
-          []
-      , input
-          [ type_ "range"
-          , onInput SetOctaveStart
-          , Html.Attributes.min "0"
-          , Html.Attributes.max "11"
-          , value (toString octaveOffset)
-          , style
-              [ ( "margin", "0px 5px" )
-              , ( "height", "26px" )
-              , ( "vertical-align", "top" )
-              , ( "box-sizing", "border-box" )
-              ]
-          ]
-          []
-      , span []
-          [ Html.text
-              ( String.concat
+  div
+    [ style
+        [ ( "line-height", "26px" )
+        , ( "margin-bottom", "5px" )
+        ]
+    ]
+    [ span []
+        [ Html.text "Root octave " ]
+    , input
+        [ type_ "range"
+        , onInput SetOctaveBase
+        , Html.Attributes.min "40"
+        , Html.Attributes.max "53"
+        , value (toString octaveBase)
+        , style
+            [ ( "margin", "0px 5px" )
+            , ( "height", "26px" )
+            , ( "vertical-align", "top" )
+            , ( "box-sizing", "border-box" )
+            ]
+        ]
+        []
+    , span []
+        [ Html.text
+            ( let
+                octaveOffset = octaveBase % 12
+              in let
+                octave = (octaveBase - octaveOffset) // 12 - 2
+              in
+                String.concat
                   [ getFlatName octaveOffset
                   , toString octave
                   , " through "
                   , getSharpName ((octaveOffset + 11) % 12)
                   , toString (octave + min octaveOffset 1)
                   ]
-              )
-          ]
-      ]
+            )
+        ]
+    ]
 
 getSharpName : Int -> String
 getSharpName note =
