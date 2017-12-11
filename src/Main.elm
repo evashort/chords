@@ -153,18 +153,20 @@ update msg model =
       in let
         x = newCache.chord
       in let
-        ( player, changes ) =
+        player =
+          Maybe.withDefault model.player (Player.setTime now model.player)
+      in let
+        ( newPlayer, changes ) =
           case model.playStyle of
             ArpeggioStyle ->
               Player.playArpeggio
-                (60 / toFloat model.bpm) x chord.id now model.player
+                (60 / toFloat model.bpm) x chord.id now player
             StrumStyle ->
-              Player.playStrum
-              model.strumInterval x chord.id now model.player
+              Player.playStrum model.strumInterval x chord.id now player
             PadStyle ->
-              Player.playPad x chord.id now model.player
+              Player.playPad x chord.id now player
       in
-        ( { model | player = player }
+        ( { model | player = newPlayer }
         , AudioChange.perform changes
         )
 

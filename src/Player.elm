@@ -150,14 +150,7 @@ playArpeggio :
     ( Player, List AudioChange )
 playArpeggio beatInterval chord id now player =
   let
-    openingsNotAfter = dropOpeningsAfter now player.openings
-  in let
-    truncatedOpenings =
-      case openingsNotAfter of
-        [] -> openingsNotAfter
-        opening :: _ ->
-          if now <= opening.endTime then openingsNotAfter
-          else []
+    truncatedOpenings = dropOpeningsAfter now player.openings
   in let
     ( startTime, beat, highStart ) =
       case truncatedOpenings of
@@ -187,11 +180,9 @@ playArpeggio beatInterval chord id now player =
         }
       ]
   in let
-    currentSchedule = dropSegmentsBefore now player.schedule
-  in let
     truncatedSchedule =
       if now < startTime then
-        case currentSchedule of
+        case player.schedule of
           [] ->
             []
           segment :: _ ->
@@ -213,7 +204,7 @@ playArpeggio beatInterval chord id now player =
       , schedule = truncatedSchedule ++ additionalSchedule
       }
     , List.concat
-        [ stopOldChord startTime id now currentSchedule
+        [ stopOldChord startTime id now player.schedule
         , [ SetAttack 0
           , SetPeak 0.5
           , SetDecay 1.5
@@ -293,7 +284,7 @@ stopOldChord startTime id now schedule =
       , before = now < startTime
       }
   in
-    case dropSegmentsBefore now schedule of
+    case schedule of
       [] ->
         [ CancelFutureNotes changeTime ]
       segment :: _ ->
