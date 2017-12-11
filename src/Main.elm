@@ -45,8 +45,7 @@ type alias Model =
   , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
-  , octaveBase : Int
-  , key : Int
+  , chordLens : ChordLens
   , home : Bool
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
@@ -59,6 +58,11 @@ type PlayStyle
   = ArpeggioStyle
   | StrumStyle
   | PadStyle
+
+type alias ChordLens =
+  { octaveBase : Int
+  , key : Int
+  }
 
 type alias ChordBox =
   { text : String
@@ -88,8 +92,10 @@ init mac location =
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
-      , octaveBase = 48
-      , key = 0
+      , chordLens =
+          { octaveBase = 48
+          , key = 0
+          }
       , home = True
       , subscribeToSelection = True
       , chordBoxFocused = True
@@ -159,10 +165,7 @@ update msg model =
 
     PlayChord ( chord, now ) ->
       let
-        newCache =
-          CachedChord.transposeRootOctave model.octaveBase chord.cache
-      in let
-        x = newCache.chord
+        x = chord.cache.chord
       in let
         ( player, sequenceFinished ) =
           Maybe.withDefault
@@ -171,7 +174,7 @@ update msg model =
       in let
         newHistory =
           History.add
-            newCache
+            chord.cache
             ( if sequenceFinished then
                 History.finishSequence model.history
               else
@@ -227,10 +230,14 @@ update msg model =
     SetOctave octaveString ->
       ( case String.toInt octaveString of
           Ok octave ->
-            { model
-            | octaveBase =
-                12 * (octave + 2) + model.octaveBase % 12
-            }
+            let chordLens = model.chordLens in
+              { model
+              | chordLens =
+                  { chordLens
+                  | octaveBase =
+                      12 * (octave + 2) + chordLens.octaveBase % 12
+                  }
+              }
           Err _ ->
             model
       , Cmd.none
@@ -239,10 +246,15 @@ update msg model =
     SetOctaveStart octaveOffsetString ->
       ( case String.toInt octaveOffsetString of
           Ok octaveOffset ->
-            { model
-            | octaveBase =
-                model.octaveBase - (model.octaveBase % 12) + octaveOffset
-            }
+            let chordLens = model.chordLens in
+              { model
+              | chordLens =
+                  { chordLens
+                  | octaveBase =
+                      chordLens.octaveBase - (chordLens.octaveBase % 12) +
+                        octaveOffset
+                  }
+              }
           Err _ ->
             model
       , Cmd.none
@@ -250,7 +262,11 @@ update msg model =
 
     SetKey keyString ->
       ( case String.toInt keyString of
-          Ok key -> { model | key = key }
+          Ok key ->
+            let chordLens = model.chordLens in
+              { model
+              | chordLens = { chordLens | key = key }
+              }
           Err _ -> model
       , Cmd.none
       )
@@ -497,13 +513,14 @@ view model =
     ]
     [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
     , Html.Lazy.lazy viewBpm model.bpm
-    , Html.Lazy.lazy viewOctaveBase model.octaveBase
-    , Html.Lazy.lazy viewKey model.key
-    , Html.Lazy.lazy2 viewChordBox model.key model.chordBox
-    , Html.Lazy.lazy2 viewSuggestionBar model.key model.suggestionBar
+    , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
+    , Html.Lazy.lazy viewKey model.chordLens.key
+    , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
+    , Html.Lazy.lazy2
+        viewSuggestionBar model.chordLens.key model.suggestionBar
     , Html.Lazy.lazy3
-        viewChordArea model.key model.player model.chordBox.parse
-    , Html.Lazy.lazy2 viewCircleOfFifths model.key model.player
+        viewChordArea model.chordLens model.player model.chordBox.parse
+    , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
     , Html.Lazy.lazy History.view model.history.sequences
     , div []
         [ a
@@ -806,8 +823,8 @@ viewSuggestionBar : Int -> SuggestionBar.Model -> Html Msg
 viewSuggestionBar key suggestionBar =
   Html.map SuggestionBarMsg (SuggestionBar.view key suggestionBar)
 
-viewChordArea : Int -> Player -> MainParser.Model -> Html Msg
-viewChordArea key player parse =
+viewChordArea : ChordLens -> Player -> MainParser.Model -> Html Msg
+viewChordArea chordLens player parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -816,23 +833,29 @@ viewChordArea key player parse =
         ]
     ]
     ( List.map
-        (viewLine key (Player.playStatus player))
+        (viewLine chordLens (Player.playStatus player))
         (MainParser.getChords parse)
     )
 
-viewLine : Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine key playStatus line =
+viewLine : ChordLens -> PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine chordLens playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord key playStatus) line)
+    (List.map (viewMaybeChord chordLens playStatus) line)
 
-viewMaybeChord : Int -> PlayStatus -> Maybe IdChord -> Html Msg
-viewMaybeChord key playStatus maybeChord =
+viewMaybeChord : ChordLens -> PlayStatus -> Maybe IdChord -> Html Msg
+viewMaybeChord chordLens playStatus maybeChord =
   case maybeChord of
     Just chord ->
-      viewChord key playStatus chord
+      viewChord
+        chordLens.key
+        playStatus
+        { chord
+        | cache =
+            CachedChord.transposeRootOctave chordLens.octaveBase chord.cache
+        }
     Nothing ->
       viewSpace
 
@@ -928,11 +951,15 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : Int -> Player -> Html Msg
-viewCircleOfFifths key player =
+viewCircleOfFifths : ChordLens -> Player -> Html Msg
+viewCircleOfFifths chordLens player =
   Html.map
     msgFromCircleOfFifths
-    (CircleOfFifths.view key (Player.playStatus player))
+    ( CircleOfFifths.view
+        chordLens.octaveBase
+        chordLens.key
+        (Player.playStatus player)
+    )
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

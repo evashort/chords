@@ -19,33 +19,37 @@ import Svg.Attributes exposing
 chordCount : Int
 chordCount = 24
 
-getMajorChords : Int -> List IdChord
-getMajorChords rotation =
-  List.map (nthMajorChord 0) (List.range rotation (rotation + 11))
+getMajorChords : Int -> Int -> List IdChord
+getMajorChords octaveBase rotation =
+  List.map
+    (nthMajorChord 0 octaveBase)
+    (List.range rotation (rotation + 11))
 
-nthMajorChord : Int -> Int -> IdChord
-nthMajorChord firstId i =
+nthMajorChord : Int -> Int -> Int -> IdChord
+nthMajorChord firstId octaveBase i =
   { id = firstId + i % 12
   , cache =
       CachedChord.fromChord
         ( List.map
-            ((+) ((7 * i) % 12))
-            [ 48, 52, 55 ]
+            ((+) (octaveBase + (7 * i - octaveBase) % 12))
+            [ 0, 4, 7 ]
         )
   }
 
-getMinorChords : Int -> List IdChord
-getMinorChords rotation =
-  List.map (nthMinorChord 12) (List.range rotation (rotation + 11))
+getMinorChords : Int -> Int -> List IdChord
+getMinorChords octaveBase rotation =
+  List.map
+    (nthMinorChord 12 octaveBase)
+    (List.range rotation (rotation + 11))
 
-nthMinorChord : Int -> Int -> IdChord
-nthMinorChord firstId i =
+nthMinorChord : Int -> Int -> Int -> IdChord
+nthMinorChord firstId octaveBase i =
   { id = firstId + i % 12
   , cache =
       CachedChord.fromChord
         ( List.map
-            ((+) ((7 * i + 9) % 12))
-            [ 48, 51, 55 ]
+            ((+) (octaveBase + (7 * i + 9 - octaveBase) % 12))
+            [ 0, 3, 7 ]
         )
   }
 
@@ -53,8 +57,8 @@ type Msg
   = PlayChord ( IdChord )
   | StopChord
 
-view : Int -> PlayStatus -> Html Msg
-view key playStatus =
+view : Int -> Int -> PlayStatus -> Html Msg
+view octaveBase key playStatus =
   let
     rInner = 100
   in let
@@ -64,9 +68,9 @@ view key playStatus =
   in let
     rotation = 7 * key
   in let
-    majorChords = getMajorChords rotation
+    majorChords = getMajorChords octaveBase rotation
   in let
-    minorChords = getMinorChords rotation
+    minorChords = getMinorChords octaveBase rotation
   in let
     stopButtonId =
       if playStatus.stoppable then playStatus.active else -1
