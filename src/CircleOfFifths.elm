@@ -19,8 +19,8 @@ import Svg.Attributes exposing
 chordCount : Int
 chordCount = 24
 
-majorChords : Int -> List IdChord
-majorChords rotation =
+getMajorChords : Int -> List IdChord
+getMajorChords rotation =
   List.map (nthMajorChord 0) (List.range rotation (rotation + 11))
 
 nthMajorChord : Int -> Int -> IdChord
@@ -34,8 +34,8 @@ nthMajorChord firstId i =
         )
   }
 
-minorChords : Int -> List IdChord
-minorChords rotation =
+getMinorChords : Int -> List IdChord
+getMinorChords rotation =
   List.map (nthMinorChord 12) (List.range rotation (rotation + 11))
 
 nthMinorChord : Int -> Int -> IdChord
@@ -55,75 +55,114 @@ type Msg
 
 view : Int -> PlayStatus -> Html Msg
 view key playStatus =
-  Svg.svg
-      [ width "500"
-      , height "500"
-      , viewBox "0 0 500 500"
-      , style [ ( "font-size", "18pt" ) ]
+  let
+    rInner = 100
+  in let
+    rOuter = 247.5
+  in let
+    rMid = areaAverage 100 247.5
+  in let
+    rotation = 7 * key
+  in let
+    majorChords = getMajorChords rotation
+  in let
+    minorChords = getMinorChords rotation
+  in let
+    stopButtonId =
+      if playStatus.stoppable then playStatus.active else -1
+  in
+    Html.span
+      [ style
+          [ ( "position", "relative" )
+          , ( "display", "inline-block" )
+          , ( "font-size", "18pt" )
+          , ( "text-align", "center" )
+          , ( "-webkit-touch-callout", "none" )
+          , ( "-webkit-user-select", "none" )
+          , ( "-khtml-user-select", "none" )
+          , ( "-moz-user-select", "none" )
+          , ( "-ms-user-select", "none" )
+          , ( "user-select", "none" )
+          ]
       ]
       ( List.concat
-          [ [ defs []
-                [ linearGradient
-                    [ Svg.Attributes.id "twelfthShine"
-                    , x1 "0%"
-                    , y1 "0%"
-                    , x2 "10%"
-                    , y2 "100%"
+          [ [ Svg.svg
+                [ width "500"
+                , height "500"
+                , viewBox "0 0 500 500"
+                ]
+                ( List.concat
+                    [ [ gradients ]
+                    , keyShadow
+                    , List.concat
+                        ( List.indexedMap
+                            (viewChord key playStatus rMid rOuter)
+                            majorChords
+                        )
+                    , List.concat
+                        ( List.indexedMap
+                            (viewChord key playStatus rInner rMid)
+                            minorChords
+                        )
                     ]
-                    [ Svg.stop
-                        [ Svg.Attributes.offset "0%"
-                        , style
-                            [ ( "stop-color", "white" )
-                            , ( "stop-opacity", "1" )
-                            ]
-                        ]
-                        []
-                    , Svg.stop
-                        [ Svg.Attributes.offset "60%"
-                        , style
-                            [ ( "stop-color", "white" )
-                            , ( "stop-opacity", "0" )
-                            ]
-                        ]
-                        []
-                    ]
-                ]
-            , path
-                [ fill "lightgray"
-                , stroke "lightgray"
-                , strokeWidth "5"
-                , strokeLinejoin "round"
-                , d
-                    ( paddedWedge 5
-                        97.5 250
-                        (2 * pi * 9 / 24) (2 * pi * 3 / 24)
-                    )
-                ]
-                []
-            , path
-                [ fill "lightgray"
-                , stroke "lightgray"
-                , strokeWidth "5"
-                , strokeLinejoin "round"
-                , d
-                    ( paddedWedge 5
-                        (areaAverage 100 247.5) 250
-                        (2 * pi * -1 / 24) (2 * pi * -3 / 24)
-                    )
-                ]
-                []
+                )
             ]
-          , List.concatMap
-              List.concat
-              [ List.indexedMap
-                  (viewChord key playStatus (areaAverage 100 247.5) 247.5)
-                  (majorChords (key * 7))
-              , List.indexedMap
-                  (viewChord key playStatus 100 (areaAverage 100 247.5))
-                  (minorChords (key * 7))
-              ]
+          , List.indexedMap
+              (viewChordText stopButtonId (0.5 * (rMid + rOuter)))
+              majorChords
+          , List.indexedMap
+              (viewChordText stopButtonId (0.5 * (rInner + rMid)))
+              minorChords
           ]
       )
+
+gradients : Svg msg
+gradients =
+  defs []
+    [ linearGradient
+        [ Svg.Attributes.id "twelfthShine"
+        , x1 "0%", y1 "0%", x2 "10%", y2 "100%"
+        ]
+        [ Svg.stop
+            [ Svg.Attributes.offset "0%"
+            , style [ ( "stop-color", "white" ), ( "stop-opacity", "1" ) ]
+            ]
+            []
+        , Svg.stop
+            [ Svg.Attributes.offset "60%"
+            , style [ ( "stop-color", "white" ), ( "stop-opacity", "0" ) ]
+            ]
+            []
+        ]
+    ]
+
+keyShadow : List (Svg msg)
+keyShadow =
+  [ path
+      [ fill "lightgray"
+      , stroke "lightgray"
+      , strokeWidth "5"
+      , strokeLinejoin "round"
+      , d
+          ( paddedWedge 5
+              97.5 250
+              (2 * pi * 9 / 24) (2 * pi * 3 / 24)
+          )
+      ]
+      []
+  , path
+      [ fill "lightgray"
+      , stroke "lightgray"
+      , strokeWidth "5"
+      , strokeLinejoin "round"
+      , d
+          ( paddedWedge 5
+              (areaAverage 100 247.5) 250
+              (2 * pi * -1 / 24) (2 * pi * -3 / 24)
+          )
+      ]
+      []
+  ]
 
 areaAverage : Float -> Float -> Float
 areaAverage x y =
@@ -189,38 +228,47 @@ viewChord key playStatus rInner rOuter i chord =
             ]
             []
         )
-    , let
-        stopButton = playStatus.active == chord.id && playStatus.stoppable
-      in let
-        ( x, y ) =
-          polar
-            (0.5 * (rInner + rOuter))
-            (2 * pi * (0.25 - toFloat i / 12))
-      in
-        Just
-          ( if stopButton then
-              rect
-                [ Svg.Attributes.x (toString (x - 10))
-                , Svg.Attributes.y (toString (y - 10))
-                , width "20"
-                , height "20"
-                , style [ ( "pointer-events", "none" ) ]
-                ]
-                []
-            else
-              text_
-                [ Svg.Attributes.x (toString x)
-                , Svg.Attributes.y (toString (y + 9))
-                , textAnchor "middle"
-                , style [ ( "pointer-events", "none" ) ]
-                ]
-                [ Svg.text
-                    ( chord.cache.prettyNamesake ++
-                        chord.cache.flavor.prettyName
-                    )
-                ]
-          )
     ]
+
+
+viewChordText : Int -> Float -> Int -> IdChord -> Html msg
+viewChordText stopButtonId r i chord =
+  let
+    ( x, y ) =
+      polar r (2 * pi * (0.25 - toFloat i / 12))
+  in
+    if chord.id == stopButtonId then
+      Html.span
+        [ style
+            [ ( "position", "absolute" )
+            , ( "left", toString (x - 10) ++ "px" )
+            , ( "top", toString (y - 10) ++ "px" )
+            , ( "pointer-events", "none" )
+            , ( "background", CachedChord.fg chord.cache )
+            , ( "width", "20px" )
+            , ( "height", "20px" )
+            ]
+        ]
+        []
+    else
+      Html.span
+        [ style
+            [ ( "position", "absolute" )
+            , ( "left", toString (x - 0.5 * 75) ++ "px" )
+            , ( "top", toString (y - 0.5 * 75) ++ "px" )
+            , ( "pointer-events", "none" )
+            , ( "line-height", "75px" )
+            , ( "color", CachedChord.fg chord.cache )
+            ]
+        ]
+        [ Html.span
+            [ style
+                [ ( "display", "inline-block" )
+                , ( "width", "75px" )
+                ]
+            ]
+            (CachedChord.view chord.cache)
+        ]
 
 twelfth : Float -> Float -> Float -> Int -> String
 twelfth padding rInner rOuter i =
