@@ -7,9 +7,11 @@ import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
 import Regex exposing (Regex, HowMany(..), Match)
+import Set exposing (Set)
 
 type alias Model =
   { chordModel : ChordParser.Model
+  , assignments : List Assignment
   , comments : List Substring
   , indents : List Substring
   }
@@ -19,6 +21,7 @@ init firstId substring =
   let parseResult = parse substring in
     { chordModel =
         ChordParser.init firstId parseResult.words
+    , assignments = parseResult.assignments
     , comments = parseResult.comments
     , indents = parseResult.indents
     }
@@ -28,6 +31,7 @@ update whole model =
   let parseResult = parse whole in
     { chordModel =
         ChordParser.update parseResult.words model.chordModel
+    , assignments = parseResult.assignments
     , comments = parseResult.comments
     , indents = parseResult.indents
     }
@@ -36,7 +40,25 @@ view : Int -> Model -> List Highlight
 view key model =
   ChordParser.view key model.chordModel ++
     List.map (Highlight "" "#008000" "#ffffff") model.comments ++
-      List.map (Highlight "" "#ffffff" "#ff0000") model.indents
+      List.map (Highlight "" "#ffffff" "#ff0000") model.indents ++
+        List.concatMap viewAssignment model.assignments
+
+viewAssignment : Assignment -> List Highlight
+viewAssignment assignment =
+  if assignment.variable.s /= assignment.cleanVariable then
+    []
+  else
+    case assignment.value of
+      Nothing ->
+        [ Highlight "" "#0000ff" "#ffffff" assignment.variable ]
+      Just value ->
+        if
+          String.length assignment.substring.s >
+            String.length assignment.variable.s + String.length value.s
+        then
+          [ Highlight "" "#0000ff" "#ffffff" assignment.variable ]
+        else
+          []
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
@@ -46,6 +68,7 @@ getSuggestions = ChordParser.getSuggestions << .chordModel
 
 type alias ParseResult =
   { words : List Substring
+  , assignments : List Assignment
   , comments : List Substring
   , indents : List Substring
   }
@@ -57,16 +80,57 @@ parse whole =
       List.map
         parseLine
         (Substring.find All (Regex.regex ".*\n?") whole)
+  in let
+    ( assignmentArea, chordArea ) =
+      case
+        splitAfterLastTrue
+          (isValidAssignment << .assignment)
+          lineResults
+      of
+        Nothing -> ( [], lineResults )
+        Just x -> x
   in
-    { words = List.concatMap .words lineResults
+    { words = List.concatMap .words chordArea
+    , assignments = List.filterMap .assignment lineResults
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
     }
 
+isValidAssignment : Maybe Assignment -> Bool
+isValidAssignment maybeAssignment =
+  case maybeAssignment of
+    Nothing -> False
+    Just assignment ->
+      case assignment.value of
+        Nothing -> False
+        Just value ->
+          assignment.variable.s == assignment.cleanVariable &&
+            String.length assignment.substring.s >
+              String.length assignment.variable.s + String.length value.s
+
+splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
+splitAfterLastTrue pred xs =
+  case xs of
+    [] -> Nothing
+    x :: rest ->
+      case splitAfterLastTrue pred rest of
+        Just ( before, after ) -> Just ( x :: before, after )
+        Nothing ->
+          if pred x then Just ( [ x ], rest )
+          else Nothing
+
 type alias LineResult =
   { words : List Substring
+  , assignment : Maybe Assignment
   , comment : Maybe Substring
   , indent : Maybe Substring
+  }
+
+type alias Assignment =
+  { variable : Substring
+  , cleanVariable : String
+  , value : Maybe Substring
+  , substring : Substring
   }
 
 parseLine : Substring -> LineResult
@@ -74,6 +138,7 @@ parseLine line =
   case Substring.find (AtMost 1) (Regex.regex "^#.*") line of
     comment :: _ ->
       { words = []
+      , assignment = Nothing
       , comment = Just comment
       , indent = Nothing
       }
@@ -96,19 +161,73 @@ parseLine line =
         of
           indentAndChar :: _ ->
             { words = []
+            , assignment = Nothing
             , comment = comment
             , indent = Just (Substring.dropRight 1 indentAndChar)
             }
           [] ->
-            let
-              words = Substring.find All (Regex.regex "[^ \n]+") code
-            in
+            let assignment = findAssignment code in
               { words =
-                  if words == [] then
+                  if isValidAssignment assignment then
                     []
                   else
-                    words ++
-                      Substring.find (AtMost 1) (Regex.regex "\n$") line
+                    let
+                      normalWords =
+                        Substring.find All (Regex.regex "[^ \n]+") code
+                    in
+                      if normalWords == [] then
+                        []
+                      else
+                        normalWords ++
+                          Substring.find (AtMost 1) (Regex.regex "\n$") line
+              , assignment = assignment
               , comment = comment
               , indent = Nothing
               }
+
+findAssignment : Substring -> Maybe Assignment
+findAssignment code =
+  case
+    Substring.find (AtMost 1) (Regex.regex "^[a-zA-Z]+ *: *\n?") code
+  of
+    [] ->
+      Nothing
+    variableAndSpace :: _ ->
+      let
+        variable =
+          { variableAndSpace
+          | s = String.trimRight variableAndSpace.s
+          }
+      in let
+        cleanVariable =
+          ( String.toLower
+              (String.trimRight (String.dropRight 1 variable.s))
+          ) ++ ":"
+      in
+        if Set.member cleanVariable variables then
+          let
+            assignment =
+              Maybe.withDefault
+                variable
+                ( List.head
+                    (Substring.find (AtMost 1) (Regex.regex "^.*[^ \n]") code)
+                )
+          in
+            Just
+              { variable = variable
+              , cleanVariable = cleanVariable
+              , value =
+                  let
+                    afterSpace =
+                      Substring.dropLeft
+                        (String.length variableAndSpace.s)
+                        assignment
+                  in
+                    if afterSpace.s == "" then Nothing else Just afterSpace
+              , substring = assignment
+              }
+        else
+          Nothing
+
+variables : Set String
+variables = Set.fromList [ "key:" ]
