@@ -5,9 +5,9 @@ import ChordParser exposing (IdChord)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import SuggestionMerge
 import Swatch exposing (Swatch)
 
-import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..), Match)
 import Set exposing (Set)
 
@@ -64,75 +64,56 @@ getSuggestions model =
     (.i << .firstRange)
     ( List.concat
         [ ChordParser.getSuggestions model.chordModel
-        , Dict.values (List.foldl addSuggestion Dict.empty model.assignments)
+        , SuggestionMerge.mergeSuggestions
+            assignmentReplacement
+            assignmentSuggestion
+            assignmentRange
+            model.assignments
         ]
     )
 
-addSuggestion :
-  Assignment -> Dict String Suggestion -> Dict String Suggestion
-addSuggestion assignment suggestions =
+assignmentReplacement : Assignment -> Maybe String
+assignmentReplacement assignment =
   if assignment.value.s /= "" && not (hasSpace assignment) then
-    let
-      replacement =
-        assignment.cleanVariable ++ " " ++ assignment.value.s
-    in
-      Dict.update
-        replacement
-        (updateAssignmentSuggestion assignment replacement)
-        suggestions
-  else if
-    assignment.variable.s /= assignment.cleanVariable
-  then
-    Dict.update
-      assignment.cleanVariable
-      (updateVariableSuggestion assignment)
-      suggestions
+    Just (assignment.cleanVariable ++ " " ++ assignment.value.s)
+  else if assignment.variable.s /= assignment.cleanVariable then
+    Just assignment.cleanVariable
   else
-    suggestions
+    Nothing
 
-updateAssignmentSuggestion :
-  Assignment -> String -> Maybe Suggestion -> Maybe Suggestion
-updateAssignmentSuggestion assignment replacement maybeSuggestion =
-  Just <|
-    case maybeSuggestion of
-      Nothing ->
-        { replacement = replacement
-        , swatchLists =
-            let
-              swatchList =
-                [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
-                , Swatch "#000000" "#ffffff" (" " ++ assignment.value.s)
-                ]
-            in
-              ( swatchList, swatchList, swatchList )
-        , firstRange = assignment.substring
-        , ranges = []
-        }
-      Just suggestion ->
-        { suggestion
-        | ranges = assignment.substring :: suggestion.ranges
-        }
+assignmentSuggestion : Assignment -> Suggestion
+assignmentSuggestion assignment =
+  if assignment.value.s /= "" && not (hasSpace assignment) then
+    { replacement = ""
+    , swatchLists =
+        let
+          swatchList =
+            [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
+            , Swatch "#000000" "#ffffff" (" " ++ assignment.value.s)
+            ]
+        in
+          ( swatchList, swatchList, swatchList )
+    , firstRange = assignment.substring
+    , ranges = []
+    }
+  else
+    { replacement = ""
+    , swatchLists =
+        let
+          swatchList =
+            [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable ]
+        in
+          ( swatchList, swatchList, swatchList )
+    , firstRange = assignment.variable
+    , ranges = []
+    }
 
-updateVariableSuggestion :
-  Assignment -> Maybe Suggestion -> Maybe Suggestion
-updateVariableSuggestion assignment maybeSuggestion =
-  Just <|
-    case maybeSuggestion of
-      Nothing ->
-        { replacement = assignment.cleanVariable
-        , swatchLists =
-            let
-              swatchList =
-                [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable ]
-            in
-              ( swatchList, swatchList, swatchList )
-        , firstRange = assignment.variable
-        , ranges = []
-        }
-      Just suggestion ->
-        { suggestion
-        | ranges = assignment.variable :: suggestion.ranges
-        }
+assignmentRange : Assignment -> Substring
+assignmentRange assignment =
+  if assignment.value.s /= "" && not (hasSpace assignment) then
+    assignment.substring
+  else
+    assignment.variable
 
 type alias ParseResult =
   { words : List Substring

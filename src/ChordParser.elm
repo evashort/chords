@@ -7,10 +7,9 @@ import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import SuggestionMerge
 import Swatch exposing (Swatch)
 import Zipper
-
-import Dict exposing (Dict)
 
 type alias IdChord =
   { id : Int
@@ -84,51 +83,48 @@ splitListHelp pred xs =
 
 getSuggestions : Model -> List Suggestion
 getSuggestions model =
-  Dict.values (List.foldl addSuggestion Dict.empty model.words)
+  SuggestionMerge.mergeSuggestions
+    wordReplacement
+    wordSuggestion
+    .substring
+    model.words
 
-addSuggestion :
-  Word -> Dict String Suggestion -> Dict String Suggestion
-addSuggestion word suggestions =
+wordReplacement : Word -> Maybe String
+wordReplacement word =
+  case word.chord of
+    Nothing -> Nothing
+    Just chord ->
+      if word.substring.s == chord.cache.codeName then Nothing
+      else Just chord.cache.codeName
+
+wordSuggestion : Word -> Suggestion
+wordSuggestion word =
   case word.chord of
     Nothing ->
-      suggestions
-    Just chord ->
-      if word.substring.s == chord.cache.codeName then
-        suggestions
-      else
-        Dict.update
-          chord.cache.codeName
-          (updateSuggestion word chord.cache)
-          suggestions
-
-updateSuggestion :
-  Word -> CachedChord -> Maybe Suggestion -> Maybe Suggestion
-updateSuggestion word cache maybeSuggestion =
-  Just <|
-    case maybeSuggestion of
-      Nothing ->
-        { replacement = cache.codeName
-        , swatchLists =
-            let
-              ( a, b, c ) = cache.flavor.bg
-            in let
-              ( d, e, f ) =
-                case Chord.get cache.chord cache.i % 3 of
-                  0 -> ( a, b, c )
-                  1 -> ( b, c, a )
-                  _ -> ( c, a, b )
-            in
-              ( [ Swatch cache.flavor.fg d cache.codeName ]
-              , [ Swatch cache.flavor.fg e cache.codeName ]
-              , [ Swatch cache.flavor.fg f cache.codeName ]
-              )
-        , firstRange = word.substring
-        , ranges = []
-        }
-      Just suggestion ->
-        { suggestion
-        | ranges = word.substring :: suggestion.ranges
-        }
+      { replacement = ""
+      , swatchLists = ( [], [], [] )
+      , firstRange = word.substring
+      , ranges = []
+      }
+    Just { cache } ->
+      { replacement = cache.codeName
+      , swatchLists =
+          let
+            ( a, b, c ) = cache.flavor.bg
+          in let
+            ( d, e, f ) =
+              case Chord.get cache.chord cache.i % 3 of
+                0 -> ( a, b, c )
+                1 -> ( b, c, a )
+                _ -> ( c, a, b )
+          in
+            ( [ Swatch cache.flavor.fg d cache.codeName ]
+            , [ Swatch cache.flavor.fg e cache.codeName ]
+            , [ Swatch cache.flavor.fg f cache.codeName ]
+            )
+      , firstRange = word.substring
+      , ranges = []
+      }
 
 parseChord : Substring -> ( List Word, Int ) -> ( List Word, Int )
 parseChord substring ( rest, nextId ) =
