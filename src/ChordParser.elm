@@ -84,9 +84,7 @@ splitListHelp pred xs =
 
 getSuggestions : Model -> List Suggestion
 getSuggestions model =
-  List.sortBy
-    (.i << .firstRange)
-    (Dict.values (List.foldl addSuggestion Dict.empty model.words))
+  Dict.values (List.foldl addSuggestion Dict.empty model.words)
 
 addSuggestion :
   Word -> Dict String Suggestion -> Dict String Suggestion

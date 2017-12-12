@@ -5,7 +5,9 @@ import ChordParser exposing (IdChord)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import Swatch exposing (Swatch)
 
+import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..), Match)
 import Set exposing (Set)
 
@@ -45,26 +47,103 @@ view key model =
 
 viewAssignment : Assignment -> List Highlight
 viewAssignment assignment =
-  if assignment.variable.s /= assignment.cleanVariable then
+  if
+    assignment.variable.s /= assignment.cleanVariable ||
+      missingSpace assignment
+  then
     []
   else
-    case assignment.value of
-      Nothing ->
-        [ Highlight "" "#0000ff" "#ffffff" assignment.variable ]
-      Just value ->
-        if
-          String.length assignment.substring.s >
-            String.length assignment.variable.s + String.length value.s
-        then
-          [ Highlight "" "#0000ff" "#ffffff" assignment.variable ]
-        else
-          []
+    [ Highlight "" "#0000ff" "#ffffff" assignment.variable ]
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
 
 getSuggestions : Model -> List Suggestion
-getSuggestions = ChordParser.getSuggestions << .chordModel
+getSuggestions model =
+  List.sortBy
+    (.i << .firstRange)
+    ( List.concat
+        [ ChordParser.getSuggestions model.chordModel
+        , Dict.values (List.foldl addSuggestion Dict.empty model.assignments)
+        ]
+    )
+
+addSuggestion :
+  Assignment -> Dict String Suggestion -> Dict String Suggestion
+addSuggestion assignment suggestions =
+  if missingSpace assignment then
+    let
+      replacement =
+        String.join
+          " "
+          [ assignment.cleanVariable
+          , Maybe.withDefault "" (Maybe.map .s assignment.value)
+          ]
+    in
+      Dict.update
+        replacement
+        (updateAssignmentSuggestion assignment replacement)
+        suggestions
+  else if
+    assignment.variable.s /= assignment.cleanVariable
+  then
+    Dict.update
+      assignment.cleanVariable
+      (updateVariableSuggestion assignment)
+      suggestions
+  else
+    suggestions
+
+updateAssignmentSuggestion :
+  Assignment -> String -> Maybe Suggestion -> Maybe Suggestion
+updateAssignmentSuggestion assignment replacement maybeSuggestion =
+  Just <|
+    case maybeSuggestion of
+      Nothing ->
+        { replacement = replacement
+        , swatchLists =
+            let
+              swatchList =
+                [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
+                , Swatch
+                    "#000000"
+                    "#ffffff"
+                    ( String.concat
+                        [ " "
+                        , Maybe.withDefault "" (Maybe.map .s assignment.value)
+                        ]
+                    )
+                ]
+            in
+              ( swatchList, swatchList, swatchList )
+        , firstRange = assignment.substring
+        , ranges = []
+        }
+      Just suggestion ->
+        { suggestion
+        | ranges = assignment.substring :: suggestion.ranges
+        }
+
+updateVariableSuggestion :
+  Assignment -> Maybe Suggestion -> Maybe Suggestion
+updateVariableSuggestion assignment maybeSuggestion =
+  Just <|
+    case maybeSuggestion of
+      Nothing ->
+        { replacement = assignment.cleanVariable
+        , swatchLists =
+            let
+              swatchList =
+                [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable ]
+            in
+              ( swatchList, swatchList, swatchList )
+        , firstRange = assignment.variable
+        , ranges = []
+        }
+      Just suggestion ->
+        { suggestion
+        | ranges = assignment.variable :: suggestion.ranges
+        }
 
 type alias ParseResult =
   { words : List Substring
@@ -101,12 +180,17 @@ isValidAssignment maybeAssignment =
   case maybeAssignment of
     Nothing -> False
     Just assignment ->
-      case assignment.value of
-        Nothing -> False
-        Just value ->
-          assignment.variable.s == assignment.cleanVariable &&
-            String.length assignment.substring.s >
-              String.length assignment.variable.s + String.length value.s
+      assignment.variable.s == assignment.cleanVariable &&
+        assignment.value /= Nothing &&
+          not (missingSpace assignment)
+
+missingSpace : Assignment -> Bool
+missingSpace assignment =
+  case assignment.value of
+    Nothing -> False
+    Just value ->
+      String.length assignment.substring.s <=
+        String.length assignment.variable.s + String.length value.s
 
 splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
 splitAfterLastTrue pred xs =
