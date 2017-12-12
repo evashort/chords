@@ -49,7 +49,7 @@ viewAssignment : Assignment -> List Highlight
 viewAssignment assignment =
   if
     assignment.variable.s /= assignment.cleanVariable ||
-      missingSpace assignment
+      (assignment.value.s /= "" && not (hasSpace assignment))
   then
     []
   else
@@ -71,14 +71,10 @@ getSuggestions model =
 addSuggestion :
   Assignment -> Dict String Suggestion -> Dict String Suggestion
 addSuggestion assignment suggestions =
-  if missingSpace assignment then
+  if assignment.value.s /= "" && not (hasSpace assignment) then
     let
       replacement =
-        String.join
-          " "
-          [ assignment.cleanVariable
-          , Maybe.withDefault "" (Maybe.map .s assignment.value)
-          ]
+        assignment.cleanVariable ++ " " ++ assignment.value.s
     in
       Dict.update
         replacement
@@ -105,14 +101,7 @@ updateAssignmentSuggestion assignment replacement maybeSuggestion =
             let
               swatchList =
                 [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
-                , Swatch
-                    "#000000"
-                    "#ffffff"
-                    ( String.concat
-                        [ " "
-                        , Maybe.withDefault "" (Maybe.map .s assignment.value)
-                        ]
-                    )
+                , Swatch "#000000" "#ffffff" (" " ++ assignment.value.s)
                 ]
             in
               ( swatchList, swatchList, swatchList )
@@ -181,16 +170,13 @@ isValidAssignment maybeAssignment =
     Nothing -> False
     Just assignment ->
       assignment.variable.s == assignment.cleanVariable &&
-        assignment.value /= Nothing &&
-          not (missingSpace assignment)
+        assignment.value.s /= "" &&
+          hasSpace assignment
 
-missingSpace : Assignment -> Bool
-missingSpace assignment =
-  case assignment.value of
-    Nothing -> False
-    Just value ->
-      String.length assignment.substring.s <=
-        String.length assignment.variable.s + String.length value.s
+hasSpace : Assignment -> Bool
+hasSpace assignment =
+  String.length assignment.substring.s >
+    String.length assignment.variable.s + String.length assignment.value.s
 
 splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
 splitAfterLastTrue pred xs =
@@ -213,7 +199,7 @@ type alias LineResult =
 type alias Assignment =
   { variable : Substring
   , cleanVariable : String
-  , value : Maybe Substring
+  , value : Substring
   , substring : Substring
   }
 
@@ -301,13 +287,9 @@ findAssignment code =
               { variable = variable
               , cleanVariable = cleanVariable
               , value =
-                  let
-                    afterSpace =
-                      Substring.dropLeft
-                        (String.length variableAndSpace.s)
-                        assignment
-                  in
-                    if afterSpace.s == "" then Nothing else Just afterSpace
+                  Substring.dropLeft
+                    (String.length variableAndSpace.s)
+                    assignment
               , substring = assignment
               }
         else
