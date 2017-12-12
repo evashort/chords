@@ -2,10 +2,12 @@ module ChordParser exposing
   (IdChord, Model, init, update, view, getChords, getSuggestions)
 
 import CachedChord exposing (CachedChord)
+import Chord
 import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import Swatch exposing (Swatch)
 import Zipper
 
 import Dict exposing (Dict)
@@ -107,7 +109,21 @@ updateSuggestion word cache maybeSuggestion =
   Just <|
     case maybeSuggestion of
       Nothing ->
-        { cache = cache
+        { replacement = cache.codeName
+        , swatchLists =
+            let
+              ( a, b, c ) = cache.flavor.bg
+            in let
+              ( d, e, f ) =
+                case Chord.get cache.chord cache.i % 3 of
+                  0 -> ( a, b, c )
+                  1 -> ( b, c, a )
+                  _ -> ( c, a, b )
+            in
+              ( [ Swatch cache.flavor.fg d cache.codeName ]
+              , [ Swatch cache.flavor.fg e cache.codeName ]
+              , [ Swatch cache.flavor.fg f cache.codeName ]
+              )
         , firstRange = word.substring
         , ranges = []
         }

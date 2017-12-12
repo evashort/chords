@@ -5,6 +5,7 @@ import AudioTime
 import CachedChord
 import ChordParser exposing (IdChord)
 import CircleOfFifths
+import BubbleSwatch
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
@@ -761,7 +762,7 @@ viewChordBox key chordBox =
             ]
         ]
         ( List.map
-            Highlight.view
+            BubbleSwatch.view
             (Highlight.mergeLayers (getLayers key chordBox))
         )
     ]

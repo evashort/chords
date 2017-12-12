@@ -1,12 +1,7 @@
-module Highlight exposing (Highlight, view, mergeLayers)
+module Highlight exposing (Highlight, mergeLayers)
 
+import BubbleSwatch exposing (BubbleSwatch(..))
 import Substring exposing (Substring)
-
-import Html exposing (Html)
-import Html.Attributes exposing (style)
-import Svg exposing (Svg, svg, polyline)
-import Svg.Attributes exposing
-  (width, height, viewBox, fill, stroke, points)
 
 type alias Highlight =
   { bubbleText : String
@@ -15,103 +10,7 @@ type alias Highlight =
   , substring : Substring
   }
 
-view : Highlight -> Html msg
-view highlight =
-  if highlight.bubbleText /= "" && highlight.substring.s == "" then
-    viewBubble highlight.bubbleText
-  else
-    viewNoBubble highlight
-
-viewBubble : String -> Html msg
-viewBubble bubbleText =
-  Html.span
-    [ style
-        [ ( "position", "relative" )
-        , ( "pointer-events", "none" )
-        , ( "color", "black")
-        , ( "font-family", "Arial, Helvetica, sans-serif" )
-        , ( "font-size", "10pt" )
-        ]
-    ]
-    [ Html.span
-        [ style
-            [ ( "position", "absolute" )
-            , ( "z-index", "2" )
-            , ( "top", "calc(100% + 8px)" )
-            , ( "background", "white" )
-            , ( "border", "1px solid darkgray" )
-            , ( "border-radius", "0px 3px 3px 3px" )
-            , ( "box-shadow", "1px 1px 4px rgba(0, 0, 0, 0.4)")
-            , ( "padding", "3px" )
-            , ( "white-space", "nowrap" )
-            ]
-        ]
-        [ Html.text bubbleText ]
-    , Svg.svg
-        [ style
-            [ ( "position", "absolute" )
-            , ( "z-index", "2" )
-            , ( "top", "100%" )
-            ]
-        , width "9"
-        , height "9"
-        , viewBox "0 0 9 9"
-        ]
-        [ polyline
-            [ fill "white"
-            , stroke "darkgray"
-            , points "0.5,9 0.5,0.5 9,9"
-            ]
-            []
-        ]
-    ]
-
-viewNoBubble : Highlight -> Html msg
-viewNoBubble highlight =
-  case ( highlight.fg, highlight.bg ) of
-    ( "#000000", "#ffffff" ) ->
-      Html.text highlight.substring.s
-    ( "#000000", _ ) ->
-      Html.mark
-        [ style
-            [ ( "color", "inherit" )
-            , ( "background", highlight.bg )
-            , ( "border-radius", "3px" )
-            ]
-        ]
-        [ Html.text highlight.substring.s ]
-    ( _, "#ffffff" ) ->
-      Html.mark
-        [ style
-            [ ( "color", highlight.fg )
-            , ( "background", "transparent" )
-            , ( "text-shadow", "0px 0px 0px white" )
-            , ( "position", "relative" )
-            , ( "pointer-events", "none" )
-            ]
-        ]
-        [ Html.text highlight.substring.s ]
-    _ ->
-      Html.mark
-        [ style
-            [ ( "color", "inherit" )
-            , ( "background", highlight.bg )
-            , ( "border-radius", "3px" )
-            ]
-        ]
-        [ Html.mark
-            [ style
-                [ ( "color", highlight.fg )
-                , ( "background", "transparent" )
-                , ( "text-shadow", "0px 0px 0px " ++ highlight.bg )
-                , ( "position", "relative" )
-                , ( "pointer-events", "none" )
-                ]
-            ]
-            [ Html.text highlight.substring.s ]
-        ]
-
-mergeLayers : List (List Highlight) -> List Highlight
+mergeLayers : List (List Highlight) -> List BubbleSwatch
 mergeLayers layers =
   case
     pop
@@ -125,19 +24,32 @@ mergeLayers layers =
     Just ( highlight, queue ) ->
       mergeLayersHelp highlight queue
 
-mergeLayersHelp : Highlight -> Queue -> List Highlight
+mergeLayersHelp : Highlight -> Queue -> List BubbleSwatch
 mergeLayersHelp highlight queue =
   case pop queue of
     Nothing ->
-      [ highlight ]
+      [ if highlight.bubbleText /= "" then
+          Bubble highlight.bubbleText
+        else
+          JustSwatch
+            { fg = highlight.fg
+            , bg = highlight.bg
+            , s = highlight.substring.s
+            }
+      ]
     Just ( highlightNew, queueNew ) ->
-      { highlight
-      | substring =
-          Substring.before
-            highlightNew.substring.i
-            highlight.substring
-      } ::
-        mergeLayersHelp highlightNew queueNew
+      ( if highlight.bubbleText /= "" then
+          Bubble highlight.bubbleText
+        else
+          JustSwatch
+            { fg = highlight.fg
+            , bg = highlight.bg
+            , s =
+                String.left
+                  (highlightNew.substring.i - highlight.substring.i)
+                  highlight.substring.s
+            }
+      ) :: mergeLayersHelp highlightNew queueNew
 
 type alias Queue =
   { above : List ( Highlight, List Highlight )

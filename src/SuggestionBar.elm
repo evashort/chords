@@ -101,7 +101,7 @@ update msg model =
     SuggestionMsg (suggestion, Suggestion.Copied) ->
       ( { model
         | recentlyCopied =
-            Set.insert suggestion.cache.codeName model.recentlyCopied
+            Set.insert suggestion.replacement model.recentlyCopied
         }
       , Cmd.batch
           [ Selection.setLandingPad
@@ -112,7 +112,7 @@ update msg model =
                   }
               }
           , Task.perform
-              (always (RemoveCopied suggestion.cache.codeName))
+              (always (RemoveCopied suggestion.replacement))
               (Process.sleep (1 * Time.second))
           ]
       )
@@ -144,7 +144,7 @@ view key model =
           ]
       ]
       ( List.concat
-          [ List.map
+          [ List.indexedMap
               (viewSuggestion key model.recentlyCopied)
               model.suggestions
           , [ span
@@ -176,12 +176,13 @@ getInstructions model =
     _ ->
       ""
 
-viewSuggestion : Int -> Set String -> Suggestion -> Html Msg
-viewSuggestion key recentlyCopied suggestion =
+viewSuggestion : Int -> Set String -> Int -> Suggestion -> Html Msg
+viewSuggestion key recentlyCopied index suggestion =
   Html.map
     (SuggestionMsg << (,) suggestion)
     ( Suggestion.view
         key
-        (Set.member suggestion.cache.codeName recentlyCopied)
+        (Set.member suggestion.replacement recentlyCopied)
+        ("suggestion" ++ toString index)
         suggestion
     )
