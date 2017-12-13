@@ -88,9 +88,15 @@ assignmentSuggestion assignment =
     , swatchLists =
         let
           swatchList =
-            [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
-            , Swatch "#000000" "#ffffff" (" " ++ assignment.value.s)
-            ]
+            if String.startsWith "#" assignment.value.s then
+              [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
+              , Swatch "#000000" "#ffffff" " "
+              , Swatch "#008000" "#ffffff" assignment.value.s
+              ]
+            else
+              [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
+              , Swatch "#000000" "#ffffff" (" " ++ assignment.value.s)
+              ]
         in
           ( swatchList, swatchList, swatchList )
     , firstRange = assignment.substring
@@ -133,7 +139,7 @@ parse whole =
     ( assignmentArea, chordArea ) =
       case
         splitAfterLastTrue
-          (isValidAssignment << .assignment)
+          (keyHighlighted << .assignment)
           lineResults
       of
         Nothing -> ( [], lineResults )
@@ -145,14 +151,13 @@ parse whole =
     , indents = List.filterMap .indent lineResults
     }
 
-isValidAssignment : Maybe Assignment -> Bool
-isValidAssignment maybeAssignment =
+keyHighlighted : Maybe Assignment -> Bool
+keyHighlighted maybeAssignment =
   case maybeAssignment of
     Nothing -> False
     Just assignment ->
       assignment.variable.s == assignment.cleanVariable &&
-        assignment.value.s /= "" &&
-          hasSpace assignment
+        (assignment.value.s == "" || hasSpace assignment)
 
 hasSpace : Assignment -> Bool
 hasSpace assignment =
@@ -219,7 +224,7 @@ parseLine line =
           [] ->
             let assignment = findAssignment code in
               { words =
-                  if isValidAssignment assignment then
+                  if keyHighlighted assignment then
                     []
                   else
                     let
