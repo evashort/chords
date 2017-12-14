@@ -16,6 +16,8 @@ type alias Model =
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
+  , key : Int
+  , lineAfterKey : Int
   }
 
 init : Int -> Substring -> Model
@@ -26,6 +28,8 @@ init firstId whole =
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
+    , key = parseResult.key
+    , lineAfterKey = parseResult.lineAfterKey
     }
 
 update : Substring -> Model -> Model
@@ -36,6 +40,8 @@ update whole model =
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
+    , key = parseResult.key
+    , lineAfterKey = parseResult.lineAfterKey
     }
 
 view : Int -> Model -> List Highlight
@@ -43,17 +49,28 @@ view key model =
   ChordParser.view key model.chordModel ++
     List.map (Highlight "" "#008000" "#ffffff") model.comments ++
       List.map (Highlight "" "#ffffff" "#ff0000") model.indents ++
-        List.concatMap viewFlag model.flags
+        List.concatMap (viewFlag model.key) model.flags
 
-viewFlag : ParsedFlag -> List Highlight
-viewFlag flag =
+viewFlag : Int -> ParsedFlag -> List Highlight
+viewFlag key flag =
   List.concat
     [ if flag.name.s == flag.cleanName then
         [ Highlight "" "#0000ff" "#ffffff" flag.name ]
       else
         []
-    , if flag.value.s == flag.cleanValue && flag.flag /= Nothing then
-        [ Highlight "" "#c00000" "#ffffff" flag.value ]
+    , if flag.value.s == flag.cleanValue then
+        case flag.flag of
+          Just innerFlag ->
+            [ Highlight
+                ""
+                ( if innerFlag == KeyFlag key then "#c00000"
+                  else "#a0a0a0"
+                )
+                "#ffffff"
+                flag.value
+            ]
+          Nothing ->
+            []
       else
         []
     ]
@@ -140,6 +157,8 @@ type alias ParseResult =
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
+  , key : Int
+  , lineAfterKey : Int
   }
 
 parse : Substring -> ParseResult
@@ -150,15 +169,27 @@ parse whole =
         parseLine
         (Substring.find All (Regex.regex ".*\n?") whole)
   in let
-    ( flagArea, chordArea ) =
-      case splitAfterLastTrue (nameHighlighted << .flag) lineResults of
-        Nothing -> ( [], lineResults )
-        Just x -> x
+    chordArea =
+      case
+        lastTrueAndBeyond (nameHighlighted << .flag) lineResults
+      of
+        [] -> lineResults
+        _ :: beyond -> beyond
+  in let
+    flags = List.filterMap .flag lineResults
+  in let
+    ( key, lineAfterKey ) =
+      let keys = List.filterMap getFlagKey flags in
+        case List.reverse keys of
+          lastKey :: _ -> lastKey
+          [] -> ( 0, 0 ) -- C major is the default
   in
     { words = List.concatMap .words chordArea
-    , flags = List.filterMap .flag lineResults
+    , flags = flags
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
+    , key = key
+    , lineAfterKey = lineAfterKey
     }
 
 nameHighlighted : Maybe ParsedFlag -> Bool
@@ -167,16 +198,22 @@ nameHighlighted maybeFlag =
     Nothing -> False
     Just flag -> flag.name.s == flag.cleanName
 
-splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
-splitAfterLastTrue pred xs =
+lastTrueAndBeyond : (a -> Bool) -> List a -> List a
+lastTrueAndBeyond pred xs =
   case xs of
-    [] -> Nothing
+    [] -> []
     x :: rest ->
-      case splitAfterLastTrue pred rest of
-        Just ( before, after ) -> Just ( x :: before, after )
-        Nothing ->
-          if pred x then Just ( [ x ], rest )
-          else Nothing
+      case lastTrueAndBeyond pred rest of
+        [] -> if pred x then xs else []
+        result -> result
+
+getFlagKey : ParsedFlag -> Maybe ( Int, Int )
+getFlagKey flag =
+  case flag.flag of
+    Nothing -> Nothing
+    Just innerFlag ->
+      case innerFlag of
+        KeyFlag key -> Just ( key, flag.nextLineStart )
 
 type alias LineResult =
   { words : List Substring
