@@ -1,6 +1,7 @@
 module ChordFromCode exposing (chordFromCode)
 
 import Chord exposing (Chord)
+import NoteParser
 
 import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..), Match)
@@ -49,7 +50,7 @@ normalizeSeparatorChar char =
 
 fromCodeGivenOctave : Int -> String -> Maybe Chord
 fromCodeGivenOctave octave code =
-  case noteAndSomethingFromCode code of
+  case NoteParser.parseAtStart code of
     Nothing ->
       Nothing
     Just ( pitch, flavor ) ->
@@ -61,7 +62,7 @@ fromCodeGivenOctave octave code =
 
 rootFromCode : String -> Maybe Int
 rootFromCode code =
-  case noteAndSomethingFromCode code of
+  case NoteParser.parseAtStart code of
     Nothing ->
       Nothing
     Just ( pitch, "" ) ->
@@ -72,24 +73,6 @@ rootFromCode code =
           Nothing
         Ok octave ->
           Just (12 * (octave + 2) + pitch)
-
-noteAndSomethingFromCode : String -> Maybe ( Int, String )
-noteAndSomethingFromCode code =
-  case Regex.find (AtMost 1) noteAndSomething code of
-    [ match ] ->
-      case match.submatches of
-        [ Just letter, Just accidental, Just something ] ->
-          Just
-            ( (letterPitch letter + accidentalValue accidental) % 12
-            , something
-            )
-        _ ->
-          Nothing
-    _ ->
-      Nothing
-
-noteAndSomething : Regex
-noteAndSomething = Regex.regex "^([A-Ga-g])([𝄫♭b#♯x*𝄪ˣ×]*)(.*)$"
 
 normalizeFlavor : String -> String
 normalizeFlavor =
@@ -130,45 +113,6 @@ toFlavorSymbol match =
     "dim" -> "o"
     "aug" -> "+"
     _ -> match.match
-
-letterPitch : String -> Int
-letterPitch letter =
-  case String.toUpper letter of
-    "C" -> 0
-    "D" -> 2
-    "E" -> 4
-    "F" -> 5
-    "G" -> 7
-    "A" -> 9
-    _ -> 11
-
-accidentalValue : String -> Int
-accidentalValue accidental =
-  List.sum
-    ( List.map
-        (Maybe.withDefault 0 << (flip Dict.get) accidentalCharValues)
-        ( String.toList
-            (Regex.replace All accidentalWords toAccidentalSymbol accidental)
-        )
-    )
-
-accidentalWords : Regex
-accidentalWords = Regex.regex "𝄫|𝄪"
-
-toAccidentalSymbol : Match -> String
-toAccidentalSymbol match =
-  case match.match of
-    "𝄫" -> "bb"
-    "𝄪" -> "x"
-    _ -> match.match
-
-accidentalCharValues : Dict Char Int
-accidentalCharValues =
-  Dict.fromList
-    [ ( '♭', -1 ), ( 'b', -1 )
-    , ( '#', 1 ), ( '♯', 1 )
-    , ( 'x', 2 ), ( '*', 2 ), ( 'ˣ', 2 ), ( '×', 2 )
-    ]
 
 flavorOffsets : Dict String (List Int)
 flavorOffsets =
