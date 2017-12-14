@@ -631,7 +631,7 @@ viewOctaveBase octaveBase =
         ]
     ]
     [ span []
-        [ Html.text "Root octave " ]
+        [ Html.text "Default octave " ]
     , input
         [ type_ "range"
         , onInput SetOctaveBase

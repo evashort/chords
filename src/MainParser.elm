@@ -187,6 +187,7 @@ type alias Assignment =
   , cleanVariable : String
   , value : Substring
   , substring : Substring
+  , nextLineStart : Int
   }
 
 parseLine : Substring -> LineResult
@@ -222,7 +223,15 @@ parseLine line =
             , indent = Just (Substring.dropRight 1 indentAndChar)
             }
           [] ->
-            let assignment = findAssignment code in
+            let
+              nextLineStart =
+                if String.endsWith "\n" line.s then
+                  Substring.stop line
+                else
+                  0
+            in let
+              assignment = findAssignment nextLineStart code
+            in
               { words =
                   if keyHighlighted assignment then
                     []
@@ -241,8 +250,8 @@ parseLine line =
               , indent = Nothing
               }
 
-findAssignment : Substring -> Maybe Assignment
-findAssignment code =
+findAssignment : Int -> Substring -> Maybe Assignment
+findAssignment nextLineStart code =
   case
     Substring.find (AtMost 1) (Regex.regex "^[a-zA-Z]+ *: *\n?") code
   of
@@ -277,6 +286,7 @@ findAssignment code =
                     (String.length variableAndSpace.s)
                     assignment
               , substring = assignment
+              , nextLineStart = nextLineStart
               }
         else
           Nothing
