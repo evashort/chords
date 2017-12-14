@@ -13,7 +13,7 @@ import Set exposing (Set)
 
 type alias Model =
   { chordModel : ChordParser.Model
-  , assignments : List Assignment
+  , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
   }
@@ -23,7 +23,7 @@ init firstId substring =
   let parseResult = parse substring in
     { chordModel =
         ChordParser.init firstId parseResult.words
-    , assignments = parseResult.assignments
+    , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
     }
@@ -33,7 +33,7 @@ update whole model =
   let parseResult = parse whole in
     { chordModel =
         ChordParser.update parseResult.words model.chordModel
-    , assignments = parseResult.assignments
+    , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
     }
@@ -43,17 +43,17 @@ view key model =
   ChordParser.view key model.chordModel ++
     List.map (Highlight "" "#008000" "#ffffff") model.comments ++
       List.map (Highlight "" "#ffffff" "#ff0000") model.indents ++
-        List.concatMap viewAssignment model.assignments
+        List.concatMap viewFlag model.flags
 
-viewAssignment : Assignment -> List Highlight
-viewAssignment assignment =
+viewFlag : ParsedFlag -> List Highlight
+viewFlag flag =
   if
-    assignment.variable.s /= assignment.cleanVariable ||
-      (assignment.value.s /= "" && not (hasSpace assignment))
+    flag.name.s /= flag.cleanName ||
+      (flag.value.s /= "" && not (hasSpace flag))
   then
     []
   else
-    [ Highlight "" "#0000ff" "#ffffff" assignment.variable ]
+    [ Highlight "" "#0000ff" "#ffffff" flag.name ]
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
@@ -65,41 +65,41 @@ getSuggestions model =
     ( List.concat
         [ ChordParser.getSuggestions model.chordModel
         , SuggestionMerge.mergeSuggestions
-            assignmentReplacement
-            assignmentSuggestion
-            assignmentRange
-            model.assignments
+            flagReplacement
+            flagSuggestion
+            flagRange
+            model.flags
         ]
     )
 
-assignmentReplacement : Assignment -> Maybe String
-assignmentReplacement assignment =
-  if assignment.value.s /= "" && not (hasSpace assignment) then
-    Just (assignment.cleanVariable ++ " " ++ assignment.value.s)
-  else if assignment.variable.s /= assignment.cleanVariable then
-    Just assignment.cleanVariable
+flagReplacement : ParsedFlag -> Maybe String
+flagReplacement flag =
+  if flag.value.s /= "" && not (hasSpace flag) then
+    Just (flag.cleanName ++ " " ++ flag.value.s)
+  else if flag.name.s /= flag.cleanName then
+    Just flag.cleanName
   else
     Nothing
 
-assignmentSuggestion : Assignment -> Suggestion
-assignmentSuggestion assignment =
-  if assignment.value.s /= "" && not (hasSpace assignment) then
+flagSuggestion : ParsedFlag -> Suggestion
+flagSuggestion flag =
+  if flag.value.s /= "" && not (hasSpace flag) then
     { replacement = ""
     , swatchLists =
         let
           swatchList =
-            if String.startsWith "#" assignment.value.s then
-              [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
+            if String.startsWith "#" flag.value.s then
+              [ Swatch "#0000ff" "#ffffff" flag.cleanName
               , Swatch "#000000" "#ffffff" " "
-              , Swatch "#008000" "#ffffff" assignment.value.s
+              , Swatch "#008000" "#ffffff" flag.value.s
               ]
             else
-              [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable
-              , Swatch "#000000" "#ffffff" (" " ++ assignment.value.s)
+              [ Swatch "#0000ff" "#ffffff" flag.cleanName
+              , Swatch "#000000" "#ffffff" (" " ++ flag.value.s)
               ]
         in
           ( swatchList, swatchList, swatchList )
-    , firstRange = assignment.substring
+    , firstRange = flag.substring
     , ranges = []
     }
   else
@@ -107,23 +107,23 @@ assignmentSuggestion assignment =
     , swatchLists =
         let
           swatchList =
-            [ Swatch "#0000ff" "#ffffff" assignment.cleanVariable ]
+            [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
         in
           ( swatchList, swatchList, swatchList )
-    , firstRange = assignment.variable
+    , firstRange = flag.name
     , ranges = []
     }
 
-assignmentRange : Assignment -> Substring
-assignmentRange assignment =
-  if assignment.value.s /= "" && not (hasSpace assignment) then
-    assignment.substring
+flagRange : ParsedFlag -> Substring
+flagRange flag =
+  if flag.value.s /= "" && not (hasSpace flag) then
+    flag.substring
   else
-    assignment.variable
+    flag.name
 
 type alias ParseResult =
   { words : List Substring
-  , assignments : List Assignment
+  , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
   }
@@ -136,33 +136,30 @@ parse whole =
         parseLine
         (Substring.find All (Regex.regex ".*\n?") whole)
   in let
-    ( assignmentArea, chordArea ) =
-      case
-        splitAfterLastTrue
-          (keyHighlighted << .assignment)
-          lineResults
-      of
+    ( flagArea, chordArea ) =
+      case splitAfterLastTrue (nameHighlighted << .flag) lineResults of
         Nothing -> ( [], lineResults )
         Just x -> x
   in
     { words = List.concatMap .words chordArea
-    , assignments = List.filterMap .assignment lineResults
+    , flags = List.filterMap .flag lineResults
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
     }
 
-keyHighlighted : Maybe Assignment -> Bool
-keyHighlighted maybeAssignment =
-  case maybeAssignment of
-    Nothing -> False
-    Just assignment ->
-      assignment.variable.s == assignment.cleanVariable &&
-        (assignment.value.s == "" || hasSpace assignment)
+nameHighlighted : Maybe ParsedFlag -> Bool
+nameHighlighted maybeFlag =
+  case maybeFlag of
+    Nothing ->
+      False
+    Just flag ->
+      flag.name.s == flag.cleanName &&
+        (flag.value.s == "" || hasSpace flag)
 
-hasSpace : Assignment -> Bool
-hasSpace assignment =
-  String.length assignment.substring.s >
-    String.length assignment.variable.s + String.length assignment.value.s
+hasSpace : ParsedFlag -> Bool
+hasSpace flag =
+  String.length flag.substring.s >
+    String.length flag.name.s + String.length flag.value.s
 
 splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
 splitAfterLastTrue pred xs =
@@ -177,14 +174,14 @@ splitAfterLastTrue pred xs =
 
 type alias LineResult =
   { words : List Substring
-  , assignment : Maybe Assignment
+  , flag : Maybe ParsedFlag
   , comment : Maybe Substring
   , indent : Maybe Substring
   }
 
-type alias Assignment =
-  { variable : Substring
-  , cleanVariable : String
+type alias ParsedFlag =
+  { name : Substring
+  , cleanName : String
   , value : Substring
   , substring : Substring
   , nextLineStart : Int
@@ -195,7 +192,7 @@ parseLine line =
   case Substring.find (AtMost 1) (Regex.regex "^#.*") line of
     comment :: _ ->
       { words = []
-      , assignment = Nothing
+      , flag = Nothing
       , comment = Just comment
       , indent = Nothing
       }
@@ -218,7 +215,7 @@ parseLine line =
         of
           indentAndChar :: _ ->
             { words = []
-            , assignment = Nothing
+            , flag = Nothing
             , comment = comment
             , indent = Just (Substring.dropRight 1 indentAndChar)
             }
@@ -230,10 +227,10 @@ parseLine line =
                 else
                   0
             in let
-              assignment = findAssignment nextLineStart code
+              flag = parseFlag nextLineStart code
             in
               { words =
-                  if keyHighlighted assignment then
+                  if nameHighlighted flag then
                     []
                   else
                     let
@@ -245,51 +242,49 @@ parseLine line =
                       else
                         normalWords ++
                           Substring.find (AtMost 1) (Regex.regex "\n$") line
-              , assignment = assignment
+              , flag = flag
               , comment = comment
               , indent = Nothing
               }
 
-findAssignment : Int -> Substring -> Maybe Assignment
-findAssignment nextLineStart code =
+parseFlag : Int -> Substring -> Maybe ParsedFlag
+parseFlag nextLineStart code =
   case
     Substring.find (AtMost 1) (Regex.regex "^[a-zA-Z]+ *: *\n?") code
   of
     [] ->
       Nothing
-    variableAndSpace :: _ ->
+    nameAndSpace :: _ ->
       let
-        variable =
-          { variableAndSpace
-          | s = String.trimRight variableAndSpace.s
+        name =
+          { nameAndSpace
+          | s = String.trimRight nameAndSpace.s
           }
       in let
-        cleanVariable =
+        cleanName =
           ( String.toLower
-              (String.trimRight (String.dropRight 1 variable.s))
+              (String.trimRight (String.dropRight 1 name.s))
           ) ++ ":"
       in
-        if Set.member cleanVariable variables then
+        if Set.member cleanName flagNames then
           let
-            assignment =
+            substring =
               Maybe.withDefault
-                variable
+                name
                 ( List.head
                     (Substring.find (AtMost 1) (Regex.regex "^.*[^ \n]") code)
                 )
           in
             Just
-              { variable = variable
-              , cleanVariable = cleanVariable
+              { name = name
+              , cleanName = cleanName
               , value =
-                  Substring.dropLeft
-                    (String.length variableAndSpace.s)
-                    assignment
-              , substring = assignment
+                  Substring.dropLeft (String.length nameAndSpace.s) substring
+              , substring = substring
               , nextLineStart = nextLineStart
               }
         else
           Nothing
 
-variables : Set String
-variables = Set.fromList [ "key:" ]
+flagNames : Set String
+flagNames = Set.fromList [ "key:" ]
