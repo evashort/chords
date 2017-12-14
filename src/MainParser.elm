@@ -94,7 +94,7 @@ flagSuggestion flag =
               [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
             ( False, True ) ->
               [ Swatch
-                  (if flag.flag == Nothing then "#000000" else "#ff0000")
+                  (if flag.flag == Nothing then "#000000" else "#c00000")
                   "#ffffff"
                   flag.cleanValue
               ]
@@ -112,7 +112,7 @@ flagSuggestion flag =
                 else
                   [ Swatch "#0000ff" "#ffffff" flag.cleanName
                   , Swatch "#000000" "#ffffff" " "
-                  , Swatch "#ff0000" "#ffffff" flag.cleanValue
+                  , Swatch "#c00000" "#ffffff" flag.cleanValue
                   ]
       in
         ( swatchList, swatchList, swatchList )
