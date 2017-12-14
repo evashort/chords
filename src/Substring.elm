@@ -1,5 +1,4 @@
-module Substring exposing
-  (Substring, stop, dropLeft, dropRight, before, after, find)
+module Substring exposing (Substring, stop, dropLeft, before, after, find)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -16,10 +15,6 @@ dropLeft : Int -> Substring -> Substring
 dropLeft n substring =
   let s = String.dropLeft n substring.s in
     { i = stop substring - String.length s, s = s }
-
-dropRight : Int -> Substring -> Substring
-dropRight n { i, s } =
-  { i = i, s = String.dropRight n s }
 
 before : Int -> Substring -> Substring
 before x { i, s } =

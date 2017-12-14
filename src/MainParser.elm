@@ -19,8 +19,8 @@ type alias Model =
   }
 
 init : Int -> Substring -> Model
-init firstId substring =
-  let parseResult = parse substring in
+init firstId whole =
+  let parseResult = parse whole in
     { chordModel =
         ChordParser.init firstId parseResult.words
     , flags = parseResult.flags
@@ -99,7 +99,7 @@ flagSuggestion flag =
               ]
         in
           ( swatchList, swatchList, swatchList )
-    , firstRange = flag.substring
+    , firstRange = flag.code
     , ranges = []
     }
   else
@@ -117,7 +117,7 @@ flagSuggestion flag =
 flagRange : ParsedFlag -> Substring
 flagRange flag =
   if flag.value.s /= "" && not (hasSpace flag) then
-    flag.substring
+    flag.code
   else
     flag.name
 
@@ -158,7 +158,7 @@ nameHighlighted maybeFlag =
 
 hasSpace : ParsedFlag -> Bool
 hasSpace flag =
-  String.length flag.substring.s >
+  String.length flag.code.s >
     String.length flag.name.s + String.length flag.value.s
 
 splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
@@ -183,7 +183,7 @@ type alias ParsedFlag =
   { name : Substring
   , cleanName : String
   , value : Substring
-  , substring : Substring
+  , code : Substring
   , nextLineStart : Int
   }
 
@@ -205,19 +205,24 @@ parseLine line =
             [] ->
               Nothing
       in let
-        code =
+        codeAndSpace =
           case comment of
             Just c -> Substring.before c.i line
             Nothing -> line
+      in let
+        code =
+          case
+            Substring.find (AtMost 1) (Regex.regex "^.*[^ \n]") codeAndSpace
+          of
+            x :: _ -> x
+            [] -> { codeAndSpace | s = "" }
       in
-        case
-          Substring.find (AtMost 1) (Regex.regex "^ +[^ \n]") code
-        of
-          indentAndChar :: _ ->
+        case Substring.find (AtMost 1) (Regex.regex "^ +") code of
+          indent :: _ ->
             { words = []
             , flag = Nothing
             , comment = comment
-            , indent = Just (Substring.dropRight 1 indentAndChar)
+            , indent = Just indent
             }
           [] ->
             let
@@ -250,7 +255,7 @@ parseLine line =
 parseFlag : Int -> Substring -> Maybe ParsedFlag
 parseFlag nextLineStart code =
   case
-    Substring.find (AtMost 1) (Regex.regex "^[a-zA-Z]+ *: *\n?") code
+    Substring.find (AtMost 1) (Regex.regex "^[a-zA-Z]+ *: *") code
   of
     [] ->
       Nothing
@@ -267,22 +272,14 @@ parseFlag nextLineStart code =
           ) ++ ":"
       in
         if Set.member cleanName flagNames then
-          let
-            substring =
-              Maybe.withDefault
-                name
-                ( List.head
-                    (Substring.find (AtMost 1) (Regex.regex "^.*[^ \n]") code)
-                )
-          in
-            Just
-              { name = name
-              , cleanName = cleanName
-              , value =
-                  Substring.dropLeft (String.length nameAndSpace.s) substring
-              , substring = substring
-              , nextLineStart = nextLineStart
-              }
+          Just
+            { name = name
+            , cleanName = cleanName
+            , value =
+                Substring.dropLeft (String.length nameAndSpace.s) code
+            , code = code
+            , nextLineStart = nextLineStart
+            }
         else
           Nothing
 
