@@ -2,6 +2,7 @@ module MainParser exposing
   (Model, init, update, view, getChords, getSuggestions)
 
 import ChordParser exposing (IdChord)
+import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
@@ -9,7 +10,6 @@ import SuggestionMerge
 import Swatch exposing (Swatch)
 
 import Regex exposing (Regex, HowMany(..), Match)
-import Set exposing (Set)
 
 type alias Model =
   { chordModel : ChordParser.Model
@@ -47,13 +47,16 @@ view key model =
 
 viewFlag : ParsedFlag -> List Highlight
 viewFlag flag =
-  if
-    flag.name.s /= flag.cleanName ||
-      (flag.value.s /= "" && not (hasSpace flag))
-  then
-    []
-  else
-    [ Highlight "" "#0000ff" "#ffffff" flag.name ]
+  List.concat
+    [ if flag.name.s == flag.cleanName then
+        [ Highlight "" "#0000ff" "#ffffff" flag.name ]
+      else
+        []
+    , if flag.value.s == flag.cleanValue && flag.flag /= Nothing then
+        [ Highlight "" "#c00000" "#ffffff" flag.value ]
+      else
+        []
+    ]
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
@@ -74,52 +77,63 @@ getSuggestions model =
 
 flagReplacement : ParsedFlag -> Maybe String
 flagReplacement flag =
-  if flag.value.s /= "" && not (hasSpace flag) then
-    Just (flag.cleanName ++ " " ++ flag.value.s)
-  else if flag.name.s /= flag.cleanName then
-    Just flag.cleanName
-  else
-    Nothing
+  case suggestedFlagParts flag of
+    ( False, False ) -> Nothing
+    ( True, False ) -> Just flag.cleanName
+    ( False, True ) -> Just flag.cleanValue
+    ( True, True ) -> Just (flag.cleanName ++ " " ++ flag.cleanValue)
 
 flagSuggestion : ParsedFlag -> Suggestion
 flagSuggestion flag =
-  if flag.value.s /= "" && not (hasSpace flag) then
-    { replacement = ""
-    , swatchLists =
-        let
-          swatchList =
-            if String.startsWith "#" flag.value.s then
-              [ Swatch "#0000ff" "#ffffff" flag.cleanName
-              , Swatch "#000000" "#ffffff" " "
-              , Swatch "#008000" "#ffffff" flag.value.s
+  { replacement = ""
+  , swatchLists =
+      let
+        swatchList =
+          case suggestedFlagParts flag of
+            ( True, False ) ->
+              [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
+            ( False, True ) ->
+              [ Swatch
+                  (if flag.flag == Nothing then "#000000" else "#ff0000")
+                  "#ffffff"
+                  flag.cleanValue
               ]
-            else
-              [ Swatch "#0000ff" "#ffffff" flag.cleanName
-              , Swatch "#000000" "#ffffff" (" " ++ flag.value.s)
-              ]
-        in
-          ( swatchList, swatchList, swatchList )
-    , firstRange = flag.code
-    , ranges = []
-    }
-  else
-    { replacement = ""
-    , swatchLists =
-        let
-          swatchList =
-            [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
-        in
-          ( swatchList, swatchList, swatchList )
-    , firstRange = flag.name
-    , ranges = []
-    }
+            _ ->
+              if String.startsWith "#" flag.cleanValue then
+                [ Swatch "#0000ff" "#ffffff" flag.cleanName
+                , Swatch "#000000" "#ffffff" " "
+                , Swatch "#008000" "#ffffff" flag.cleanValue
+                ]
+              else
+                if flag.flag == Nothing then
+                  [ Swatch "#0000ff" "#ffffff" flag.cleanName
+                  , Swatch "#000000" "#ffffff" (" " ++ flag.cleanValue)
+                  ]
+                else
+                  [ Swatch "#0000ff" "#ffffff" flag.cleanName
+                  , Swatch "#000000" "#ffffff" " "
+                  , Swatch "#ff0000" "#ffffff" flag.cleanValue
+                  ]
+      in
+        ( swatchList, swatchList, swatchList )
+  , firstRange =
+      case suggestedFlagParts flag of
+        ( True, False ) -> flag.name
+        ( False, True ) -> flag.value
+        _ -> flag.code
+  , ranges = []
+  }
 
 flagRange : ParsedFlag -> Substring
 flagRange flag =
-  if flag.value.s /= "" && not (hasSpace flag) then
-    flag.code
-  else
-    flag.name
+  case suggestedFlagParts flag of
+    ( True, False ) -> flag.name
+    ( False, True ) -> flag.value
+    _ -> flag.code
+
+suggestedFlagParts : ParsedFlag -> ( Bool, Bool )
+suggestedFlagParts flag =
+  ( flag.name.s /= flag.cleanName, flag.value.s /= flag.cleanValue )
 
 type alias ParseResult =
   { words : List Substring
@@ -150,16 +164,8 @@ parse whole =
 nameHighlighted : Maybe ParsedFlag -> Bool
 nameHighlighted maybeFlag =
   case maybeFlag of
-    Nothing ->
-      False
-    Just flag ->
-      flag.name.s == flag.cleanName &&
-        (flag.value.s == "" || hasSpace flag)
-
-hasSpace : ParsedFlag -> Bool
-hasSpace flag =
-  String.length flag.code.s >
-    String.length flag.name.s + String.length flag.value.s
+    Nothing -> False
+    Just flag -> flag.name.s == flag.cleanName
 
 splitAfterLastTrue : (a -> Bool) -> List a -> Maybe ( List a, List a )
 splitAfterLastTrue pred xs =
@@ -180,9 +186,11 @@ type alias LineResult =
   }
 
 type alias ParsedFlag =
-  { name : Substring
+  { flag : Maybe Flag
+  , name : Substring
   , cleanName : String
   , value : Substring
+  , cleanValue : String
   , code : Substring
   , nextLineStart : Int
   }
@@ -270,18 +278,37 @@ parseFlag nextLineStart code =
           ( String.toLower
               (String.trimRight (String.dropRight 1 name.s))
           ) ++ ":"
+      in let
+        parser =
+          case cleanName of
+            "key:" -> Just Flag.parseKey
+            _ -> Nothing
       in
-        if Set.member cleanName flagNames then
-          Just
-            { name = name
-            , cleanName = cleanName
-            , value =
+        case parser of
+          Nothing ->
+            Nothing
+          Just parseValue ->
+            let
+              value =
                 Substring.dropLeft (String.length nameAndSpace.s) code
-            , code = code
-            , nextLineStart = nextLineStart
-            }
-        else
-          Nothing
-
-flagNames : Set String
-flagNames = Set.fromList [ "key:" ]
+            in let
+              flag = parseValue value.s
+            in let
+              missingSpace =
+                value.s /= "" &&
+                  String.length nameAndSpace.s == String.length name.s
+            in
+              Just
+                { flag = flag
+                , name =
+                    if missingSpace then { name | s = "" } else name
+                , cleanName = cleanName
+                , value =
+                    if missingSpace then { value | s = "" } else value
+                , cleanValue =
+                    case flag of
+                      Nothing -> value.s
+                      Just x -> Flag.codeValue x
+                , code = code
+                , nextLineStart = nextLineStart
+                }
