@@ -8,7 +8,6 @@ import Suggestion exposing (Suggestion)
 import Html exposing (Html, div, span, text)
 import Html.Attributes exposing (style)
 import Process
-import Set exposing (Set)
 import Task
 import Time
 
@@ -16,7 +15,9 @@ type alias Model =
   { modifierKey : String
   , suggestions : List Suggestion
   , highlighted : Maybe Suggestion
-  , recentlyCopied : Set String
+  , clipboard : String
+  , recentlyCopied : Bool
+  , copyCount : Int
   , hovered : Maybe Suggestion
   , focused : Maybe Suggestion
   , landingPadSelected : Bool
@@ -28,7 +29,9 @@ init modifierKey suggestions =
   { modifierKey = modifierKey
   , suggestions = suggestions
   , highlighted = Nothing
-  , recentlyCopied = Set.empty
+  , clipboard = ""
+  , recentlyCopied = False
+  , copyCount = 0
   , hovered = Nothing
   , focused = Nothing
   , landingPadSelected = False
@@ -40,7 +43,7 @@ type Msg
   | LandingPadSelected Bool
   | ChordBoxFocused Bool
   | SuggestionMsg ( Suggestion, Suggestion.Msg )
-  | RemoveCopied String
+  | RemoveCopied Int
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -99,26 +102,29 @@ update msg model =
       )
 
     SuggestionMsg (suggestion, Suggestion.Copied) ->
-      ( { model
-        | recentlyCopied =
-            Set.insert suggestion.replacement model.recentlyCopied
-        }
-      , Cmd.batch
-          [ Selection.setLandingPad
-              { source = "suggestion"
-              , selection =
-                  { start = suggestion.firstRange.i
-                  , stop = Substring.stop suggestion.firstRange
-                  }
-              }
-          , Task.perform
-              (always (RemoveCopied suggestion.replacement))
-              (Process.sleep (1 * Time.second))
-          ]
-      )
+      let copyCount = model.copyCount + 1 in
+        ( { model
+          | clipboard = suggestion.replacement
+          , recentlyCopied = True
+          , copyCount = copyCount
+          }
+        , Cmd.batch
+            [ Selection.setLandingPad
+                { source = "suggestion"
+                , selection =
+                    { start = suggestion.firstRange.i
+                    , stop = Substring.stop suggestion.firstRange
+                    }
+                }
+            , Task.perform
+                (always (RemoveCopied copyCount))
+                (Process.sleep (1 * Time.second))
+            ]
+        )
 
-    RemoveCopied s ->
-      ( { model | recentlyCopied = Set.remove s model.recentlyCopied }
+    RemoveCopied oldCopyCount ->
+      ( if oldCopyCount < model.copyCount then model
+        else { model | recentlyCopied = False }
       , Cmd.none
       )
 
@@ -145,7 +151,12 @@ view key model =
       ]
       ( List.concat
           [ List.indexedMap
-              (viewSuggestion key model.recentlyCopied)
+              ( viewSuggestion
+                  key
+                  ( if model.recentlyCopied then model.clipboard
+                    else ""
+                  )
+              )
               model.suggestions
           , [ span
                 [ style
@@ -176,13 +187,13 @@ getInstructions model =
     _ ->
       ""
 
-viewSuggestion : Int -> Set String -> Int -> Suggestion -> Html Msg
-viewSuggestion key recentlyCopied index suggestion =
+viewSuggestion : Int -> String -> Int -> Suggestion -> Html Msg
+viewSuggestion key clipboard index suggestion =
   Html.map
     (SuggestionMsg << (,) suggestion)
     ( Suggestion.view
         key
-        (Set.member suggestion.replacement recentlyCopied)
+        (suggestion.replacement == clipboard)
         ("suggestion" ++ toString index)
         suggestion
     )
