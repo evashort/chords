@@ -126,7 +126,7 @@ update msg model =
                     (always (RemoveCopied copyCount))
                     (Process.sleep (1 * Time.second))
               in
-                case suggestion.ranges of
+                case List.reverse suggestion.ranges of
                   [] ->
                     removeCopied
                   range :: _ ->
