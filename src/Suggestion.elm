@@ -1,4 +1,4 @@
-module Suggestion exposing (Suggestion, Msg(..), Id(..), view)
+module Suggestion exposing (Suggestion, Msg(..), Id(..), Lens, view)
 
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
@@ -15,15 +15,18 @@ type alias Suggestion =
   }
 
 type Msg
-  = Enter Id
-  | Leave
-  | Focus Id
-  | Blur
+  = AddLens Lens
+  | RemoveLens Bool
   | Copied Id
 
 type Id
   = IndexId Int
   | StringId String
+
+type alias Lens =
+  { hover : Bool
+  , id : Id
+  }
 
 view : Bool -> Id -> Suggestion -> Html Msg
 view recentlyCopied suggestionId suggestion =
@@ -80,10 +83,10 @@ view recentlyCopied suggestionId suggestion =
                   , "\").select(); document.execCommand(\"Copy\");"
                   ]
               )
-          , onMouseEnter (Enter suggestionId)
-          , onMouseLeave Leave
-          , onFocus (Focus suggestionId)
-          , onBlur Blur
+          , onMouseEnter (AddLens (Lens True suggestionId))
+          , onMouseLeave (RemoveLens True)
+          , onFocus (AddLens (Lens False suggestionId))
+          , onBlur (RemoveLens False)
           , onClick (Copied suggestionId)
           , class "pressMe"
           , style

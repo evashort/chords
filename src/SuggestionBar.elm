@@ -14,12 +14,10 @@ import Time
 type alias Model =
   { modifierKey : String
   , suggestions : List Suggestion
-  , highlighted : Maybe Suggestion.Id
+  , lenses : List Suggestion.Lens
   , clipboard : String
   , recentlyCopied : Maybe Suggestion.Id
   , copyCount : Int
-  , hovered : Maybe Suggestion.Id
-  , focused : Maybe Suggestion.Id
   , landingPadSelected : Bool
   , chordBoxFocused : Bool
   }
@@ -28,12 +26,10 @@ init : String -> List Suggestion -> Model
 init modifierKey suggestions =
   { modifierKey = modifierKey
   , suggestions = suggestions
-  , highlighted = Nothing
+  , lenses = []
   , clipboard = ""
   , recentlyCopied = Nothing
   , copyCount = 0
-  , hovered = Nothing
-  , focused = Nothing
   , landingPadSelected = False
   , chordBoxFocused = True
   }
@@ -58,20 +54,16 @@ update msg model =
         in
           { model
           | suggestions = suggestions
-          , highlighted =
-              keepFirstN
-                ( if model.hovered == Nothing then
-                    (List.length suggestions)
-                  else
-                    samePosition
-                )
-                model.highlighted
+          , lenses =
+              List.filterMap
+                (keepFirstN samePosition (List.length suggestions))
+                model.lenses
           , recentlyCopied =
-              keepFirstN sameReplacement model.recentlyCopied
-          , hovered =
-              keepFirstN samePosition model.hovered
-          , focused =
-              keepFirstN (List.length suggestions) model.focused
+              case model.recentlyCopied of
+                Just (Suggestion.IndexId i) ->
+                  if i < sameReplacement then model.recentlyCopied
+                  else Nothing
+                _ -> model.recentlyCopied
           }
       , Cmd.none
       )
@@ -87,34 +79,18 @@ update msg model =
     ChordBoxFocused chordBoxFocused ->
       ( { model | chordBoxFocused = chordBoxFocused }, Cmd.none )
 
-    SuggestionMsg (Suggestion.Enter id) ->
+    SuggestionMsg (Suggestion.AddLens lens) ->
       ( { model
-        | highlighted = Just id
-        , hovered = Just id
+        | lenses =
+            lens ::
+              List.filter ((/=) lens.hover << .hover) model.lenses
         }
       , Cmd.none
       )
 
-    SuggestionMsg Suggestion.Leave ->
+    SuggestionMsg (Suggestion.RemoveLens hover) ->
       ( { model
-        | highlighted = model.focused
-        , hovered = Nothing
-        }
-      , Cmd.none
-      )
-
-    SuggestionMsg (Suggestion.Focus id) ->
-      ( { model
-        | highlighted = Just id
-        , focused = Just id
-        }
-      , Cmd.none
-      )
-
-    SuggestionMsg Suggestion.Blur ->
-      ( { model
-        | highlighted = model.hovered
-        , focused = Nothing
+        | lenses = List.filter ((/=) hover << .hover) model.lenses
         }
       , Cmd.none
       )
@@ -163,13 +139,16 @@ countSharedReplacements xs ys =
     _ ->
       0
 
-keepFirstN : Int -> Maybe Suggestion.Id -> Maybe Suggestion.Id
-keepFirstN n x =
-  case x of
-    Just (Suggestion.IndexId i) ->
-      if i < n then x else Nothing
-    _ ->
-      x
+keepFirstN : Int -> Int -> Suggestion.Lens -> Maybe Suggestion.Lens
+keepFirstN hoverCount focusCount lens =
+  case lens.id of
+    Suggestion.StringId _ ->
+      Just lens
+    Suggestion.IndexId i ->
+      if i < (if lens.hover then hoverCount else focusCount) then
+        Just lens
+      else
+        Nothing
 
 getSuggestionById : Model -> Suggestion.Id -> Maybe Suggestion
 getSuggestionById model id =
@@ -181,12 +160,12 @@ getSuggestionById model id =
 
 highlightRanges : Model -> List Substring
 highlightRanges model =
-  Maybe.withDefault
-    []
-    ( Maybe.map
-        .ranges
-        (Maybe.andThen (getSuggestionById model) model.highlighted)
-    )
+  case model.lenses of
+    [] -> []
+    lens :: _ ->
+      case getSuggestionById model lens.id of
+        Nothing -> []
+        Just suggestion -> suggestion.ranges
 
 landingPads : Model -> List Selection
 landingPads model =
@@ -240,9 +219,15 @@ getInstructions : Model -> String
 getInstructions model =
   case model.suggestions of
     [ suggestion ] ->
-      if model.focused /= Nothing && model.hovered == Nothing then
+      if
+        List.member
+          (String.concat (List.map lensName model.lenses))
+          [ "hifi", "fi", "fihs" ]
+      then
         "Space to copy or Shift-Tab to go back"
-      else if model.chordBoxFocused && not model.landingPadSelected then
+      else if
+        model.chordBoxFocused && not model.landingPadSelected
+      then
         String.concat
           [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
           , model.modifierKey
@@ -252,6 +237,15 @@ getInstructions model =
         ""
     _ ->
       ""
+
+lensName : Suggestion.Lens -> String
+lensName lens =
+  String.concat
+    [ if lens.hover then "h" else "f"
+    , case lens.id of
+        Suggestion.IndexId _ -> "i"
+        Suggestion.StringId _ -> "s"
+    ]
 
 viewSuggestion : Int -> Int -> Suggestion -> Html Msg
 viewSuggestion recentlyCopied index suggestion =
