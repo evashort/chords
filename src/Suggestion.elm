@@ -1,4 +1,4 @@
-module Suggestion exposing (Suggestion, Msg(..), view)
+module Suggestion exposing (Suggestion, Msg(..), Id(..), view)
 
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
@@ -15,15 +15,24 @@ type alias Suggestion =
   }
 
 type Msg
-  = Enter ( String, Int )
+  = Enter Id
   | Leave
-  | Focus ( String, Int )
+  | Focus Id
   | Blur
-  | Copied ( String, Int )
+  | Copied Id
 
-view : Bool -> String -> Int -> Suggestion -> Html Msg
-view recentlyCopied source index suggestion =
-  let idString = source ++ toString index in
+type Id
+  = IndexId Int
+  | StringId String
+
+view : Bool -> Id -> Suggestion -> Html Msg
+view recentlyCopied suggestionId suggestion =
+  let
+    idString =
+      case suggestionId of
+        IndexId i -> "suggestion" ++ toString i
+        StringId s -> s
+  in
     span
       [ style
           [ ( "display", "inline-flex" )
@@ -71,11 +80,11 @@ view recentlyCopied source index suggestion =
                   , "\").select(); document.execCommand(\"Copy\");"
                   ]
               )
-          , onMouseEnter (Enter ( source, index ))
+          , onMouseEnter (Enter suggestionId)
           , onMouseLeave Leave
-          , onFocus (Focus ( source, index ))
+          , onFocus (Focus suggestionId)
           , onBlur Blur
-          , onClick (Copied ( source, index ))
+          , onClick (Copied suggestionId)
           , class "pressMe"
           , style
               [ ( "padding", "0px 3px" )

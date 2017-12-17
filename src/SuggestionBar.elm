@@ -14,12 +14,12 @@ import Time
 type alias Model =
   { modifierKey : String
   , suggestions : List Suggestion
-  , highlighted : Maybe Int
+  , highlighted : Maybe Suggestion.Id
   , clipboard : String
-  , recentlyCopied : Maybe Int
+  , recentlyCopied : Maybe Suggestion.Id
   , copyCount : Int
-  , hovered : Maybe Int
-  , focused : Maybe Int
+  , hovered : Maybe Suggestion.Id
+  , focused : Maybe Suggestion.Id
   , landingPadSelected : Bool
   , chordBoxFocused : Bool
   }
@@ -56,12 +56,13 @@ update msg model =
           { model
           | suggestions = suggestions
           , highlighted =
-              andThenBelow (sameCount + 1) model.highlighted
+              removeIndexAndAbove (sameCount + 1) model.highlighted
           , recentlyCopied =
-              andThenBelow sameCount model.recentlyCopied
+              removeIndexAndAbove sameCount model.recentlyCopied
           , hovered =
-              andThenBelow (sameCount + 1) model.hovered
-          , focused = Nothing
+              removeIndexAndAbove (sameCount + 1) model.hovered
+          , focused =
+              removeIndexAndAbove (sameCount + 1) model.focused
           }
       , Cmd.none
       )
@@ -77,10 +78,10 @@ update msg model =
     ChordBoxFocused chordBoxFocused ->
       ( { model | chordBoxFocused = chordBoxFocused }, Cmd.none )
 
-    SuggestionMsg (Suggestion.Enter ( _, i )) ->
+    SuggestionMsg (Suggestion.Enter id) ->
       ( { model
-        | highlighted = Just i
-        , hovered = Just i
+        | highlighted = Just id
+        , hovered = Just id
         }
       , Cmd.none
       )
@@ -93,10 +94,10 @@ update msg model =
       , Cmd.none
       )
 
-    SuggestionMsg (Suggestion.Focus ( _, i )) ->
+    SuggestionMsg (Suggestion.Focus id) ->
       ( { model
-        | highlighted = Just i
-        , focused = Just i
+        | highlighted = Just id
+        , focused = Just id
         }
       , Cmd.none
       )
@@ -109,15 +110,15 @@ update msg model =
       , Cmd.none
       )
 
-    SuggestionMsg (Suggestion.Copied ( _, i )) ->
-      case List.drop i model.suggestions of
-        [] ->
+    SuggestionMsg (Suggestion.Copied id) ->
+      case getSuggestionById model id of
+        Nothing ->
           ( model, Cmd.none )
-        suggestion :: _ ->
+        Just suggestion ->
           let copyCount = model.copyCount + 1 in
             ( { model
               | clipboard = suggestion.replacement
-              , recentlyCopied = Just i
+              , recentlyCopied = Just id
               , copyCount = copyCount
               }
             , let
@@ -153,20 +154,30 @@ countSharedReplacements xs ys =
     _ ->
       0
 
-andThenBelow : Int -> Maybe Int -> Maybe Int
-andThenBelow bound x =
+removeIndexAndAbove : Int -> Maybe Suggestion.Id -> Maybe Suggestion.Id
+removeIndexAndAbove index x =
   case x of
-    Just i -> if i < bound then x else Nothing
-    Nothing -> x
+    Just (Suggestion.IndexId i) ->
+      if i < index then x else Nothing
+    _ ->
+      x
+
+getSuggestionById : Model -> Suggestion.Id -> Maybe Suggestion
+getSuggestionById model id =
+  case id of
+    Suggestion.IndexId i ->
+      List.head (List.drop i model.suggestions)
+    _ ->
+      Nothing
 
 highlightRanges : Model -> List Substring
 highlightRanges model =
-  case model.highlighted of
-    Nothing -> []
-    Just i ->
-      case List.drop i model.suggestions of
-        [] -> []
-        suggestion :: _ -> suggestion.ranges
+  Maybe.withDefault
+    []
+    ( Maybe.map
+        .ranges
+        (Maybe.andThen (getSuggestionById model) model.highlighted)
+    )
 
 landingPads : Model -> List Selection
 landingPads model =
@@ -196,7 +207,13 @@ view model =
       ]
       ( List.concat
           [ List.indexedMap
-              (viewSuggestion model.recentlyCopied)
+              ( viewSuggestion
+                  ( case model.recentlyCopied of
+                      Just (Suggestion.IndexId i) -> i
+                      _ -> -1
+                  )
+
+              )
               model.suggestions
           , [ span
                 [ style
@@ -227,13 +244,12 @@ getInstructions model =
     _ ->
       ""
 
-viewSuggestion : Maybe Int -> Int -> Suggestion -> Html Msg
+viewSuggestion : Int -> Int -> Suggestion -> Html Msg
 viewSuggestion recentlyCopied index suggestion =
   Html.map
     SuggestionMsg
     ( Suggestion.view
-        (Just index == recentlyCopied)
-        "suggestion"
-        index
+        (index == recentlyCopied)
+        (Suggestion.IndexId index)
         suggestion
     )
