@@ -31,7 +31,7 @@ view recentlyCopied suggestionId suggestion =
     idString =
       case suggestionId of
         IndexId i -> "suggestion" ++ toString i
-        StringId s -> s
+        StringId s -> s ++ "Suggestion"
   in
     span
       [ style

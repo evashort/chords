@@ -62,7 +62,9 @@ update msg model =
           , hovered =
               removeIndexAndAbove (sameCount + 1) model.hovered
           , focused =
-              removeIndexAndAbove (sameCount + 1) model.focused
+              removeIndexAndAbove
+                (List.length suggestions)
+                model.focused
           }
       , Cmd.none
       )
