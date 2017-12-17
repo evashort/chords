@@ -50,21 +50,28 @@ update msg model =
   case msg of
     SuggestionsChanged suggestions ->
       ( let
-          sameCount =
+          sameReplacement =
             countSharedReplacements suggestions model.suggestions
+        in let
+          samePosition =
+            min (sameReplacement + 1) (List.length suggestions)
         in
           { model
           | suggestions = suggestions
           , highlighted =
-              removeIndexAndAbove (sameCount + 1) model.highlighted
+              keepFirstN
+                ( if model.hovered == Nothing then
+                    (List.length suggestions)
+                  else
+                    samePosition
+                )
+                model.highlighted
           , recentlyCopied =
-              removeIndexAndAbove sameCount model.recentlyCopied
+              keepFirstN sameReplacement model.recentlyCopied
           , hovered =
-              removeIndexAndAbove (sameCount + 1) model.hovered
+              keepFirstN samePosition model.hovered
           , focused =
-              removeIndexAndAbove
-                (List.length suggestions)
-                model.focused
+              keepFirstN (List.length suggestions) model.focused
           }
       , Cmd.none
       )
@@ -156,11 +163,11 @@ countSharedReplacements xs ys =
     _ ->
       0
 
-removeIndexAndAbove : Int -> Maybe Suggestion.Id -> Maybe Suggestion.Id
-removeIndexAndAbove index x =
+keepFirstN : Int -> Maybe Suggestion.Id -> Maybe Suggestion.Id
+keepFirstN n x =
   case x of
     Just (Suggestion.IndexId i) ->
-      if i < index then x else Nothing
+      if i < n then x else Nothing
     _ ->
       x
 
