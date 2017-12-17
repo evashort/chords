@@ -40,35 +40,16 @@ function setSelection(selection) {
   chordBox.selectionEnd = selection.stop;
   chordBox.focus();
   return {
-    landingPad: landingPad,
-    selection: {
-      start: chordBox.selectionStart,
-      stop: chordBox.selectionEnd
-    }
+    start: chordBox.selectionStart,
+    stop: chordBox.selectionEnd
   };
-}
-
-function setLandingPad(newLandingPad) {
-  landingPad = newLandingPad;
-  return setSelection(newLandingPad.selection);
-}
-
-function removeLandingPad(source) {
-  if (landingPad != null && landingPad.source == source) {
-    landingPad = null;
-    return checkSelection();
-  }
-  return null;
 }
 
 function checkSelection() {
   let chordBox = document.getElementById("chordBox");
   return {
-    landingPad: landingPad,
-    selection: {
-      start: chordBox.selectionStart,
-      stop: chordBox.selectionEnd
-    }
+    start: chordBox.selectionStart,
+    stop: chordBox.selectionEnd
   };
 }
 

@@ -85,25 +85,12 @@
       app.ports.changeAudio.subscribe(changeAudio);
       app.ports.setSelection.subscribe(
         function(selection) {
-          app.ports.receiveModel.send(setSelection(selection));
-        }
-      );
-      app.ports.setLandingPad.subscribe(
-        function(landingPad) {
-          app.ports.receiveModel.send(setLandingPad(landingPad));
-        }
-      );
-      app.ports.removeLandingPad.subscribe(
-        function(source) {
-          let model = removeLandingPad(source);
-          if (model != null) {
-            app.ports.receiveModel.send(model);
-          }
+          app.ports.receiveSelection.send(setSelection(selection));
         }
       );
       app.ports.checkSelection.subscribe(
         function(dummy) {
-          app.ports.receiveModel.send(checkSelection());
+          app.ports.receiveSelection.send(checkSelection());
         }
       );
       app.ports.setChordBoxText.subscribe(setChordBoxText);

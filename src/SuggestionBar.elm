@@ -1,7 +1,7 @@
 module SuggestionBar exposing
-  (Model, init, Msg(..), update, highlightRanges, view)
+  (Model, init, Msg(..), update, highlightRanges, landingPads, view)
 
-import Selection
+import Selection exposing (Selection)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
@@ -55,7 +55,7 @@ update msg model =
         , hovered = Nothing
         , focused = Nothing
         }
-      , Selection.removeLandingPad "suggestion"
+      , Cmd.none
       )
 
     LandingPadSelected landingPadSelected ->
@@ -109,12 +109,9 @@ update msg model =
           , copyCount = copyCount
           }
         , Cmd.batch
-            [ Selection.setLandingPad
-                { source = "suggestion"
-                , selection =
-                    { start = suggestion.firstRange.i
-                    , stop = Substring.stop suggestion.firstRange
-                    }
+            [ Selection.set
+                { start = suggestion.firstRange.i
+                , stop = Substring.stop suggestion.firstRange
                 }
             , Task.perform
                 (always (RemoveCopied copyCount))
@@ -135,6 +132,21 @@ highlightRanges model =
       []
     Just suggestion ->
       suggestion.firstRange :: suggestion.ranges
+
+landingPads : Model -> List Selection
+landingPads model =
+  List.concatMap
+    (landingPadsFromSuggestion model.clipboard)
+    model.suggestions
+
+landingPadsFromSuggestion : String -> Suggestion -> List Selection
+landingPadsFromSuggestion clipboard suggestion =
+  if suggestion.replacement == clipboard then
+    List.map
+      Selection.fromSubstring
+      (suggestion.firstRange :: suggestion.ranges)
+  else
+    []
 
 view : Int -> Model -> Html Msg
 view key model =

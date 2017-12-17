@@ -11,7 +11,7 @@ import Highlight exposing (Highlight)
 import History exposing (History)
 import MainParser
 import Player exposing (Player, PlayStatus)
-import Selection
+import Selection exposing (Selection)
 import Substring exposing (Substring)
 import SuggestionBar
 
@@ -110,7 +110,7 @@ init mac location =
           }
       , suggestionBar = suggestionBar
       }
-    , Selection.setSelection { start = n, stop = n }
+    , Selection.set { start = n, stop = n }
     )
 
 textFromLocation : Location -> String
@@ -138,7 +138,7 @@ type Msg
   | TextEdited String
   | UrlChange Location
   | CheckSelection
-  | ReceivedSelection Selection.Model
+  | ReceivedSelection Selection
   | ChordBoxFocused Bool
   | SuggestionBarMsg SuggestionBar.Msg
 
@@ -331,43 +331,34 @@ update msg model =
           ( model, Cmd.none )
 
     CheckSelection ->
-      ( model, Selection.checkSelection () )
+      ( model, Selection.check )
 
-    ReceivedSelection { landingPad, selection } ->
+    ReceivedSelection selection ->
       let
+        landingPadSelected =
+          List.member
+            selection
+            (SuggestionBar.landingPads model.suggestionBar)
+      in let
         bubble =
-          case landingPad of
-            Nothing ->
-              Nothing
-            Just lp ->
-              if selection == lp.selection then
-                Just
-                  ( Highlight
-                      ( model.suggestionBar.modifierKey ++
-                          if
-                            lp.selection.start == lp.selection.stop
-                          then
-                            "V to paste here"
-                          else
-                            "V to replace"
-                      )
-                      ""
-                      ""
-                      (Substring lp.selection.start "")
+          if landingPadSelected then
+            Just
+              ( Highlight
+                  ( model.suggestionBar.modifierKey ++
+                      if selection.start == selection.stop then
+                        "V to paste here"
+                      else
+                        "V to replace"
                   )
-              else
-                Nothing
+                  ""
+                  ""
+                  (Substring selection.start "")
+                )
+          else
+            Nothing
       in
         updateSuggestionBar
-          ( SuggestionBar.LandingPadSelected
-              ( case landingPad of
-                  Nothing ->
-                    False
-                  Just lp ->
-                    lp.source == "suggestion" &&
-                      selection == lp.selection
-              )
-          )
+          (SuggestionBar.LandingPadSelected landingPadSelected)
           { model
           | bubble = bubble
           , chordBox =
@@ -468,7 +459,7 @@ subscriptions model =
   Sub.batch
     ( List.filterMap
         identity
-        [ Just (Selection.receiveModel ReceivedSelection)
+        [ Just (Selection.receive ReceivedSelection)
         , if model.subscribeToSelection then
             Just (Time.every (1 * Time.second) (always CheckSelection))
           else

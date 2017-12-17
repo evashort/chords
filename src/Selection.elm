@@ -1,29 +1,27 @@
 port module Selection exposing
-  ( LandingPad, Selection, Model, setSelection, setLandingPad
-  , removeLandingPad, checkSelection, receiveModel
-  )
+  ( Selection, fromSubstring, set, check, receive )
 
-type alias LandingPad =
-  { source : String
-  , selection : Selection
-  }
+import Substring exposing (Substring)
 
 type alias Selection =
   { start : Int
   , stop : Int
   }
 
-type alias Model =
-  { selection : Selection
-  , landingPad : Maybe LandingPad
+fromSubstring : Substring -> Selection
+fromSubstring substring =
+  { start = substring.i
+  , stop = Substring.stop substring
   }
 
+set : Selection -> Cmd msg
+set = setSelection
 port setSelection : Selection -> Cmd msg
 
-port setLandingPad : LandingPad -> Cmd msg -- also sets selection
-
-port removeLandingPad : String -> Cmd msg
-
+check : Cmd msg
+check = checkSelection ()
 port checkSelection : () -> Cmd msg
 
-port receiveModel : (Model -> msg) -> Sub msg
+receive : (Selection -> msg) -> Sub msg
+receive = receiveSelection
+port receiveSelection : (Selection -> msg) -> Sub msg
