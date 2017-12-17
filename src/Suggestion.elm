@@ -16,14 +16,14 @@ type alias Suggestion =
   }
 
 type Msg
-  = Enter
+  = Enter ( String, Int )
   | Leave
-  | Focus
+  | Focus ( String, Int )
   | Blur
-  | Copied
+  | Copied ( String, Int )
 
-view : Int -> Bool -> String -> Suggestion -> Html Msg
-view key recentlyCopied idString suggestion =
+view : Int -> Bool -> String -> Int -> Suggestion -> Html Msg
+view key recentlyCopied source index suggestion =
   let
     swatches =
       let ( a, b, c ) = suggestion.swatchLists in
@@ -31,6 +31,8 @@ view key recentlyCopied idString suggestion =
           0 -> a
           1 -> b
           _ -> c
+  in let
+    idString = source ++ toString index
   in
     span
       [ style
@@ -79,11 +81,11 @@ view key recentlyCopied idString suggestion =
                   , "\").select(); document.execCommand(\"Copy\");"
                   ]
               )
-          , onMouseEnter Enter
+          , onMouseEnter (Enter ( source, index ))
           , onMouseLeave Leave
-          , onFocus Focus
+          , onFocus (Focus ( source, index ))
           , onBlur Blur
-          , onClick Copied
+          , onClick (Copied ( source, index ))
           , class "pressMe"
           , style
               [ ( "padding", "0px 3px" )

@@ -14,12 +14,12 @@ import Time
 type alias Model =
   { modifierKey : String
   , suggestions : List Suggestion
-  , highlighted : Maybe Suggestion
+  , highlighted : Maybe Int
   , clipboard : String
-  , recentlyCopied : Bool
+  , recentlyCopied : Maybe Int
   , copyCount : Int
-  , hovered : Maybe Suggestion
-  , focused : Maybe Suggestion
+  , hovered : Maybe Int
+  , focused : Maybe Int
   , landingPadSelected : Bool
   , chordBoxFocused : Bool
   }
@@ -30,7 +30,7 @@ init modifierKey suggestions =
   , suggestions = suggestions
   , highlighted = Nothing
   , clipboard = ""
-  , recentlyCopied = False
+  , recentlyCopied = Nothing
   , copyCount = 0
   , hovered = Nothing
   , focused = Nothing
@@ -42,19 +42,27 @@ type Msg
   = SuggestionsChanged (List Suggestion)
   | LandingPadSelected Bool
   | ChordBoxFocused Bool
-  | SuggestionMsg ( Suggestion, Suggestion.Msg )
+  | SuggestionMsg Suggestion.Msg
   | RemoveCopied Int
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
     SuggestionsChanged suggestions ->
-      ( { model
-        | suggestions = suggestions
-        , highlighted = Nothing
-        , hovered = Nothing
-        , focused = Nothing
-        }
+      ( let
+          sameCount =
+            countSharedReplacements suggestions model.suggestions
+        in
+          { model
+          | suggestions = suggestions
+          , highlighted =
+              andThenBelow (sameCount + 1) model.highlighted
+          , recentlyCopied =
+              andThenBelow sameCount model.recentlyCopied
+          , hovered =
+              andThenBelow (sameCount + 1) model.hovered
+          , focused = Nothing
+          }
       , Cmd.none
       )
 
@@ -69,15 +77,15 @@ update msg model =
     ChordBoxFocused chordBoxFocused ->
       ( { model | chordBoxFocused = chordBoxFocused }, Cmd.none )
 
-    SuggestionMsg (suggestion, Suggestion.Enter) ->
+    SuggestionMsg (Suggestion.Enter ( _, i )) ->
       ( { model
-        | highlighted = Just suggestion
-        , hovered = Just suggestion
+        | highlighted = Just i
+        , hovered = Just i
         }
       , Cmd.none
       )
 
-    SuggestionMsg (suggestion, Suggestion.Leave) ->
+    SuggestionMsg Suggestion.Leave ->
       ( { model
         | highlighted = model.focused
         , hovered = Nothing
@@ -85,15 +93,15 @@ update msg model =
       , Cmd.none
       )
 
-    SuggestionMsg (suggestion, Suggestion.Focus) ->
+    SuggestionMsg (Suggestion.Focus ( _, i )) ->
       ( { model
-        | highlighted = Just suggestion
-        , focused = Just suggestion
+        | highlighted = Just i
+        , focused = Just i
         }
       , Cmd.none
       )
 
-    SuggestionMsg (suggestion, Suggestion.Blur) ->
+    SuggestionMsg Suggestion.Blur ->
       ( { model
         | highlighted = model.hovered
         , focused = Nothing
@@ -101,37 +109,59 @@ update msg model =
       , Cmd.none
       )
 
-    SuggestionMsg (suggestion, Suggestion.Copied) ->
-      let copyCount = model.copyCount + 1 in
-        ( { model
-          | clipboard = suggestion.replacement
-          , recentlyCopied = True
-          , copyCount = copyCount
-          }
-        , Cmd.batch
-            [ Selection.set
-                { start = suggestion.firstRange.i
-                , stop = Substring.stop suggestion.firstRange
-                }
-            , Task.perform
-                (always (RemoveCopied copyCount))
-                (Process.sleep (1 * Time.second))
-            ]
-        )
+    SuggestionMsg (Suggestion.Copied ( _, i )) ->
+      case List.drop i model.suggestions of
+        [] ->
+          ( model, Cmd.none )
+        suggestion :: _ ->
+          let copyCount = model.copyCount + 1 in
+            ( { model
+              | clipboard = suggestion.replacement
+              , recentlyCopied = Just i
+              , copyCount = copyCount
+              }
+            , Cmd.batch
+                [ Selection.set
+                    { start = suggestion.firstRange.i
+                    , stop = Substring.stop suggestion.firstRange
+                    }
+                , Task.perform
+                    (always (RemoveCopied copyCount))
+                    (Process.sleep (1 * Time.second))
+                ]
+            )
 
     RemoveCopied oldCopyCount ->
       ( if oldCopyCount < model.copyCount then model
-        else { model | recentlyCopied = False }
+        else { model | recentlyCopied = Nothing }
       , Cmd.none
       )
+
+countSharedReplacements : List Suggestion -> List Suggestion -> Int
+countSharedReplacements xs ys =
+  case ( xs, ys ) of
+    ( x :: xRest, y :: yRest ) ->
+      if x.replacement == y.replacement then
+        1 + countSharedReplacements xRest yRest
+      else
+        0
+    _ ->
+      0
+
+andThenBelow : Int -> Maybe Int -> Maybe Int
+andThenBelow bound x =
+  case x of
+    Just i -> if i < bound then x else Nothing
+    Nothing -> x
 
 highlightRanges : Model -> List Substring
 highlightRanges model =
   case model.highlighted of
-    Nothing ->
-      []
-    Just suggestion ->
-      suggestion.firstRange :: suggestion.ranges
+    Nothing -> []
+    Just i ->
+      case List.drop i model.suggestions of
+        [] -> []
+        suggestion :: _ -> suggestion.firstRange :: suggestion.ranges
 
 landingPads : Model -> List Selection
 landingPads model =
@@ -163,12 +193,7 @@ view key model =
       ]
       ( List.concat
           [ List.indexedMap
-              ( viewSuggestion
-                  key
-                  ( if model.recentlyCopied then model.clipboard
-                    else ""
-                  )
-              )
+              (viewSuggestion key model.recentlyCopied)
               model.suggestions
           , [ span
                 [ style
@@ -199,13 +224,14 @@ getInstructions model =
     _ ->
       ""
 
-viewSuggestion : Int -> String -> Int -> Suggestion -> Html Msg
-viewSuggestion key clipboard index suggestion =
+viewSuggestion : Int -> Maybe Int -> Int -> Suggestion -> Html Msg
+viewSuggestion key recentlyCopied index suggestion =
   Html.map
-    (SuggestionMsg << (,) suggestion)
+    SuggestionMsg
     ( Suggestion.view
         key
-        (suggestion.replacement == clipboard)
-        ("suggestion" ++ toString index)
+        (Just index == recentlyCopied)
+        "suggestion"
+        index
         suggestion
     )
