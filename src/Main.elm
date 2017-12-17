@@ -50,7 +50,7 @@ type alias Model =
   , home : Bool
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
-  , bubble : Maybe Highlight
+  , selection : Maybe Selection
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar.Model
   }
@@ -66,10 +66,11 @@ type alias ChordLens =
   }
 
 type alias ChordBox =
-  { text : String
+  { modifierKey : String
+  , text : String
   , parse : MainParser.Model
   , highlightRanges : List Substring
-  , bubble : Maybe Highlight
+  , focusedSelection : Maybe Selection
   }
 
 init : Bool -> Location -> ( Model, Cmd Msg )
@@ -102,13 +103,14 @@ init mac location =
       , home = True
       , subscribeToSelection = True
       , chordBoxFocused = True
-      , bubble = Nothing
+      , selection = Nothing
       , chordBox =
-          { text = text
+          { modifierKey = modifierKey
+          , text = text
           , parse = parse
           , highlightRanges =
               SuggestionBar.highlightRanges suggestionBar
-          , bubble = Nothing
+          , focusedSelection = Nothing
           }
       , suggestionBar = suggestionBar
       }
@@ -347,60 +349,49 @@ update msg model =
             selection
             (SuggestionBar.landingPads model.suggestionBar)
       in let
-        bubble =
-          if landingPadSelected then
-            Just
-              ( Highlight
-                  ( model.suggestionBar.modifierKey ++
-                      if selection.start == selection.stop then
-                        "V to paste here"
-                      else
-                        "V to replace"
-                  )
-                  ""
-                  ""
-                  (Substring selection.start "")
-                )
-          else
-            Nothing
+        modelSelection =
+          if landingPadSelected then Just selection else Nothing
       in
-        updateSuggestionBar
-          (SuggestionBar.LandingPadSelected landingPadSelected)
-          { model
-          | bubble = bubble
-          , chordBox =
-              updateChordBoxBubble
-                bubble
-                model.chordBoxFocused
-                model.chordBox
-          }
-          []
+        if modelSelection == model.selection then
+          ( model, Cmd.none )
+        else
+          updateSuggestionBar
+            (SuggestionBar.LandingPadSelected landingPadSelected)
+            ( updateFocusedSelection
+                { model | selection = modelSelection }
+            )
+            []
 
     ChordBoxFocused chordBoxFocused ->
       updateSuggestionBar
         (SuggestionBar.ChordBoxFocused chordBoxFocused)
-        { model
-        | chordBoxFocused = chordBoxFocused
-        , subscribeToSelection =
-            model.subscribeToSelection || chordBoxFocused
-        , chordBox =
-            updateChordBoxBubble
-              model.bubble
-              chordBoxFocused
-              model.chordBox
-        }
+        ( updateFocusedSelection
+            { model
+            | chordBoxFocused = chordBoxFocused
+            , subscribeToSelection =
+                model.subscribeToSelection || chordBoxFocused
+            }
+        )
         []
 
     SuggestionBarMsg msg ->
       updateSuggestionBar msg model []
 
-updateChordBoxBubble : Maybe Highlight -> Bool -> ChordBox -> ChordBox
-updateChordBoxBubble bubble chordBoxFocused chordBox =
-  let chordBoxBubble = if chordBoxFocused then bubble else Nothing in
-    if chordBoxBubble /= chordBox.bubble then
-      { chordBox | bubble = chordBoxBubble }
+updateFocusedSelection : Model -> Model
+updateFocusedSelection model =
+  let
+    focusedSelection =
+      if model.chordBoxFocused then model.selection else Nothing
+  in let
+    chordBox = model.chordBox
+  in
+    if chordBox.focusedSelection == focusedSelection then
+      model
     else
-      chordBox
+      { model
+      | chordBox =
+          { chordBox | focusedSelection = focusedSelection }
+      }
 
 updateSuggestionBar :
   SuggestionBar.Msg -> Model -> List (Cmd Msg) -> ( Model, Cmd Msg )
@@ -772,8 +763,16 @@ getLayers key chordBox =
           (Highlight "" "#ffffff" "#aaaaaa")
           chordBox.highlightRanges
     in
-      case chordBox.bubble of
-        Just bubble -> bubble :: grays
+      case chordBox.focusedSelection of
+        Just selection ->
+          { bubbleText =
+              chordBox.modifierKey ++
+                if selection.start == selection.stop then "V to paste here"
+                else "V to replace"
+          , fg = ""
+          , bg = ""
+          , substring = Substring selection.start ""
+          } :: grays
         Nothing -> grays
   , MainParser.view key chordBox.parse
   , [ Highlight
