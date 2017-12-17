@@ -120,15 +120,20 @@ update msg model =
               , recentlyCopied = Just i
               , copyCount = copyCount
               }
-            , Cmd.batch
-                [ Selection.set
-                    { start = suggestion.firstRange.i
-                    , stop = Substring.stop suggestion.firstRange
-                    }
-                , Task.perform
+            , let
+                removeCopied =
+                  Task.perform
                     (always (RemoveCopied copyCount))
                     (Process.sleep (1 * Time.second))
-                ]
+              in
+                case suggestion.ranges of
+                  [] ->
+                    removeCopied
+                  range :: _ ->
+                    Cmd.batch
+                      [ Selection.set (Selection.fromSubstring range)
+                      , removeCopied
+                      ]
             )
 
     RemoveCopied oldCopyCount ->
@@ -161,7 +166,7 @@ highlightRanges model =
     Just i ->
       case List.drop i model.suggestions of
         [] -> []
-        suggestion :: _ -> suggestion.firstRange :: suggestion.ranges
+        suggestion :: _ -> suggestion.ranges
 
 landingPads : Model -> List Selection
 landingPads model =
@@ -172,14 +177,12 @@ landingPads model =
 landingPadsFromSuggestion : String -> Suggestion -> List Selection
 landingPadsFromSuggestion clipboard suggestion =
   if suggestion.replacement == clipboard then
-    List.map
-      Selection.fromSubstring
-      (suggestion.firstRange :: suggestion.ranges)
+    List.map Selection.fromSubstring suggestion.ranges
   else
     []
 
-view : Int -> Model -> Html Msg
-view key model =
+view : Model -> Html Msg
+view model =
   if List.isEmpty model.suggestions then
     div [] []
   else
@@ -193,7 +196,7 @@ view key model =
       ]
       ( List.concat
           [ List.indexedMap
-              (viewSuggestion key model.recentlyCopied)
+              (viewSuggestion model.recentlyCopied)
               model.suggestions
           , [ span
                 [ style
@@ -224,12 +227,11 @@ getInstructions model =
     _ ->
       ""
 
-viewSuggestion : Int -> Maybe Int -> Int -> Suggestion -> Html Msg
-viewSuggestion key recentlyCopied index suggestion =
+viewSuggestion : Maybe Int -> Int -> Suggestion -> Html Msg
+viewSuggestion recentlyCopied index suggestion =
   Html.map
     SuggestionMsg
     ( Suggestion.view
-        key
         (Just index == recentlyCopied)
         "suggestion"
         index

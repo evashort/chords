@@ -1,4 +1,4 @@
-module Suggestion exposing (Suggestion, Msg(..), view, selection)
+module Suggestion exposing (Suggestion, Msg(..), view)
 
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
@@ -10,8 +10,7 @@ import Html.Events exposing
 
 type alias Suggestion =
   { replacement : String
-  , swatchLists : ( List Swatch, List Swatch, List Swatch )
-  , firstRange : Substring
+  , swatches : List Swatch
   , ranges : List Substring
   }
 
@@ -22,18 +21,9 @@ type Msg
   | Blur
   | Copied ( String, Int )
 
-view : Int -> Bool -> String -> Int -> Suggestion -> Html Msg
-view key recentlyCopied source index suggestion =
-  let
-    swatches =
-      let ( a, b, c ) = suggestion.swatchLists in
-        case -key % 3 of
-          0 -> a
-          1 -> b
-          _ -> c
-  in let
-    idString = source ++ toString index
-  in
+view : Bool -> String -> Int -> Suggestion -> Html Msg
+view recentlyCopied source index suggestion =
+  let idString = source ++ toString index in
     span
       [ style
           [ ( "display", "inline-flex" )
@@ -135,10 +125,6 @@ view key recentlyCopied source index suggestion =
                   , ( "color", "transparent" )
                   ]
               ]
-              (List.map Swatch.view swatches)
+              (List.map Swatch.view suggestion.swatches)
           ]
       ]
-
-selection : Suggestion -> ( Int, Int )
-selection suggestion =
-  ( suggestion.firstRange.i, Substring.stop suggestion.firstRange )

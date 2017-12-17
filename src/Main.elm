@@ -80,7 +80,9 @@ init mac location =
     parse =
       MainParser.init CircleOfFifths.chordCount (Substring 0 text)
   in let
-    suggestions = MainParser.getSuggestions parse
+    key = 0
+  in let
+    suggestions = MainParser.getSuggestions key parse
   in let
     n = String.length text
   in let
@@ -95,7 +97,7 @@ init mac location =
       , bpm = 85
       , chordLens =
           { octaveBase = 48
-          , key = 0
+          , key = key
           }
       , home = True
       , subscribeToSelection = True
@@ -240,15 +242,20 @@ update msg model =
       )
 
     SetKey keyString ->
-      ( case String.toInt keyString of
-          Ok key ->
-            let chordLens = model.chordLens in
+      case String.toInt keyString of
+        Ok key ->
+          let
+            chordLens = model.chordLens
+          in let
+            suggestions = MainParser.getSuggestions key model.chordBox.parse
+          in
+            updateSuggestionBar
+              (SuggestionBar.SuggestionsChanged suggestions)
               { model
               | chordLens = { chordLens | key = key }
               }
-          Err _ -> model
-      , Cmd.none
-      )
+              []
+        Err _ -> ( model, Cmd.none )
 
     FocusHorizontal ( forwards, id ) ->
       case
@@ -292,7 +299,7 @@ update msg model =
       in let
         parse = MainParser.update (Substring 0 newText) chordBox.parse
       in let
-        suggestions = MainParser.getSuggestions parse
+        suggestions = MainParser.getSuggestions model.chordLens.key parse
       in
         updateSuggestionBar
           (SuggestionBar.SuggestionsChanged suggestions)
@@ -317,7 +324,7 @@ update msg model =
           in let
             parse = MainParser.update (Substring 0 newText) chordBox.parse
           in let
-            suggestions = MainParser.getSuggestions parse
+            suggestions = MainParser.getSuggestions model.chordLens.key parse
           in
             updateSuggestionBar
               (SuggestionBar.SuggestionsChanged suggestions)
@@ -486,8 +493,7 @@ view model =
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
     , Html.Lazy.lazy viewKey model.chordLens.key
     , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
-    , Html.Lazy.lazy2
-        viewSuggestionBar model.chordLens.key model.suggestionBar
+    , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
     , Html.Lazy.lazy3
         viewChordArea model.chordLens model.player model.chordBox.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
@@ -778,9 +784,9 @@ getLayers key chordBox =
     ]
   ]
 
-viewSuggestionBar : Int -> SuggestionBar.Model -> Html Msg
-viewSuggestionBar key suggestionBar =
-  Html.map SuggestionBarMsg (SuggestionBar.view key suggestionBar)
+viewSuggestionBar : SuggestionBar.Model -> Html Msg
+viewSuggestionBar suggestionBar =
+  Html.map SuggestionBarMsg (SuggestionBar.view suggestionBar)
 
 viewChordArea : ChordLens -> Player -> MainParser.Model -> Html Msg
 viewChordArea chordLens player parse =

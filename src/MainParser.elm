@@ -78,12 +78,12 @@ viewFlag key flag =
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
 
-getSuggestions : Model -> List Suggestion
-getSuggestions model =
+getSuggestions : Int -> Model -> List Suggestion
+getSuggestions key model =
   List.sortBy
-    (.i << .firstRange)
+    (Maybe.withDefault -1 << List.minimum << List.map .i << .ranges)
     ( List.concat
-        [ ChordParser.getSuggestions model.chordModel
+        [ ChordParser.getSuggestions key model.chordModel
         , SuggestionMerge.mergeSuggestions
             flagReplacement
             flagSuggestion
@@ -102,44 +102,41 @@ flagReplacement flag =
 
 flagSuggestion : ParsedFlag -> Suggestion
 flagSuggestion flag =
-  { replacement = ""
-  , swatchLists =
-      let
-        swatchList =
-          case suggestedFlagParts flag of
-            ( True, False ) ->
-              [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
-            ( False, True ) ->
-              [ Swatch
-                  (if flag.flag == Nothing then "#000000" else "#c00000")
-                  "#ffffff"
-                  flag.cleanValue
-              ]
-            _ ->
-              if String.startsWith "#" flag.cleanValue then
-                [ Swatch "#0000ff" "#ffffff" flag.cleanName
-                , Swatch "#000000" "#ffffff" " "
-                , Swatch "#008000" "#ffffff" flag.cleanValue
-                ]
-              else
-                if flag.flag == Nothing then
-                  [ Swatch "#0000ff" "#ffffff" flag.cleanName
-                  , Swatch "#000000" "#ffffff" (" " ++ flag.cleanValue)
-                  ]
-                else
-                  [ Swatch "#0000ff" "#ffffff" flag.cleanName
-                  , Swatch "#000000" "#ffffff" " "
-                  , Swatch "#c00000" "#ffffff" flag.cleanValue
-                  ]
-      in
-        ( swatchList, swatchList, swatchList )
-  , firstRange =
-      case suggestedFlagParts flag of
-        ( True, False ) -> flag.name
-        ( False, True ) -> flag.value
-        _ -> flag.code
-  , ranges = []
-  }
+  case suggestedFlagParts flag of
+    ( True, False ) ->
+      { replacement = ""
+      , swatches = [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
+      , ranges = [ flag.name ]
+      }
+    ( False, True ) ->
+      { replacement = ""
+      , swatches =
+          [ Swatch
+              (if flag.flag == Nothing then "#000000" else "#c00000")
+              "#ffffff"
+              flag.cleanValue
+          ]
+      , ranges = [ flag.value ]
+      }
+    _ ->
+      { replacement = ""
+      , swatches =
+          if String.startsWith "#" flag.cleanValue then
+            [ Swatch "#0000ff" "#ffffff" flag.cleanName
+            , Swatch "#000000" "#ffffff" " "
+            , Swatch "#008000" "#ffffff" flag.cleanValue
+            ]
+          else if flag.flag == Nothing then
+            [ Swatch "#0000ff" "#ffffff" flag.cleanName
+            , Swatch "#000000" "#ffffff" (" " ++ flag.cleanValue)
+            ]
+          else
+            [ Swatch "#0000ff" "#ffffff" flag.cleanName
+            , Swatch "#000000" "#ffffff" " "
+            , Swatch "#c00000" "#ffffff" flag.cleanValue
+            ]
+      , ranges = [ flag.code ]
+      }
 
 flagRange : ParsedFlag -> Substring
 flagRange flag =

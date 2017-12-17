@@ -2,7 +2,6 @@ module ChordParser exposing
   (IdChord, Model, init, update, view, getChords, getSuggestions)
 
 import CachedChord exposing (CachedChord)
-import Chord
 import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
@@ -81,11 +80,11 @@ splitListHelp pred xs =
     [] ->
       ( [], [] )
 
-getSuggestions : Model -> List Suggestion
-getSuggestions model =
+getSuggestions : Int -> Model -> List Suggestion
+getSuggestions key model =
   SuggestionMerge.mergeSuggestions
     wordReplacement
-    wordSuggestion
+    (wordSuggestion key)
     .substring
     model.words
 
@@ -97,33 +96,20 @@ wordReplacement word =
       if word.substring.s == chord.cache.codeName then Nothing
       else Just chord.cache.codeName
 
-wordSuggestion : Word -> Suggestion
-wordSuggestion word =
+wordSuggestion : Int -> Word -> Suggestion
+wordSuggestion key word =
   case word.chord of
     Nothing ->
-      { replacement = ""
-      , swatchLists = ( [], [], [] )
-      , firstRange = word.substring
-      , ranges = []
-      }
+      { replacement = "", swatches = [], ranges = [] }
     Just { cache } ->
       { replacement = cache.codeName
-      , swatchLists =
-          let
-            ( a, b, c ) = cache.flavor.bg
-          in let
-            ( d, e, f ) =
-              case Chord.get cache.chord cache.i % 3 of
-                0 -> ( a, b, c )
-                1 -> ( b, c, a )
-                _ -> ( c, a, b )
-          in
-            ( [ Swatch cache.flavor.fg d cache.codeName ]
-            , [ Swatch cache.flavor.fg e cache.codeName ]
-            , [ Swatch cache.flavor.fg f cache.codeName ]
-            )
-      , firstRange = word.substring
-      , ranges = []
+      , swatches =
+          [ Swatch
+              (CachedChord.fg cache)
+              (CachedChord.bg key cache)
+              cache.codeName
+          ]
+      , ranges = [ word.substring ]
       }
 
 parseChord : Substring -> ( List Word, Int ) -> ( List Word, Int )
