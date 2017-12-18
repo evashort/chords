@@ -13,7 +13,7 @@ import MainParser
 import Player exposing (Player, PlayStatus)
 import Selection exposing (Selection)
 import Substring exposing (Substring)
-import SuggestionBar
+import Suggestion exposing (Suggestion)
 
 import AnimationFrame
 import Array
@@ -24,6 +24,7 @@ import Html.Attributes exposing
 import Html.Events exposing (onClick, onInput, onFocus, onBlur)
 import Html.Lazy
 import Navigation exposing (Location)
+import Process
 import Task exposing (Task)
 import Time
 import Url
@@ -52,7 +53,8 @@ type alias Model =
   , chordBoxFocused : Bool
   , selection : Maybe Selection
   , chordBox : ChordBox
-  , suggestionBar : SuggestionBar.Model
+  , suggestionBar : SuggestionBar
+  , suggestionState : SuggestionState
   }
 
 type PlayStyle
@@ -73,6 +75,19 @@ type alias ChordBox =
   , focusedSelection : Maybe Selection
   }
 
+type alias SuggestionBar =
+  { modifierKey : String
+  , suggestions : List Suggestion
+  , focusedNoBubble : Bool
+  }
+
+type alias SuggestionState =
+  { lenses : List Suggestion.Lens
+  , clipboard : String
+  , recentlyCopied : Maybe Suggestion.Id
+  , copyCount : Int
+  }
+
 init : Bool -> Location -> ( Model, Cmd Msg )
 init mac location =
   let
@@ -83,13 +98,9 @@ init mac location =
   in let
     key = 0
   in let
-    suggestions = MainParser.getSuggestions key parse
-  in let
     n = String.length text
   in let
     modifierKey = if mac then "⌘" else "Ctrl+"
-  in let
-    suggestionBar = SuggestionBar.init modifierKey suggestions
   in
     ( { player = { openings = [], schedule = [] }
       , history = { sequences = [], current = [] }
@@ -108,11 +119,20 @@ init mac location =
           { modifierKey = modifierKey
           , text = text
           , parse = parse
-          , highlightRanges =
-              SuggestionBar.highlightRanges suggestionBar
+          , highlightRanges = []
           , focusedSelection = Nothing
           }
-      , suggestionBar = suggestionBar
+      , suggestionBar =
+          { modifierKey = modifierKey
+          , suggestions = MainParser.getSuggestions key parse
+          , focusedNoBubble = True
+          }
+      , suggestionState =
+          { lenses = []
+          , clipboard = ""
+          , recentlyCopied = Nothing
+          , copyCount = 0
+          }
       }
     , Selection.set { start = n, stop = n }
     )
@@ -144,7 +164,8 @@ type Msg
   | CheckSelection
   | ReceivedSelection Selection
   | ChordBoxFocused Bool
-  | SuggestionBarMsg SuggestionBar.Msg
+  | SuggestionMsg Suggestion.Msg
+  | RemoveCopied Int
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -244,20 +265,25 @@ update msg model =
       )
 
     SetKey keyString ->
-      case String.toInt keyString of
-        Ok key ->
-          let
-            chordLens = model.chordLens
-          in let
-            suggestions = MainParser.getSuggestions key model.chordBox.parse
-          in
-            updateSuggestionBar
-              (SuggestionBar.SuggestionsChanged suggestions)
+      ( case String.toInt keyString of
+          Ok key ->
+            let
+              chordLens = model.chordLens
+            in let
+              suggestionBar = model.suggestionBar
+            in
               { model
               | chordLens = { chordLens | key = key }
+              , suggestionBar =
+                  { suggestionBar
+                  | suggestions =
+                      MainParser.getSuggestions key model.chordBox.parse
+                  }
               }
-              []
-        Err _ -> ( model, Cmd.none )
+          Err _ ->
+            model
+      , Cmd.none
+      )
 
     FocusHorizontal ( forwards, id ) ->
       case
@@ -296,46 +322,21 @@ update msg model =
               ( model, focusById (toString chord.id) )
 
     TextEdited newText ->
-      let
-        chordBox = model.chordBox
-      in let
-        parse = MainParser.update (Substring 0 newText) chordBox.parse
-      in let
-        suggestions = MainParser.getSuggestions model.chordLens.key parse
-      in
-        updateSuggestionBar
-          (SuggestionBar.SuggestionsChanged suggestions)
-          { model
-          | chordBox =
-              { chordBox | text = newText, parse = parse }
-          , home = False
-          }
-          [ if model.home then
-              Navigation.newUrl
-                ("#text=" ++ Url.percentEncode newText)
-            else
-              Navigation.modifyUrl
-                ("#text=" ++ Url.percentEncode newText)
-          ]
+      ( updateChordBoxText newText { model | home = False }
+      , if model.home then
+          Navigation.newUrl
+            ("#text=" ++ Url.percentEncode newText)
+        else
+          Navigation.modifyUrl
+            ("#text=" ++ Url.percentEncode newText)
+      )
 
     UrlChange location ->
       let newText = textFromLocation location in
         if newText /= model.chordBox.text then
-          let
-            chordBox = model.chordBox
-          in let
-            parse = MainParser.update (Substring 0 newText) chordBox.parse
-          in let
-            suggestions = MainParser.getSuggestions model.chordLens.key parse
-          in
-            updateSuggestionBar
-              (SuggestionBar.SuggestionsChanged suggestions)
-              { model
-              | chordBox =
-                  { chordBox | text = newText, parse = parse }
-              , home = True
-              }
-              [ setChordBoxText newText ]
+          ( updateChordBoxText newText { model | home = True }
+          , setChordBoxText newText
+          )
         else
           ( model, Cmd.none )
 
@@ -344,46 +345,132 @@ update msg model =
 
     ReceivedSelection selection ->
       let
-        landingPadSelected =
-          List.member
-            selection
-            (SuggestionBar.landingPads model.suggestionBar)
-      in let
         modelSelection =
-          if landingPadSelected then Just selection else Nothing
+          if
+            List.any
+              (canReplace model.suggestionState.clipboard selection)
+              model.suggestionBar.suggestions
+          then
+            Just selection
+          else
+            Nothing
       in
-        if modelSelection == model.selection then
-          ( model, Cmd.none )
-        else
-          updateSuggestionBar
-            (SuggestionBar.LandingPadSelected landingPadSelected)
-            ( updateFocusedSelection
-                { model | selection = modelSelection }
-            )
-            []
+        ( if modelSelection == model.selection then
+            model
+          else
+            (updateFocusedNoBubble << updateFocusedSelection)
+              { model | selection = modelSelection }
+        , Cmd.none
+        )
 
     ChordBoxFocused chordBoxFocused ->
-      updateSuggestionBar
-        (SuggestionBar.ChordBoxFocused chordBoxFocused)
-        ( updateFocusedSelection
+      ( if chordBoxFocused == model.chordBoxFocused then
+          model
+        else
+          (updateFocusedNoBubble << updateFocusedSelection)
             { model
             | chordBoxFocused = chordBoxFocused
             , subscribeToSelection =
                 model.subscribeToSelection || chordBoxFocused
             }
-        )
-        []
+      , Cmd.none
+      )
 
-    SuggestionBarMsg msg ->
-      updateSuggestionBar msg model []
+    SuggestionMsg (Suggestion.AddLens lens) ->
+      ( let
+          suggestionState = model.suggestionState
+        in
+          updateHighlightRanges
+            { model
+            | suggestionState =
+                { suggestionState
+                | lenses =
+                    lens ::
+                      List.filter
+                        ((/=) lens.hover << .hover)
+                        suggestionState.lenses
+                }
+            }
+      , Cmd.none
+      )
+
+    SuggestionMsg (Suggestion.RemoveLens hover) ->
+      ( let
+          suggestionState = model.suggestionState
+        in
+          updateHighlightRanges
+            { model
+            | suggestionState =
+                { suggestionState
+                | lenses =
+                    List.filter
+                      ((/=) hover << .hover)
+                      suggestionState.lenses
+                }
+            }
+      , Cmd.none
+      )
+
+    SuggestionMsg (Suggestion.Copied id) ->
+      case getSuggestionById model id of
+        Nothing ->
+          ( model, Cmd.none )
+        Just suggestion ->
+          let
+            suggestionState = model.suggestionState
+          in let
+            copyCount = suggestionState.copyCount + 1
+          in
+            ( { model
+              | suggestionState =
+                  { suggestionState
+                  | clipboard = suggestion.replacement
+                  , recentlyCopied = Just id
+                  , copyCount = copyCount
+                  }
+              }
+            , let
+                removeCopied =
+                  Task.perform
+                    (always (RemoveCopied copyCount))
+                    (Process.sleep (1 * Time.second))
+              in
+                case List.reverse suggestion.ranges of
+                  [] ->
+                    removeCopied
+                  range :: _ ->
+                    Cmd.batch
+                      [ Selection.set (Selection.fromSubstring range)
+                      , removeCopied
+                      ]
+            )
+
+    RemoveCopied oldCopyCount ->
+      ( let suggestionState = model.suggestionState in
+          if oldCopyCount < suggestionState.copyCount then
+            model
+          else
+            { model
+            | suggestionState =
+                { suggestionState | recentlyCopied = Nothing }
+            }
+      , Cmd.none
+      )
+
+canReplace : String -> Selection -> Suggestion -> Bool
+canReplace clipboard selection suggestion =
+  suggestion.replacement == clipboard &&
+    List.member
+      selection
+      (List.map Selection.fromSubstring suggestion.ranges)
 
 updateFocusedSelection : Model -> Model
 updateFocusedSelection model =
   let
+    chordBox = model.chordBox
+  in let
     focusedSelection =
       if model.chordBoxFocused then model.selection else Nothing
-  in let
-    chordBox = model.chordBox
   in
     if chordBox.focusedSelection == focusedSelection then
       model
@@ -393,30 +480,119 @@ updateFocusedSelection model =
           { chordBox | focusedSelection = focusedSelection }
       }
 
-updateSuggestionBar :
-  SuggestionBar.Msg -> Model -> List (Cmd Msg) -> ( Model, Cmd Msg )
-updateSuggestionBar msg model cmds =
+updateFocusedNoBubble : Model -> Model
+updateFocusedNoBubble model =
   let
-    ( suggestionBar, suggestionBarCmd ) =
-      SuggestionBar.update msg model.suggestionBar
+    suggestionBar = model.suggestionBar
   in let
-    highlightRanges = SuggestionBar.highlightRanges suggestionBar
-  in let
-    chordBox = model.chordBox
+    focusedNoBubble =
+      model.chordBoxFocused && model.selection == Nothing
   in
-    ( { model
-      | chordBox =
-          if highlightRanges /= chordBox.highlightRanges then
-            { chordBox | highlightRanges = highlightRanges }
-          else
-            chordBox
-      , suggestionBar = suggestionBar
+    if suggestionBar.focusedNoBubble == focusedNoBubble then
+      model
+    else
+      { model
+      | suggestionBar =
+          { suggestionBar | focusedNoBubble = focusedNoBubble }
       }
-    , if List.isEmpty cmds then
-        Cmd.map SuggestionBarMsg suggestionBarCmd
+
+updateChordBoxText : String -> Model -> Model
+updateChordBoxText newText model =
+  let
+    chordBox = model.chordBox
+  in let
+    suggestionBar = model.suggestionBar
+  in let
+    suggestionState = model.suggestionState
+  in let
+    parse = MainParser.update (Substring 0 newText) chordBox.parse
+  in let
+    suggestions = MainParser.getSuggestions model.chordLens.key parse
+  in let
+    sameReplacement =
+      countSharedReplacements suggestions suggestionBar.suggestions
+  in let
+    samePosition =
+      min (sameReplacement + 1) (List.length suggestions)
+  in
+    updateHighlightRanges
+      { model
+      | selection = Nothing
+      , chordBox =
+          { chordBox
+          | text = newText
+          , parse = parse
+          , focusedSelection = Nothing
+          }
+      , suggestionBar =
+          { suggestionBar
+          | suggestions = suggestions
+          , focusedNoBubble = model.chordBoxFocused
+          }
+      , suggestionState =
+          { suggestionState
+          | lenses =
+              List.filterMap
+                (keepFirstN samePosition (List.length suggestions))
+                suggestionState.lenses
+          , recentlyCopied =
+              case suggestionState.recentlyCopied of
+                Just (Suggestion.IndexId i) ->
+                  if i < sameReplacement then suggestionState.recentlyCopied
+                  else Nothing
+                _ -> suggestionState.recentlyCopied
+          }
+      }
+
+countSharedReplacements : List Suggestion -> List Suggestion -> Int
+countSharedReplacements xs ys =
+  case ( xs, ys ) of
+    ( x :: xRest, y :: yRest ) ->
+      if x.replacement == y.replacement then
+        1 + countSharedReplacements xRest yRest
       else
-        Cmd.batch (Cmd.map SuggestionBarMsg suggestionBarCmd :: cmds)
-    )
+        0
+    _ ->
+      0
+
+keepFirstN : Int -> Int -> Suggestion.Lens -> Maybe Suggestion.Lens
+keepFirstN hoverCount focusCount lens =
+  case lens.id of
+    Suggestion.StringId _ ->
+      Just lens
+    Suggestion.IndexId i ->
+      if i < (if lens.hover then hoverCount else focusCount) then
+        Just lens
+      else
+        Nothing
+
+updateHighlightRanges : Model -> Model
+updateHighlightRanges model =
+  let
+    chordBox = model.chordBox
+  in let
+    highlightRanges =
+      case model.suggestionState.lenses of
+        [] -> []
+        lens :: _ ->
+          case getSuggestionById model lens.id of
+            Nothing -> []
+            Just suggestion -> suggestion.ranges
+  in
+    if highlightRanges == chordBox.highlightRanges then
+      model
+    else
+      { model
+      | chordBox = { chordBox | highlightRanges = highlightRanges }
+      }
+
+getSuggestionById : Model -> Suggestion.Id -> Maybe Suggestion
+getSuggestionById model id =
+  case id of
+    Suggestion.IndexId i ->
+      List.head (List.drop i model.suggestionBar.suggestions)
+    _ ->
+      Nothing
 
 notBeforeTrue : (a -> Bool) -> List a -> List a
 notBeforeTrue pred xs =
@@ -484,7 +660,8 @@ view model =
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
     , Html.Lazy.lazy viewKey model.chordLens.key
     , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
-    , Html.Lazy.lazy viewSuggestionBar model.suggestionBar
+    , Html.Lazy.lazy2
+        viewSuggestionBar model.suggestionBar model.suggestionState
     , Html.Lazy.lazy3
         viewChordArea model.chordLens model.player model.chordBox.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
@@ -783,9 +960,82 @@ getLayers key chordBox =
     ]
   ]
 
-viewSuggestionBar : SuggestionBar.Model -> Html Msg
-viewSuggestionBar suggestionBar =
-  Html.map SuggestionBarMsg (SuggestionBar.view suggestionBar)
+viewSuggestionBar : SuggestionBar -> SuggestionState -> Html Msg
+viewSuggestionBar suggestionBar suggestionState =
+  if List.isEmpty suggestionBar.suggestions then
+    div [] []
+  else
+    div
+      [ style
+          [ ( "margin-top", "3px" )
+          , ( "width", "500px" )
+          , ( "display", "flex" )
+          , ( "align-items", "flex-start" )
+          ]
+      ]
+      ( List.concat
+          [ List.indexedMap
+              ( viewSuggestion
+                  ( case suggestionState.recentlyCopied of
+                      Just (Suggestion.IndexId i) -> i
+                      _ -> -1
+                  )
+
+              )
+              suggestionBar.suggestions
+          , [ span
+                [ style
+                    [ ( "line-height", "1.28em" )
+                    , ( "min-height", "2.56em" )
+                    , ( "margin-left", "2px" )
+                    ]
+                ]
+                [ text (getInstructions suggestionBar suggestionState) ]
+            ]
+          ]
+      )
+
+viewSuggestion : Int -> Int -> Suggestion -> Html Msg
+viewSuggestion recentlyCopied index suggestion =
+  Html.map
+    SuggestionMsg
+    ( Suggestion.view
+        (index == recentlyCopied)
+        (Suggestion.IndexId index)
+        suggestion
+    )
+
+getInstructions : SuggestionBar -> SuggestionState -> String
+getInstructions suggestionBar suggestionState =
+  case suggestionBar.suggestions of
+    [ suggestion ] ->
+      if
+        List.member
+          (String.concat (List.map lensName suggestionState.lenses))
+          [ "hifi", "fi", "fihs" ]
+      then
+        "Space to copy or Shift-Tab to go back"
+      else if
+        suggestionBar.focusedNoBubble
+      then
+        String.concat
+          [ "Keyboard shortcut: Tab and then Space to copy the suggested replacement, then "
+          , suggestionBar.modifierKey
+          , "V to paste over selected text"
+          ]
+      else
+        ""
+    _ ->
+      ""
+
+lensName : Suggestion.Lens -> String
+lensName lens =
+  String.concat
+    [ if lens.hover then "h" else "f"
+    , case lens.id of
+        Suggestion.IndexId _ -> "i"
+        Suggestion.StringId _ -> "s"
+    ]
 
 viewChordArea : ChordLens -> Player -> MainParser.Model -> Html Msg
 viewChordArea chordLens player parse =
