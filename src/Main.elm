@@ -411,39 +411,35 @@ update msg model =
       , Cmd.none
       )
 
-    SuggestionMsg (Suggestion.Copied id) ->
-      case getSuggestionById model id of
-        Nothing ->
-          ( model, Cmd.none )
-        Just suggestion ->
-          let
-            suggestionState = model.suggestionState
-          in let
-            copyCount = suggestionState.copyCount + 1
-          in
-            ( { model
-              | suggestionState =
-                  { suggestionState
-                  | clipboard = suggestion.replacement
-                  , recentlyCopied = Just id
-                  , copyCount = copyCount
-                  }
+    SuggestionMsg (Suggestion.Copied ( id, replacement )) ->
+      let
+        suggestionState = model.suggestionState
+      in let
+        copyCount = suggestionState.copyCount + 1
+      in
+        ( { model
+          | suggestionState =
+              { suggestionState
+              | clipboard = replacement
+              , recentlyCopied = Just id
+              , copyCount = copyCount
               }
-            , let
-                removeCopied =
-                  Task.perform
-                    (always (RemoveCopied copyCount))
-                    (Process.sleep (1 * Time.second))
-              in
-                case List.reverse suggestion.ranges of
-                  [] ->
-                    removeCopied
-                  range :: _ ->
-                    Cmd.batch
-                      [ Selection.set (Selection.fromSubstring range)
-                      , removeCopied
-                      ]
-            )
+          }
+        , let
+            removeCopied =
+              Task.perform
+                (always (RemoveCopied copyCount))
+                (Process.sleep (1 * Time.second))
+          in
+            case List.reverse (getRangesById model id) of
+              [] ->
+                removeCopied
+              range :: _ ->
+                Cmd.batch
+                  [ Selection.set (Selection.fromSubstring range)
+                  , removeCopied
+                  ]
+        )
 
     RemoveCopied oldCopyCount ->
       ( let suggestionState = model.suggestionState in
@@ -574,10 +570,7 @@ updateHighlightRanges model =
     highlightRanges =
       case model.suggestionState.lenses of
         [] -> []
-        lens :: _ ->
-          case getSuggestionById model lens.id of
-            Nothing -> []
-            Just suggestion -> suggestion.ranges
+        lens :: _ -> getRangesById model lens.id
   in
     if highlightRanges == chordBox.highlightRanges then
       model
@@ -586,13 +579,15 @@ updateHighlightRanges model =
       | chordBox = { chordBox | highlightRanges = highlightRanges }
       }
 
-getSuggestionById : Model -> Suggestion.Id -> Maybe Suggestion
-getSuggestionById model id =
+getRangesById : Model -> Suggestion.Id -> List Substring
+getRangesById model id =
   case id of
     Suggestion.IndexId i ->
-      List.head (List.drop i model.suggestionBar.suggestions)
+      case List.drop i model.suggestionBar.suggestions of
+        suggestion :: _ -> suggestion.ranges
+        [] -> []
     _ ->
-      Nothing
+      []
 
 notBeforeTrue : (a -> Bool) -> List a -> List a
 notBeforeTrue pred xs =

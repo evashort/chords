@@ -17,7 +17,7 @@ type alias Suggestion =
 type Msg
   = AddLens Lens
   | RemoveLens Bool
-  | Copied Id
+  | Copied ( Id, String )
 
 type Id
   = IndexId Int
@@ -87,7 +87,7 @@ view recentlyCopied suggestionId suggestion =
           , onMouseLeave (RemoveLens True)
           , onFocus (AddLens (Lens False suggestionId))
           , onBlur (RemoveLens False)
-          , onClick (Copied suggestionId)
+          , onClick (Copied ( suggestionId, suggestion.replacement ))
           , class "pressMe"
           , style
               [ ( "padding", "0px 3px" )
