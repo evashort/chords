@@ -116,7 +116,7 @@ parse whole =
         Nothing ->
           ( 0, Substring 0 "" ) -- C major is the default
         Just flag ->
-          ( case flag.flag of
+          ( case ParsedFlag.officialFlag flag of
               Just (KeyFlag k) -> k
               _ -> 0
           , flag.code

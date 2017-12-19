@@ -1,5 +1,5 @@
 module ParsedFlag exposing
-  (ParsedFlag, view, getSuggestion, fromCode, isOfficial, canon)
+  (ParsedFlag, view, getSuggestion, fromCode, isOfficial, officialFlag, canon)
 
 import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
@@ -138,6 +138,10 @@ isOfficial maybeFlag =
   case maybeFlag of
     Nothing -> False
     Just flag -> goodName flag
+
+officialFlag : ParsedFlag -> Maybe Flag
+officialFlag flag =
+  if flag.value.s == flag.cleanValue then flag.flag else Nothing
 
 canon : List ParsedFlag -> Dict String ParsedFlag
 canon flags =
