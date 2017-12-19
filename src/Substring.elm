@@ -1,4 +1,5 @@
-module Substring exposing (Substring, stop, dropLeft, before, after, find)
+module Substring exposing
+  (Substring, stop, range, left, right, dropLeft, dropRight, after, find)
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -11,14 +12,27 @@ stop : Substring -> Int
 stop { i, s } =
   i + String.length s
 
+range : Substring -> ( Int, Int )
+range { i, s } =
+  ( i, i + String.length s )
+
+left : Int -> Substring -> Substring
+left n { i, s } =
+  { i = i, s = String.left n s }
+
+right : Int -> Substring -> Substring
+right n substring =
+  let s = String.right n substring.s in
+    { i = stop substring - String.length s, s = s }
+
 dropLeft : Int -> Substring -> Substring
 dropLeft n substring =
   let s = String.dropLeft n substring.s in
     { i = stop substring - String.length s, s = s }
 
-before : Int -> Substring -> Substring
-before x { i, s } =
-  { i = i, s = String.left (x - i) s }
+dropRight : Int -> Substring -> Substring
+dropRight n { i, s } =
+  { i = i, s = String.dropRight n s }
 
 after : Int -> Substring -> Substring
 after x substring =

@@ -1,10 +1,4 @@
-port module Selection exposing ( fromSubstring, set, check, receive )
-
-import Substring exposing (Substring)
-
-fromSubstring : Substring -> ( Int, Int )
-fromSubstring substring =
-  ( substring.i, Substring.stop substring )
+port module Selection exposing ( set, check, receive )
 
 set : ( Int, Int ) -> Cmd msg
 set = setSelection

@@ -163,7 +163,7 @@ parse whole =
   let
     lineResults =
       List.map
-        parseLine
+        parseTerminatedLine
         (Substring.find All (Regex.regex ".*\n?") whole)
   in let
     chordArea =
@@ -229,6 +229,28 @@ type alias ParsedFlag =
   , nextLineStart : Int
   }
 
+parseTerminatedLine : Substring -> LineResult
+parseTerminatedLine linen =
+  if String.endsWith "\n" linen.s then
+    let
+      result = parseLine (Substring.dropRight 1 linen)
+    in let
+      wordsFixed =
+        if List.isEmpty result.words then
+          result
+        else
+          { result | words = result.words ++ [ Substring.right 1 linen ] }
+    in
+      case wordsFixed.flag of
+        Nothing ->
+          wordsFixed
+        Just flag ->
+          { wordsFixed
+          | flag = Just { flag | nextLineStart = Substring.stop linen }
+          }
+  else
+    parseLine linen
+
 parseLine : Substring -> LineResult
 parseLine line =
   case Substring.find (AtMost 1) (Regex.regex "^#.*") line of
@@ -249,12 +271,12 @@ parseLine line =
       in let
         codeAndSpace =
           case comment of
-            Just c -> Substring.before c.i line
+            Just c -> Substring.dropRight (String.length c.s) line
             Nothing -> line
       in let
         code =
           case
-            Substring.find (AtMost 1) (Regex.regex "^.*[^ \n]") codeAndSpace
+            Substring.find (AtMost 1) (Regex.regex "^.*[^ ]") codeAndSpace
           of
             x :: _ -> x
             [] -> { codeAndSpace | s = "" }
@@ -267,35 +289,17 @@ parseLine line =
             , indent = Just indent
             }
           [] ->
-            let
-              nextLineStart =
-                if String.endsWith "\n" line.s then
-                  Substring.stop line
-                else
-                  0
-            in let
-              flag = parseFlag nextLineStart code
-            in
+            let flag = parseFlag code in
               { words =
-                  if nameHighlighted flag then
-                    []
-                  else
-                    let
-                      normalWords =
-                        Substring.find All (Regex.regex "[^ \n]+") code
-                    in
-                      if normalWords == [] then
-                        []
-                      else
-                        normalWords ++
-                          Substring.find (AtMost 1) (Regex.regex "\n$") line
+                  if nameHighlighted flag then []
+                  else Substring.find All (Regex.regex "[^ ]+") code
               , flag = flag
               , comment = comment
               , indent = Nothing
               }
 
-parseFlag : Int -> Substring -> Maybe ParsedFlag
-parseFlag nextLineStart code =
+parseFlag : Substring -> Maybe ParsedFlag
+parseFlag code =
   case
     Substring.find (AtMost 1) (Regex.regex "^[a-zA-Z]+ *: *") code
   of
@@ -344,5 +348,5 @@ parseFlag nextLineStart code =
                       Nothing -> value.s
                       Just x -> Flag.codeValue x
                 , code = code
-                , nextLineStart = nextLineStart
+                , nextLineStart = 0
                 }

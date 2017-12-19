@@ -436,7 +436,7 @@ update msg model =
                 removeCopied
               range :: _ ->
                 Cmd.batch
-                  [ Selection.set (Selection.fromSubstring range)
+                  [ Selection.set (Substring.range range)
                   , removeCopied
                   ]
         )
@@ -458,7 +458,7 @@ canReplace clipboard selection suggestion =
   suggestion.replacement == clipboard &&
     List.member
       selection
-      (List.map Selection.fromSubstring suggestion.ranges)
+      (List.map Substring.range suggestion.ranges)
 
 updateFocusedSelection : Model -> Model
 updateFocusedSelection model =
