@@ -6,9 +6,11 @@ import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
-import SuggestionMerge
 import Swatch exposing (Swatch)
 import Zipper
+
+import Dict exposing (Dict)
+import Set exposing (Set)
 
 type alias IdChord =
   { id : Int
@@ -80,37 +82,25 @@ splitListHelp pred xs =
     [] ->
       ( [], [] )
 
-getSuggestions : Int -> Model -> List Suggestion
+getSuggestions :
+  Int -> Model -> ( List Suggestion, Dict String (Set ( Int, Int )) )
 getSuggestions key model =
-  SuggestionMerge.mergeSuggestions
-    wordReplacement
-    (wordSuggestion key)
-    .substring
-    model.words
+  let
+    suggestions =
+      Suggestion.groupByReplacement
+        (List.filterMap (getSuggestion key) model.words)
+  in
+    ( Dict.values suggestions
+    , Dict.map (always Suggestion.rangeSet) suggestions
+    )
 
-wordReplacement : Word -> Maybe String
-wordReplacement word =
+getSuggestion : Int -> Word -> Maybe ( List Swatch, Substring )
+getSuggestion key word =
   case word.chord of
     Nothing -> Nothing
-    Just chord ->
-      if word.substring.s == chord.cache.codeName then Nothing
-      else Just chord.cache.codeName
-
-wordSuggestion : Int -> Word -> Suggestion
-wordSuggestion key word =
-  case word.chord of
-    Nothing ->
-      { replacement = "", swatches = [], ranges = [] }
     Just { cache } ->
-      { replacement = cache.codeName
-      , swatches =
-          [ Swatch
-              (CachedChord.fg cache)
-              (CachedChord.bg key cache)
-              cache.codeName
-          ]
-      , ranges = [ word.substring ]
-      }
+      if word.substring.s == cache.codeName then Nothing
+      else Just ( [ CachedChord.swatch key cache ], word.substring )
 
 parseChord : Substring -> ( List Word, Int ) -> ( List Word, Int )
 parseChord substring ( rest, nextId ) =

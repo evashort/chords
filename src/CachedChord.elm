@@ -1,11 +1,12 @@
 module CachedChord exposing
-  ( CachedChord, fg, bg, borderOpacity, shineOpacity, view, fromChord
+  ( CachedChord, fg, bg, swatch, borderOpacity, shineOpacity, view, fromChord
   , transposeRootOctave
   )
 
 import Chord exposing (Chord)
 import Flavor exposing (Flavor)
 import StaffMap exposing (StaffMap)
+import Swatch exposing (Swatch)
 
 import Html exposing (Html, text, sup, sub)
 
@@ -57,6 +58,10 @@ bg key x =
       0 -> a
       1 -> b
       _ -> c
+
+swatch : Int -> CachedChord -> Swatch
+swatch key cache =
+  { fg = fg cache, bg = bg key cache, s = cache.codeName }
 
 borderOpacity : CachedChord -> String
 borderOpacity x =

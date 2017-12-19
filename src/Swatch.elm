@@ -1,4 +1,4 @@
-module Swatch exposing (Swatch, view)
+module Swatch exposing (Swatch, concat, view)
 
 import Html exposing (Html, mark, text)
 import Html.Attributes exposing (style)
@@ -8,6 +8,9 @@ type alias Swatch =
   , bg : String
   , s : String
   }
+
+concat : List Swatch -> String
+concat = String.concat << List.map .s
 
 view : Swatch -> Html msg
 view swatch =

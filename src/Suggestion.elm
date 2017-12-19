@@ -1,16 +1,20 @@
-module Suggestion exposing (Suggestion, Msg(..), Id(..), Lens, view)
+module Suggestion exposing
+  ( Suggestion, Msg(..), Id(..), Lens
+  , view, rangeSet, sort, groupByReplacement
+  )
 
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
 
+import Dict exposing (Dict)
 import Html exposing (Html, span, button, mark, text, textarea, pre)
 import Html.Attributes exposing (style, attribute, class, id, readonly)
 import Html.Events exposing
   (onMouseEnter, onMouseLeave, onFocus, onBlur, onClick)
+import Set exposing (Set)
 
 type alias Suggestion =
-  { replacement : String
-  , swatches : List Swatch
+  { swatches : List Swatch
   , ranges : List Substring
   }
 
@@ -28,13 +32,15 @@ type alias Lens =
   , id : Id
   }
 
-view : Bool -> Id -> Suggestion -> Html Msg
-view recentlyCopied suggestionId suggestion =
+view : Bool -> Id -> List Swatch -> Html Msg
+view recentlyCopied suggestionId swatches =
   let
     idString =
       case suggestionId of
         IndexId i -> "suggestion" ++ toString i
         StringId s -> s ++ "Suggestion"
+  in let
+    replacement = Swatch.concat swatches
   in
     span
       [ style
@@ -87,7 +93,7 @@ view recentlyCopied suggestionId suggestion =
           , onMouseLeave (RemoveLens True)
           , onFocus (AddLens (Lens False suggestionId))
           , onBlur (RemoveLens False)
-          , onClick (Copied ( suggestionId, suggestion.replacement ))
+          , onClick (Copied ( suggestionId, replacement ))
           , class "pressMe"
           , style
               [ ( "padding", "0px 3px" )
@@ -125,7 +131,7 @@ view recentlyCopied suggestionId suggestion =
                   , ( "background", "transparent" )
                   ]
               ]
-              [ text suggestion.replacement ]
+              [ text replacement ]
           , pre
               [ style
                   [ ( "font", "inherit" )
@@ -137,6 +143,41 @@ view recentlyCopied suggestionId suggestion =
                   , ( "color", "transparent" )
                   ]
               ]
-              (List.map Swatch.view suggestion.swatches)
+              (List.map Swatch.view swatches)
           ]
       ]
+
+rangeSet : Suggestion -> Set ( Int, Int )
+rangeSet suggestion =
+  Set.fromList (List.map Substring.range suggestion.ranges)
+
+sort : List Suggestion -> List Suggestion
+sort = List.sortBy (List.map .i << .ranges)
+
+groupByReplacement :
+  List ( List Swatch, Substring ) -> Dict String Suggestion
+groupByReplacement suggestions =
+  Dict.map (always reverseRanges) (groupByReplacementHelp suggestions)
+
+reverseRanges : Suggestion -> Suggestion
+reverseRanges suggestion =
+  { suggestion | ranges = List.reverse suggestion.ranges }
+
+groupByReplacementHelp :
+  List ( List Swatch, Substring ) -> Dict String Suggestion
+groupByReplacementHelp suggestions =
+  case suggestions of
+    [] -> Dict.empty
+    ( swatches, range ) :: rest ->
+      Dict.update
+        (Swatch.concat swatches)
+        (addRange swatches range)
+        (groupByReplacementHelp rest)
+
+addRange : List Swatch -> Substring -> Maybe Suggestion -> Maybe Suggestion
+addRange swatches range suggestion =
+  case suggestion of
+    Nothing ->
+      Just { swatches = swatches, ranges = [ range ] }
+    Just suggestion ->
+      Just { suggestion | ranges = range :: suggestion.ranges }

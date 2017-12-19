@@ -6,10 +6,11 @@ import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
-import SuggestionMerge
 import Swatch exposing (Swatch)
 
+import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..), Match)
+import Set exposing (Set)
 
 type alias Model =
   { chordModel : ChordParser.Model
@@ -78,50 +79,57 @@ viewFlag key flag =
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
 
-getSuggestions : Int -> Model -> List Suggestion
+getSuggestions :
+  Int -> Model -> ( List Suggestion, Dict String (Set ( Int, Int )) )
 getSuggestions key model =
-  List.sortBy
-    (Maybe.withDefault -1 << List.minimum << List.map .i << .ranges)
-    ( List.concat
-        [ ChordParser.getSuggestions key model.chordModel
-        , SuggestionMerge.mergeSuggestions
-            flagReplacement
-            flagSuggestion
-            flagRange
-            model.flags
-        ]
+  let
+    flagSuggestions =
+      Suggestion.groupByReplacement
+        (List.filterMap getSuggestion model.flags)
+  in let
+    flagRangeSets =
+      Dict.map (always Suggestion.rangeSet) flagSuggestions
+  in let
+    ( chordSuggestions, chordRangeSets ) =
+      ChordParser.getSuggestions key model.chordModel
+  in
+    ( Suggestion.sort
+        (Dict.values flagSuggestions ++ chordSuggestions)
+    , Dict.merge
+        Dict.insert insertUnion Dict.insert
+        flagRangeSets chordRangeSets
+        Dict.empty
     )
 
-flagReplacement : ParsedFlag -> Maybe String
-flagReplacement flag =
-  case suggestedFlagParts flag of
-    ( False, False ) -> Nothing
-    ( True, False ) -> Just flag.cleanName
-    ( False, True ) -> Just flag.cleanValue
-    ( True, True ) -> Just (flag.cleanName ++ " " ++ flag.cleanValue)
+insertUnion :
+  comparable1 -> Set comparable2 -> Set comparable2 ->
+    Dict comparable1 (Set comparable2) -> Dict comparable1 (Set comparable2)
+insertUnion k x y d =
+  Dict.insert k (Set.union x y) d
 
-flagSuggestion : ParsedFlag -> Suggestion
-flagSuggestion flag =
-  case suggestedFlagParts flag of
+getSuggestion : ParsedFlag -> Maybe ( List Swatch, Substring )
+getSuggestion flag =
+  case
+    ( flag.name.s /= flag.cleanName, flag.value.s /= flag.cleanValue )
+  of
+    ( False, False ) -> Nothing
     ( True, False ) ->
-      { replacement = ""
-      , swatches = [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
-      , ranges = [ flag.name ]
-      }
+      Just
+        ( [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
+        , flag.name
+        )
     ( False, True ) ->
-      { replacement = ""
-      , swatches =
-          [ Swatch
-              (if flag.flag == Nothing then "#000000" else "#c00000")
-              "#ffffff"
-              flag.cleanValue
+      Just
+        ( [ { fg = if flag.flag == Nothing then "#000000" else "#c00000"
+            , bg = "#ffffff"
+            , s = flag.cleanValue
+            }
           ]
-      , ranges = [ flag.value ]
-      }
-    _ ->
-      { replacement = ""
-      , swatches =
-          if String.startsWith "#" flag.cleanValue then
+        , flag.value
+        )
+    ( True, True ) ->
+      Just
+        ( if String.startsWith "#" flag.cleanValue then
             [ Swatch "#0000ff" "#ffffff" flag.cleanName
             , Swatch "#000000" "#ffffff" " "
             , Swatch "#008000" "#ffffff" flag.cleanValue
@@ -135,19 +143,8 @@ flagSuggestion flag =
             , Swatch "#000000" "#ffffff" " "
             , Swatch "#c00000" "#ffffff" flag.cleanValue
             ]
-      , ranges = [ flag.code ]
-      }
-
-flagRange : ParsedFlag -> Substring
-flagRange flag =
-  case suggestedFlagParts flag of
-    ( True, False ) -> flag.name
-    ( False, True ) -> flag.value
-    _ -> flag.code
-
-suggestedFlagParts : ParsedFlag -> ( Bool, Bool )
-suggestedFlagParts flag =
-  ( flag.name.s /= flag.cleanName, flag.value.s /= flag.cleanValue )
+        , flag.code
+        )
 
 type alias ParseResult =
   { words : List Substring

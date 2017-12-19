@@ -14,9 +14,11 @@ import Player exposing (Player, PlayStatus)
 import Selection
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import Swatch
 
 import AnimationFrame
 import Array
+import Dict exposing (Dict)
 import Html exposing
   (Html, a, button, div, pre, span, text, textarea, input, select, option)
 import Html.Attributes exposing
@@ -25,6 +27,7 @@ import Html.Events exposing (onClick, onInput, onFocus, onBlur)
 import Html.Lazy
 import Navigation exposing (Location)
 import Process
+import Set exposing (Set)
 import Task exposing (Task)
 import Time
 import Url
@@ -51,6 +54,7 @@ type alias Model =
   , home : Bool
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
+  , rangeSets : Dict String (Set ( Int, Int ))
   , selection : Maybe ( Int, Int )
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar
@@ -98,6 +102,8 @@ init mac location =
   in let
     key = 0
   in let
+    ( suggestions, rangeSets ) = MainParser.getSuggestions key parse
+  in let
     n = String.length text
   in let
     modifierKey = if mac then "⌘" else "Ctrl+"
@@ -114,6 +120,7 @@ init mac location =
       , home = True
       , subscribeToSelection = True
       , chordBoxFocused = True
+      , rangeSets = rangeSets
       , selection = Nothing
       , chordBox =
           { modifierKey = modifierKey
@@ -124,7 +131,7 @@ init mac location =
           }
       , suggestionBar =
           { modifierKey = modifierKey
-          , suggestions = MainParser.getSuggestions key parse
+          , suggestions = suggestions
           , focusedNoBubble = True
           }
       , suggestionState =
@@ -271,14 +278,14 @@ update msg model =
               chordLens = model.chordLens
             in let
               suggestionBar = model.suggestionBar
+            in let
+              ( suggestions, _ ) =
+                MainParser.getSuggestions key model.chordBox.parse
             in
               { model
               | chordLens = { chordLens | key = key }
               , suggestionBar =
-                  { suggestionBar
-                  | suggestions =
-                      MainParser.getSuggestions key model.chordBox.parse
-                  }
+                  { suggestionBar | suggestions = suggestions }
               }
           Err _ ->
             model
@@ -346,14 +353,11 @@ update msg model =
     ReceivedSelection selection ->
       let
         modelSelection =
-          if
-            List.any
-              (canReplace model.suggestionState.clipboard selection)
-              model.suggestionBar.suggestions
-          then
-            Just selection
-          else
-            Nothing
+          case Dict.get model.suggestionState.clipboard model.rangeSets of
+            Nothing -> Nothing
+            Just rangeSet ->
+              if Set.member selection rangeSet then Just selection
+              else Nothing
       in
         ( if modelSelection == model.selection then
             model
@@ -453,13 +457,6 @@ update msg model =
       , Cmd.none
       )
 
-canReplace : String -> ( Int, Int ) -> Suggestion -> Bool
-canReplace clipboard selection suggestion =
-  suggestion.replacement == clipboard &&
-    List.member
-      selection
-      (List.map Substring.range suggestion.ranges)
-
 updateFocusedSelection : Model -> Model
 updateFocusedSelection model =
   let
@@ -503,7 +500,8 @@ updateChordBoxText newText model =
   in let
     parse = MainParser.update (Substring 0 newText) chordBox.parse
   in let
-    suggestions = MainParser.getSuggestions model.chordLens.key parse
+    ( suggestions, rangeSets ) =
+      MainParser.getSuggestions model.chordLens.key parse
   in let
     sameReplacement =
       countSharedReplacements suggestions suggestionBar.suggestions
@@ -513,7 +511,8 @@ updateChordBoxText newText model =
   in
     updateHighlightRanges
       { model
-      | selection = Nothing
+      | rangeSets = rangeSets
+      , selection = Nothing
       , chordBox =
           { chordBox
           | text = newText
@@ -544,7 +543,7 @@ countSharedReplacements : List Suggestion -> List Suggestion -> Int
 countSharedReplacements xs ys =
   case ( xs, ys ) of
     ( x :: xRest, y :: yRest ) ->
-      if x.replacement == y.replacement then
+      if Swatch.concat x.swatches == Swatch.concat y.swatches then
         1 + countSharedReplacements xRest yRest
       else
         0
@@ -997,7 +996,7 @@ viewSuggestion recentlyCopied index suggestion =
     ( Suggestion.view
         (index == recentlyCopied)
         (Suggestion.IndexId index)
-        suggestion
+        suggestion.swatches
     )
 
 getInstructions : SuggestionBar -> SuggestionState -> String
