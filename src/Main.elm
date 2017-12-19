@@ -2,10 +2,10 @@ port module Main exposing (..)
 
 import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
+import BubbleSwatch
 import CachedChord
 import ChordParser exposing (IdChord)
 import CircleOfFifths
-import BubbleSwatch
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
@@ -22,7 +22,7 @@ import Dict exposing (Dict)
 import Html exposing
   (Html, a, button, div, pre, span, text, textarea, input, select, option)
 import Html.Attributes exposing
-  (href, style, spellcheck, id, classList, type_, value, selected)
+  (href, style, spellcheck, id, class, classList, type_, value, selected)
 import Html.Events exposing (onClick, onInput, onFocus, onBlur)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -662,7 +662,7 @@ view model =
     [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
     , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
-    , Html.Lazy.lazy viewKey model.chordLens.key
+    , Html.Lazy.lazy2 viewKey model.chordBox.parse.key model.chordLens.key
     , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
     , Html.Lazy.lazy2
         viewSuggestionBar model.suggestionBar model.suggestionState
@@ -859,33 +859,56 @@ getFlatName note =
         )
     )
 
-viewKey : Int -> Html Msg
-viewKey key =
+viewKey : Int -> Int -> Html Msg
+viewKey parsedKey key =
   div
     [ style
         [ ( "line-height", "26px" )
         , ( "margin-bottom", "5px" )
         ]
     ]
-    [ span []
-        [ Html.text "Key signature " ]
-    , select
-        [ onInput SetKey
+    ( List.concat
+        [ [ span []
+            [ Html.text "Key signature " ]
+          , select
+              [ onInput SetKey
+              ]
+              [ option [ value "0", selected (key == 0) ] [ Html.text "C / Am" ]
+              , option [ value "7", selected (key == 7) ] [ Html.text "G / Em" ]
+              , option [ value "2", selected (key == 2) ] [ Html.text "D / Bm" ]
+              , option [ value "9", selected (key == 9) ] [ Html.text "A / F♯m" ]
+              , option [ value "4", selected (key == 4) ] [ Html.text "E / C♯m" ]
+              , option [ value "11", selected (key == 11) ] [ Html.text "B / G♯m" ]
+              , option [ value "6", selected (key == 6) ] [ Html.text "G♭ / E♭m" ]
+              , option [ value "1", selected (key == 1) ] [ Html.text "D♭ / B♭m" ]
+              , option [ value "8", selected (key == 8) ] [ Html.text "A♭ / Fm" ]
+              , option [ value "3", selected (key == 3) ] [ Html.text "E♭ / Cm" ]
+              , option [ value "10", selected (key == 10) ] [ Html.text "B♭ / Gm" ]
+              , option [ value "5", selected (key == 5) ] [ Html.text "F / Dm" ]
+              ]
+          ]
+        , if key == parsedKey then
+            []
+          else
+            [ button
+                [ onClick (SetKey (toString parsedKey))
+                , class "pressMe"
+                , style
+                    [ ( "padding", "0px 3px" )
+                    , ( "border-width", "1px" )
+                    , ( "border-style", "solid" )
+                    , ( "border-radius", "3px" )
+                    , ( "font", "inherit" )
+                    , ( "line-height", "24px" )
+                    , ( "margin-left", "5px" )
+                    ]
+                ]
+                [ Html.text
+                    ("× Back to " ++ getFlatName parsedKey)
+                ]
+            ]
         ]
-        [ option [ value "0", selected (key == 0) ] [ Html.text "C / Am" ]
-        , option [ value "7", selected (key == 7) ] [ Html.text "G / Em" ]
-        , option [ value "2", selected (key == 2) ] [ Html.text "D / Bm" ]
-        , option [ value "9", selected (key == 9) ] [ Html.text "A / F♯m" ]
-        , option [ value "4", selected (key == 4) ] [ Html.text "E / C♯m" ]
-        , option [ value "11", selected (key == 11) ] [ Html.text "B / G♯m" ]
-        , option [ value "6", selected (key == 6) ] [ Html.text "G♭ / E♭m" ]
-        , option [ value "1", selected (key == 1) ] [ Html.text "D♭ / B♭m" ]
-        , option [ value "8", selected (key == 8) ] [ Html.text "A♭ / Fm" ]
-        , option [ value "3", selected (key == 3) ] [ Html.text "E♭ / Cm" ]
-        , option [ value "10", selected (key == 10) ] [ Html.text "B♭ / Gm" ]
-        , option [ value "5", selected (key == 5) ] [ Html.text "F / Dm" ]
-        ]
-    ]
+    )
 
 viewChordBox : Int -> ChordBox -> Html Msg
 viewChordBox key chordBox =
