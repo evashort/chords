@@ -1,27 +1,19 @@
-port module Selection exposing
-  ( Selection, fromSubstring, set, check, receive )
+port module Selection exposing ( fromSubstring, set, check, receive )
 
 import Substring exposing (Substring)
 
-type alias Selection =
-  { start : Int
-  , stop : Int
-  }
-
-fromSubstring : Substring -> Selection
+fromSubstring : Substring -> ( Int, Int )
 fromSubstring substring =
-  { start = substring.i
-  , stop = Substring.stop substring
-  }
+  ( substring.i, Substring.stop substring )
 
-set : Selection -> Cmd msg
+set : ( Int, Int ) -> Cmd msg
 set = setSelection
-port setSelection : Selection -> Cmd msg
+port setSelection : ( Int, Int ) -> Cmd msg
 
 check : Cmd msg
 check = checkSelection ()
 port checkSelection : () -> Cmd msg
 
-receive : (Selection -> msg) -> Sub msg
+receive : (( Int, Int ) -> msg) -> Sub msg
 receive = receiveSelection
-port receiveSelection : (Selection -> msg) -> Sub msg
+port receiveSelection : (( Int, Int ) -> msg) -> Sub msg

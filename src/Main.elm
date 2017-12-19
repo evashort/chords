@@ -11,7 +11,7 @@ import Highlight exposing (Highlight)
 import History exposing (History)
 import MainParser
 import Player exposing (Player, PlayStatus)
-import Selection exposing (Selection)
+import Selection
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
@@ -51,7 +51,7 @@ type alias Model =
   , home : Bool
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
-  , selection : Maybe Selection
+  , selection : Maybe ( Int, Int )
   , chordBox : ChordBox
   , suggestionBar : SuggestionBar
   , suggestionState : SuggestionState
@@ -72,7 +72,7 @@ type alias ChordBox =
   , text : String
   , parse : MainParser.Model
   , highlightRanges : List Substring
-  , focusedSelection : Maybe Selection
+  , focusedSelection : Maybe ( Int, Int )
   }
 
 type alias SuggestionBar =
@@ -134,7 +134,7 @@ init mac location =
           , copyCount = 0
           }
       }
-    , Selection.set { start = n, stop = n }
+    , Selection.set ( n, n )
     )
 
 textFromLocation : Location -> String
@@ -162,7 +162,7 @@ type Msg
   | TextEdited String
   | UrlChange Location
   | CheckSelection
-  | ReceivedSelection Selection
+  | ReceivedSelection ( Int, Int )
   | ChordBoxFocused Bool
   | SuggestionMsg Suggestion.Msg
   | RemoveCopied Int
@@ -453,7 +453,7 @@ update msg model =
       , Cmd.none
       )
 
-canReplace : String -> Selection -> Suggestion -> Bool
+canReplace : String -> ( Int, Int ) -> Suggestion -> Bool
 canReplace clipboard selection suggestion =
   suggestion.replacement == clipboard &&
     List.member
@@ -936,14 +936,14 @@ getLayers key chordBox =
           chordBox.highlightRanges
     in
       case chordBox.focusedSelection of
-        Just selection ->
+        Just ( start, stop ) ->
           { bubbleText =
               chordBox.modifierKey ++
-                if selection.start == selection.stop then "V to paste here"
+                if start == stop then "V to paste here"
                 else "V to replace"
           , fg = ""
           , bg = ""
-          , substring = Substring selection.start ""
+          , substring = Substring start ""
           } :: grays
         Nothing -> grays
   , MainParser.view key chordBox.parse

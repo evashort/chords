@@ -32,25 +32,17 @@ function changeAudio(changes) {
   }
 }
 
-var landingPad = null;
-
 function setSelection(selection) {
   let chordBox = document.getElementById("chordBox");
-  chordBox.selectionStart = selection.start;
-  chordBox.selectionEnd = selection.stop;
+  chordBox.selectionStart = selection[0];
+  chordBox.selectionEnd = selection[1];
   chordBox.focus();
-  return {
-    start: chordBox.selectionStart,
-    stop: chordBox.selectionEnd
-  };
+  return [chordBox.selectionStart, chordBox.selectionEnd];
 }
 
 function checkSelection() {
   let chordBox = document.getElementById("chordBox");
-  return {
-    start: chordBox.selectionStart,
-    stop: chordBox.selectionEnd
-  };
+  return [chordBox.selectionStart, chordBox.selectionEnd];
 }
 
 function setChordBoxText(text) {
