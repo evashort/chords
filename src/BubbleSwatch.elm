@@ -18,7 +18,10 @@ view bubbleSwatch =
     Bubble bubble ->
       viewBubble bubble
     JustSwatch swatch ->
-      Swatch.view swatch
+      if swatch.s == "" then
+        viewTextCursor swatch.fg swatch.bg
+      else
+        Swatch.view swatch
 
 viewBubble : String -> Html msg
 viewBubble bubble =
@@ -62,4 +65,27 @@ viewBubble bubble =
             ]
             []
         ]
+    ]
+
+viewTextCursor : String -> String -> Html msg
+viewTextCursor fg bg =
+  span
+    [ style
+        [ ( "position", "relative" )
+        , ( "pointer-events", "none" )
+        ]
+    ]
+    [ span
+        [ style
+            [ ( "position", "absolute" )
+            , ( "z-index", "1" )
+            , ( "top", "0px" )
+            , ( "left", "-1px" )
+            , ( "height", "100%" )
+            , ( "width", "3px" )
+            , ( "background", bg )
+            , ( "box-shadow", "0px 0px 3px 4px " ++ fg)
+            ]
+        ]
+        []
     ]
