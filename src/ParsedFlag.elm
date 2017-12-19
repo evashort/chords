@@ -1,11 +1,12 @@
 module ParsedFlag exposing
-  (ParsedFlag, view, getSuggestion, fromCode, isOfficial)
+  (ParsedFlag, view, getSuggestion, fromCode, isOfficial, canon)
 
 import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
 
+import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..))
 
 type alias ParsedFlag =
@@ -44,16 +45,14 @@ view key flag =
 
 getSuggestion : ParsedFlag -> Maybe ( List Swatch, Substring )
 getSuggestion flag =
-  case
-    ( flag.name.s /= flag.cleanName, flag.value.s /= flag.cleanValue )
-  of
-    ( False, False ) -> Nothing
-    ( True, False ) ->
+  case ( goodName flag, flag.value.s == flag.cleanValue ) of
+    ( True, True ) -> Nothing
+    ( False, True ) ->
       Just
         ( [ Swatch "#0000ff" "#ffffff" flag.cleanName ]
         , flag.name
         )
-    ( False, True ) ->
+    ( True, False ) ->
       Just
         ( [ { fg = if flag.flag == Nothing then "#000000" else "#c00000"
             , bg = "#ffffff"
@@ -62,7 +61,7 @@ getSuggestion flag =
           ]
         , flag.value
         )
-    ( True, True ) ->
+    ( False, False ) ->
       Just
         ( if String.startsWith "#" flag.cleanValue then
             [ Swatch "#0000ff" "#ffffff" flag.cleanName
@@ -138,4 +137,24 @@ isOfficial : Maybe ParsedFlag -> Bool
 isOfficial maybeFlag =
   case maybeFlag of
     Nothing -> False
-    Just flag -> flag.name.s == flag.cleanName
+    Just flag -> goodName flag
+
+canon : List ParsedFlag -> Dict String ParsedFlag
+canon flags =
+  let
+    ( preferred, rest ) =
+      List.partition goodValue (List.filter goodName flags)
+  in
+    List.foldl insertByName Dict.empty (rest ++ preferred)
+
+insertByName : ParsedFlag -> Dict String ParsedFlag -> Dict String ParsedFlag
+insertByName flag canon =
+  Dict.insert flag.cleanName flag canon
+
+goodName : ParsedFlag -> Bool
+goodName flag =
+  flag.name.s == flag.cleanName
+
+goodValue : ParsedFlag -> Bool
+goodValue flag =
+  flag.value.s == flag.cleanValue && flag.cleanValue /= ""

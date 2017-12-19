@@ -18,7 +18,7 @@ type alias Model =
   , comments : List Substring
   , indents : List Substring
   , key : Int
-  , lineAfterKey : Int
+  , keyRange : Substring
   }
 
 init : Int -> Substring -> Model
@@ -30,7 +30,7 @@ init firstId whole =
     , comments = parseResult.comments
     , indents = parseResult.indents
     , key = parseResult.key
-    , lineAfterKey = parseResult.lineAfterKey
+    , keyRange = parseResult.keyRange
     }
 
 update : Substring -> Model -> Model
@@ -42,7 +42,7 @@ update whole model =
     , comments = parseResult.comments
     , indents = parseResult.indents
     , key = parseResult.key
-    , lineAfterKey = parseResult.lineAfterKey
+    , keyRange = parseResult.keyRange
     }
 
 view : Int -> Model -> List Highlight
@@ -80,8 +80,8 @@ getSuggestions key model =
 insertUnion :
   comparable1 -> Set comparable2 -> Set comparable2 ->
     Dict comparable1 (Set comparable2) -> Dict comparable1 (Set comparable2)
-insertUnion k x y d =
-  Dict.insert k (Set.union x y) d
+insertUnion k x y dict =
+  Dict.insert k (Set.union x y) dict
 
 type alias ParseResult =
   { words : List Substring
@@ -89,7 +89,7 @@ type alias ParseResult =
   , comments : List Substring
   , indents : List Substring
   , key : Int
-  , lineAfterKey : Int
+  , keyRange : Substring
   }
 
 parse : Substring -> ParseResult
@@ -109,18 +109,25 @@ parse whole =
   in let
     flags = List.filterMap .flag lineResults
   in let
-    ( key, lineAfterKey ) =
-      let keys = List.filterMap getFlagKey flags in
-        case List.reverse keys of
-          lastKey :: _ -> lastKey
-          [] -> ( 0, 0 ) -- C major is the default
+    canon = ParsedFlag.canon flags
+  in let
+    ( key, keyRange ) =
+      case Dict.get "key:" canon of
+        Nothing ->
+          ( 0, Substring 0 "" ) -- C major is the default
+        Just flag ->
+          ( case flag.flag of
+              Just (KeyFlag k) -> k
+              _ -> 0
+          , flag.code
+          )
   in
     { words = List.concatMap .words chordArea
     , flags = flags
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
     , key = key
-    , lineAfterKey = lineAfterKey
+    , keyRange = keyRange
     }
 
 lastTrueAndBeyond : (a -> Bool) -> List a -> List a
@@ -131,14 +138,6 @@ lastTrueAndBeyond pred xs =
       case lastTrueAndBeyond pred rest of
         [] -> if pred x then xs else []
         result -> result
-
-getFlagKey : ParsedFlag -> Maybe ( Int, Int )
-getFlagKey flag =
-  case flag.flag of
-    Nothing -> Nothing
-    Just innerFlag ->
-      case innerFlag of
-        KeyFlag key -> Just ( key, flag.nextLineStart )
 
 type alias LineResult =
   { words : List Substring
