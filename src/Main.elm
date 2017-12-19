@@ -355,10 +355,24 @@ update msg model =
       let
         modelSelection =
           case Dict.get model.suggestionState.clipboard model.rangeSets of
-            Nothing -> Nothing
             Just rangeSet ->
               if Set.member selection rangeSet then Just selection
               else Nothing
+            Nothing ->
+              if
+                model.chordLens.key /= model.chordBox.parse.key &&
+                  selection == Substring.range model.chordBox.parse.keyRange &&
+                    model.suggestionState.clipboard ==
+                      String.concat
+                        [ "key: "
+                        , Flag.codeValue (KeyFlag model.chordLens.key)
+                        , if model.chordBox.parse.keyRange.s == "" then "\n"
+                          else ""
+                        ]
+              then
+                Just selection
+              else
+                Nothing
       in
         ( if modelSelection == model.selection then
             model
