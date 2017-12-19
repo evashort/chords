@@ -596,7 +596,12 @@ getRangesById model id =
       case List.drop i model.suggestionBar.suggestions of
         suggestion :: _ -> suggestion.ranges
         [] -> []
-    _ ->
+    Suggestion.StringId "key" ->
+      if model.chordLens.key /= model.chordBox.parse.key then
+        [ model.chordBox.parse.keyRange ]
+      else
+        []
+    Suggestion.StringId _ ->
       []
 
 notBeforeTrue : (a -> Bool) -> List a -> List a
@@ -663,13 +668,13 @@ view model =
     [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
     , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
-    , Html.Lazy.lazy3
-        viewKey
-          ( model.suggestionState.recentlyCopied ==
-              Just (Suggestion.StringId "key")
-          )
-          model.chordBox.parse.key
-          model.chordLens.key
+    , viewKey
+        (model.chordBox.parse.keyRange.s == "")
+        ( model.suggestionState.recentlyCopied ==
+            Just (Suggestion.StringId "key")
+        )
+        model.chordBox.parse.key
+        model.chordLens.key
     , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
     , Html.Lazy.lazy2
         viewSuggestionBar model.suggestionBar model.suggestionState
@@ -866,8 +871,8 @@ getFlatName note =
         )
     )
 
-viewKey : Bool -> Int -> Int -> Html Msg
-viewKey recentlyCopied parsedKey key =
+viewKey : Bool -> Bool -> Int -> Int -> Html Msg
+viewKey newline recentlyCopied parsedKey key =
   div
     [ style
         [ ( "line-height", "26px" )
@@ -905,11 +910,15 @@ viewKey recentlyCopied parsedKey key =
                 ( Suggestion.view
                     recentlyCopied
                     (Suggestion.StringId "key")
-                    [ Swatch "#0000ff" "#ffffff" "key:"
-                    , Swatch "#000000" "#ffffff" " "
-                    , Swatch "#c00000" "#ffffff" (Flag.codeValue (KeyFlag key))
-                    , Swatch "#000000" "#ffffff" "\n"
-                    ]
+                    ( [ Swatch "#0000ff" "#ffffff" "key:"
+                      , Swatch "#000000" "#ffffff" " "
+                      , Swatch "#c00000" "#ffffff" (Flag.codeValue (KeyFlag key))
+                      ] ++
+                        if newline then
+                          [ Swatch "#000000" "#ffffff" "\n" ]
+                        else
+                          []
+                    )
                 )
             , button
                 [ onClick (SetKey (toString parsedKey))
