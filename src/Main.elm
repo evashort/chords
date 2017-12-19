@@ -52,6 +52,7 @@ type alias Model =
   , strumInterval : Float
   , bpm : Int
   , chordLens : ChordLens
+  , oldKey : Int
   , home : Bool
   , subscribeToSelection : Bool
   , chordBoxFocused : Bool
@@ -118,6 +119,7 @@ init mac location =
           { octaveBase = 48
           , key = key
           }
+      , oldKey = -1
       , home = True
       , subscribeToSelection = True
       , chordBoxFocused = True
@@ -530,12 +532,21 @@ updateChordBoxText newText model =
       { model
       | chordLens =
           if
-            parse.key /= model.chordBox.parse.key &&
-              model.chordLens.key == model.chordBox.parse.key
+            chordLens.key == chordBox.parse.key &&
+              parse.key /= chordBox.parse.key &&
+                parse.key /= model.oldKey
           then
             { chordLens | key = parse.key }
           else
             chordLens
+      , oldKey =
+          if parse.key == chordLens.key then
+            if chordBox.parse.key /= parse.key then
+              chordBox.parse.key
+            else
+              model.oldKey
+          else
+            -1
       , rangeSets = rangeSets
       , selection = Nothing
       , chordBox =
