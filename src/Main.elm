@@ -100,7 +100,7 @@ init mac location =
     parse =
       MainParser.init CircleOfFifths.chordCount (Substring 0 text)
   in let
-    key = 0
+    key = parse.key
   in let
     ( suggestions, rangeSets ) = MainParser.getSuggestions key parse
   in let
@@ -508,10 +508,20 @@ updateChordBoxText newText model =
   in let
     samePosition =
       min (sameReplacement + 1) (List.length suggestions)
+  in let
+    chordLens = model.chordLens
   in
     updateHighlightRanges
       { model
-      | rangeSets = rangeSets
+      | chordLens =
+          if
+            parse.key /= model.chordBox.parse.key &&
+              model.chordLens.key == model.chordBox.parse.key
+          then
+            { chordLens | key = parse.key }
+          else
+            chordLens
+      , rangeSets = rangeSets
       , selection = Nothing
       , chordBox =
           { chordBox
