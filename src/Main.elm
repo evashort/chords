@@ -7,6 +7,7 @@ import CachedChord
 import ChordParser exposing (IdChord)
 import CircleOfFifths
 import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
+import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
 import History exposing (History)
 import MainParser
@@ -14,7 +15,7 @@ import Player exposing (Player, PlayStatus)
 import Selection
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
-import Swatch
+import Swatch exposing (Swatch)
 
 import AnimationFrame
 import Array
@@ -662,7 +663,13 @@ view model =
     [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
     , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
-    , Html.Lazy.lazy2 viewKey model.chordBox.parse.key model.chordLens.key
+    , Html.Lazy.lazy3
+        viewKey
+          ( model.suggestionState.recentlyCopied ==
+              Just (Suggestion.StringId "key")
+          )
+          model.chordBox.parse.key
+          model.chordLens.key
     , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
     , Html.Lazy.lazy2
         viewSuggestionBar model.suggestionBar model.suggestionState
@@ -859,8 +866,8 @@ getFlatName note =
         )
     )
 
-viewKey : Int -> Int -> Html Msg
-viewKey parsedKey key =
+viewKey : Bool -> Int -> Int -> Html Msg
+viewKey recentlyCopied parsedKey key =
   div
     [ style
         [ ( "line-height", "26px" )
@@ -872,6 +879,9 @@ viewKey parsedKey key =
             [ Html.text "Key signature " ]
           , select
               [ onInput SetKey
+              , style
+                  [ ( "margin-right", "5px" )
+                  ]
               ]
               [ option [ value "0", selected (key == 0) ] [ Html.text "C / Am" ]
               , option [ value "7", selected (key == 7) ] [ Html.text "G / Em" ]
@@ -890,7 +900,18 @@ viewKey parsedKey key =
         , if key == parsedKey then
             []
           else
-            [ button
+            [ Html.map
+                SuggestionMsg
+                ( Suggestion.view
+                    recentlyCopied
+                    (Suggestion.StringId "key")
+                    [ Swatch "#0000ff" "#ffffff" "key:"
+                    , Swatch "#000000" "#ffffff" " "
+                    , Swatch "#c00000" "#ffffff" (Flag.codeValue (KeyFlag key))
+                    , Swatch "#000000" "#ffffff" "\n"
+                    ]
+                )
+            , button
                 [ onClick (SetKey (toString parsedKey))
                 , class "pressMe"
                 , style
@@ -900,7 +921,7 @@ viewKey parsedKey key =
                     , ( "border-radius", "3px" )
                     , ( "font", "inherit" )
                     , ( "line-height", "24px" )
-                    , ( "margin-left", "5px" )
+                    , ( "margin-left", "2px" )
                     ]
                 ]
                 [ Html.text

@@ -8,7 +8,7 @@ import Swatch exposing (Swatch)
 
 import Dict exposing (Dict)
 import Html exposing (Html, span, button, mark, text, textarea, pre)
-import Html.Attributes exposing (style, attribute, class, id, readonly)
+import Html.Attributes exposing (style, attribute, class, id, readonly, rows)
 import Html.Events exposing
   (onMouseEnter, onMouseLeave, onFocus, onBlur, onClick)
 import Set exposing (Set)
@@ -48,6 +48,7 @@ view recentlyCopied suggestionId swatches =
           , ( "align-items", "stretch")
           , ( "position", "relative")
           , ( "margin-right", "3px")
+          , ( "height", "26px")
           ]
       ]
       [ span
@@ -55,7 +56,6 @@ view recentlyCopied suggestionId swatches =
               ( List.concat
                   [ [ ( "position", "absolute" )
                     , ( "width", "100%" )
-                    , ( "height", "100%" )
                     , ( "border", "1px solid darkgray" )
                     , ( "border-radius", "3px" )
                     , ( "box-sizing", "border-box" )
@@ -63,9 +63,8 @@ view recentlyCopied suggestionId swatches =
                     , ( "color", "gray" )
                     , ( "transition-property", "opacity" )
                     , ( "z-index", "1" )
-                    , ( "display", "flex" )
-                    , ( "align-items", "center")
-                    , ( "padding", "1px 3px" )
+                    , ( "padding", "0px 3px" )
+                    , ( "line-height", "24px" )
                     , ( "pointer-events", "none" )
                     ]
                   , if recentlyCopied then
@@ -101,6 +100,7 @@ view recentlyCopied suggestionId swatches =
               , ( "border-style", "solid" )
               , ( "border-radius", "3px 0px 0px 3px" )
               , ( "font", "inherit" )
+              , ( "line-height", "24px" )
               ]
           ]
           [ text "Copy" ]
@@ -109,19 +109,19 @@ view recentlyCopied suggestionId swatches =
               [ ( "position", "relative" )
               , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
               , ( "font-size", "13pt" )
-              , ( "margin-left", "-1px" )
+              , ( "line-height", "18px" )
               ]
           ]
           [ textarea
               [ readonly True
               , id idString
+              , rows 1
               , style
                   [ ( "font", "inherit" )
                   , ( "width", "100%" )
-                  , ( "height", "100%" )
                   , ( "padding", "3px" )
                   , ( "border", "1px solid darkgray")
-                  , ( "border-left-color", "transparent" )
+                  , ( "border-left", "none" )
                   , ( "border-radius", "0px 3px 3px 0px")
                   , ( "margin", "0px" )
                   , ( "position", "absolute" )
@@ -137,6 +137,7 @@ view recentlyCopied suggestionId swatches =
                   [ ( "font", "inherit" )
                   , ( "padding", "3px" )
                   , ( "border", "1px solid transparent")
+                  , ( "border-left", "none")
                   , ( "margin", "0px" )
                   , ( "white-space", "nowrap" )
                   , ( "word-wrap", "break-word" )
