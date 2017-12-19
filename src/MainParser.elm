@@ -50,7 +50,9 @@ view key model =
   ChordParser.view key model.chordModel ++
     List.map (Highlight "" "#008000" "#ffffff") model.comments ++
       List.map (Highlight "" "#ffffff" "#ff0000") model.indents ++
-        List.concatMap (ParsedFlag.view model.key) model.flags
+        List.concatMap
+          (ParsedFlag.view (if key == model.key then key else -1))
+          model.flags
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
