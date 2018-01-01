@@ -1,7 +1,5 @@
 module Suggestion exposing
-  ( Suggestion, Msg(..), Id(..), Lens
-  , view, rangeSet, sort, groupByReplacement
-  )
+  (Suggestion, Msg(..), Lens, view, rangeSet, sort, groupByReplacement)
 
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
@@ -21,24 +19,17 @@ type alias Suggestion =
 type Msg
   = AddLens Lens
   | RemoveLens Bool
-  | Copied ( Id, String )
-
-type Id
-  = IndexId Int
-  | StringId String
+  | Copied ( Int, String )
 
 type alias Lens =
   { hover : Bool
-  , id : Id
+  , index : Int
   }
 
-view : Bool -> Id -> List Swatch -> Html Msg
-view recentlyCopied suggestionId swatches =
+view : Bool -> Int -> List Swatch -> Html Msg
+view recentlyCopied index swatches =
   let
-    idString =
-      case suggestionId of
-        IndexId i -> "suggestion" ++ toString i
-        StringId s -> s ++ "Suggestion"
+    idString = "suggestion" ++ toString index
   in let
     replacement = Swatch.concat swatches
   in
@@ -88,11 +79,11 @@ view recentlyCopied suggestionId swatches =
                   , "\").select(); document.execCommand(\"Copy\");"
                   ]
               )
-          , onMouseEnter (AddLens (Lens True suggestionId))
+          , onMouseEnter (AddLens (Lens True index))
           , onMouseLeave (RemoveLens True)
-          , onFocus (AddLens (Lens False suggestionId))
+          , onFocus (AddLens (Lens False index))
           , onBlur (RemoveLens False)
-          , onClick (Copied ( suggestionId, replacement ))
+          , onClick (Copied ( index, replacement ))
           , class "pressMe"
           , style
               [ ( "padding", "0px 3px" )
