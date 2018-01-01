@@ -45,11 +45,6 @@ function checkSelection() {
   return [chordBox.selectionStart, chordBox.selectionEnd];
 }
 
-function setChordBoxText(text) {
-  let chordBox = document.getElementById("chordBox");
-  chordBox.value = text;
-}
-
 function focusById(id) {
   let el = document.getElementById(id);
   if (el != null) {

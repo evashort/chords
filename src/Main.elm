@@ -342,13 +342,13 @@ update msg model =
       )
 
     UrlChange location ->
-      let newText = textFromLocation location in
-        if newText /= model.chordBox.text then
-          ( updateChordBoxText newText { model | home = True }
-          , setChordBoxText newText
-          )
-        else
-          ( model, Cmd.none )
+      ( let newText = textFromLocation location in
+          if newText /= model.chordBox.text then
+            updateChordBoxText newText { model | home = True }
+          else
+            model
+      , Cmd.none
+      )
 
     CheckSelection ->
       ( model, Selection.check )
@@ -658,8 +658,6 @@ findTrueHelp i pred xs =
       else findTrueHelp (i + 1) pred rest
 
 -- SUBSCRIPTIONS
-
-port setChordBoxText : String -> Cmd msg
 
 port focusById : String -> Cmd msg
 
@@ -982,6 +980,7 @@ viewChordBox key chordBox =
         , onLeftClick CheckSelection
         , spellcheck False
         , id "chordBox"
+        , value chordBox.text
         , style
             [ ( "font", "inherit" )
             , ( "width", "100%" )
@@ -996,7 +995,7 @@ viewChordBox key chordBox =
             , ( "background", "transparent" )
             ]
         ]
-        [ text chordBox.text ]
+        []
     , pre
         [ style
             [ ( "font", "inherit" )
