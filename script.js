@@ -44,10 +44,3 @@ function checkSelection() {
   let chordBox = document.getElementById("chordBox");
   return [chordBox.selectionStart, chordBox.selectionEnd];
 }
-
-function focusById(id) {
-  let el = document.getElementById(id);
-  if (el != null) {
-    el.focus();
-  }
-}

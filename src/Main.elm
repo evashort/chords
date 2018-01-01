@@ -1,4 +1,4 @@
-port module Main exposing (..)
+module Main exposing (..)
 
 import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
@@ -20,6 +20,7 @@ import Swatch exposing (Swatch)
 import AnimationFrame
 import Array
 import Dict exposing (Dict)
+import Dom
 import Html exposing
   (Html, a, button, div, pre, span, text, textarea, input, select, option)
 import Html.Attributes exposing
@@ -158,7 +159,8 @@ defaultText =
 -- UPDATE
 
 type Msg
-  = NeedsTime (Float -> Msg)
+  = NoOp
+  | NeedsTime (Float -> Msg)
   | CurrentTime Float
   | PlayChord ( IdChord, Float )
   | StopChord Float
@@ -180,6 +182,9 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
+    NoOp ->
+      ( model, Cmd.none )
+
     NeedsTime partialMsg ->
       ( model, Task.perform partialMsg AudioTime.now )
 
@@ -306,7 +311,9 @@ update msg model =
           (MainParser.getChords model.chordBox.parse)
       of
         Just ( chord :: _, _ ) ->
-          ( model, focusById (toString chord.id) )
+          ( model
+          , Task.attempt (always NoOp) (Dom.focus (toString chord.id))
+          )
         _ ->
           ( model, Cmd.none )
 
@@ -329,7 +336,9 @@ update msg model =
             Nothing ->
               ( model, Cmd.none )
             Just ( chord, _ ) ->
-              ( model, focusById (toString chord.id) )
+              ( model
+              , Task.attempt (always NoOp) (Dom.focus (toString chord.id))
+              )
 
     TextEdited newText ->
       ( updateChordBoxText newText { model | home = False }
@@ -658,8 +667,6 @@ findTrueHelp i pred xs =
       else findTrueHelp (i + 1) pred rest
 
 -- SUBSCRIPTIONS
-
-port focusById : String -> Cmd msg
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
