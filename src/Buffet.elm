@@ -89,7 +89,7 @@ highlights buffet =
           []
         suggestion :: _ ->
           List.map
-            (Highlight "" "#ffffff" "#aaaaaa")
+            (Highlight "#ffffff" "#aaaaaa")
             suggestion.ranges
 
 view : Buffet -> Html Msg

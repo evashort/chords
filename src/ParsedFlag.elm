@@ -23,14 +23,13 @@ view : Int -> ParsedFlag -> List Highlight
 view key flag =
   List.concat
     [ if flag.name.s == flag.cleanName then
-      [ Highlight "" "#0000ff" "#ffffff" flag.name ]
+      [ Highlight "#0000ff" "#ffffff" flag.name ]
     else
       []
     , if flag.value.s == flag.cleanValue then
         case flag.flag of
           Just innerFlag ->
-            [ { bubbleText = ""
-              , fg =
+            [ { fg =
                   if innerFlag == KeyFlag key then "#c00000"
                   else "#a0a0a0"
               , bg = "#ffffff"

@@ -47,8 +47,8 @@ update whole model =
 view : Int -> Model -> List Highlight
 view key model =
   ChordParser.view key model.chordModel ++
-    List.map (Highlight "" "#008000" "#ffffff") model.comments ++
-      List.map (Highlight "" "#ffffff" "#ff0000") model.indents ++
+    List.map (Highlight "#008000" "#ffffff") model.comments ++
+      List.map (Highlight "#ffffff" "#ff0000") model.indents ++
         List.concatMap
           (ParsedFlag.view (if key == model.key then key else -1))
           model.flags

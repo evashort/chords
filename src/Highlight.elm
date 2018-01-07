@@ -1,16 +1,15 @@
 module Highlight exposing (Highlight, mergeLayers)
 
-import BubbleSwatch exposing (BubbleSwatch(..))
+import Swatch exposing (Swatch)
 import Substring exposing (Substring)
 
 type alias Highlight =
-  { bubbleText : String
-  , fg : String
+  { fg : String
   , bg : String
   , substring : Substring
   }
 
-mergeLayers : List (List Highlight) -> List BubbleSwatch
+mergeLayers : List (List Highlight) -> List Swatch
 mergeLayers layers =
   case
     pop
@@ -24,32 +23,24 @@ mergeLayers layers =
     Just ( highlight, queue ) ->
       mergeLayersHelp highlight queue
 
-mergeLayersHelp : Highlight -> Queue -> List BubbleSwatch
+mergeLayersHelp : Highlight -> Queue -> List Swatch
 mergeLayersHelp highlight queue =
   case pop queue of
     Nothing ->
-      [ if highlight.bubbleText /= "" then
-          Bubble highlight.bubbleText
-        else
-          JustSwatch
-            { fg = highlight.fg
-            , bg = highlight.bg
-            , s = highlight.substring.s
-            }
+      [ { fg = highlight.fg
+        , bg = highlight.bg
+        , s = highlight.substring.s
+        }
       ]
     Just ( highlightNew, queueNew ) ->
-      ( if highlight.bubbleText /= "" then
-          Bubble highlight.bubbleText
-        else
-          JustSwatch
-            { fg = highlight.fg
-            , bg = highlight.bg
-            , s =
-                String.left
-                  (highlightNew.substring.i - highlight.substring.i)
-                  highlight.substring.s
-            }
-      ) :: mergeLayersHelp highlightNew queueNew
+      { fg = highlight.fg
+      , bg = highlight.bg
+      , s =
+          String.left
+            (highlightNew.substring.i - highlight.substring.i)
+            highlight.substring.s
+      } ::
+        mergeLayersHelp highlightNew queueNew
 
 type alias Queue =
   { above : List ( Highlight, List Highlight )
@@ -130,16 +121,13 @@ layerAfter start layer =
     [] ->
       Nothing
     highlight :: peers ->
-      if highlight.substring.i >= start then -- separate case to avoid
-        Just ( highlight, peers ) -- removing zero-length highlights
-      else
-        let
-          substringNew = Substring.after start highlight.substring
-        in
-          if substringNew.s == "" then
-            layerAfter start peers
-          else
-            Just ( { highlight | substring = substringNew }, peers )
+      let
+        substringNew = Substring.after start highlight.substring
+      in
+        if substringNew.s == "" then
+          layerAfter start peers
+        else
+          Just ( { highlight | substring = substringNew }, peers )
 
 splitBeforeLastMin : (a -> comparable) -> List a -> ( List a, List a )
 splitBeforeLastMin f xs =

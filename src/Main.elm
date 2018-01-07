@@ -2,7 +2,6 @@ module Main exposing (..)
 
 import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
-import BubbleSwatch
 import Buffet exposing (Buffet, LensChange)
 import CachedChord
 import ChordParser exposing (IdChord)
@@ -714,12 +713,11 @@ viewChordBox key chordBox =
         ]
     ]
     ( List.map
-        BubbleSwatch.view
+        Swatch.view
         ( Highlight.mergeLayers
             [ Buffet.highlights chordBox.buffet
             , MainParser.view key chordBox.parse
             , [ Highlight
-                  ""
                   "#000000"
                   "#ffffff"
                   (Substring 0 (chordBox.catcher.frame.text ++ "\n"))

@@ -138,14 +138,13 @@ viewWord key word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
-        Just (Highlight "" "#808080" "#ffffff" word.substring)
+        Just (Highlight "#808080" "#ffffff" word.substring)
       else
         Nothing
     Just chord ->
       if word.substring.s == chord.cache.codeName then
         Just
           ( Highlight
-              ""
               (CachedChord.fg chord.cache)
               (CachedChord.bg key chord.cache)
               word.substring
