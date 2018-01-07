@@ -1,4 +1,4 @@
-module CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
+module CustomEvents exposing (onLeftDown, onKeyDown)
 
 import Html exposing (Attribute)
 import Html.Events exposing (on)
@@ -8,15 +8,6 @@ onLeftDown : msg -> Attribute msg
 onLeftDown message =
   on
     "mousedown"
-    ( Json.Decode.andThen
-        (requireLeftButton message)
-        (Json.Decode.field "button" Json.Decode.int)
-    )
-
-onLeftClick : msg -> Attribute msg
-onLeftClick message =
-  on
-    "click"
     ( Json.Decode.andThen
         (requireLeftButton message)
         (Json.Decode.field "button" Json.Decode.int)

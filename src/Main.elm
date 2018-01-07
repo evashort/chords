@@ -3,39 +3,35 @@ module Main exposing (..)
 import AudioChange exposing (AudioChange(..), Note)
 import AudioTime
 import BubbleSwatch
+import Buffet exposing (Buffet, LensChange)
 import CachedChord
 import ChordParser exposing (IdChord)
 import CircleOfFifths
-import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
+import CustomEvents exposing (onLeftDown, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import MainParser
 import Player exposing (Player, PlayStatus)
-import Selection
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
-import Swatch exposing (Swatch)
+import Swatch
 
 import AnimationFrame
 import Array
-import Dict exposing (Dict)
 import Dom
 import Html exposing
   (Html, a, button, div, pre, span, text, textarea, input, select, option)
 import Html.Attributes exposing
-  (href, style, spellcheck, id, class, classList, type_, value, selected)
-import Html.Events exposing (onClick, onInput, onFocus, onBlur)
+  (href, style, spellcheck, class, classList, id, type_, value, selected)
+import Html.Events exposing (onClick, onInput)
 import Html.Lazy
 import Navigation exposing (Location)
-import Process
-import Set exposing (Set)
-import Task exposing (Task)
-import Time
+import Task
 import Url
 
-main : Program Bool Model Msg
+main : Program Never Model Msg
 main =
-  Navigation.programWithFlags
+  Navigation.program
     UrlChange
     { init = init
     , view = Html.Lazy.lazy view
@@ -53,14 +49,7 @@ type alias Model =
   , bpm : Int
   , chordLens : ChordLens
   , home : Bool
-  , subscribeToSelection : Bool
-  , chordBoxFocused : Bool
-  , rangeSets : Dict String (Set ( Int, Int ))
-  , selection : Maybe ( Int, Int )
   , chordBox : ChordBox
-  , clipboard : String
-  , recentlyCopied : Int
-  , copyCount : Int
   }
 
 type PlayStyle
@@ -74,16 +63,13 @@ type alias ChordLens =
   }
 
 type alias ChordBox =
-  { modifierKey : String
-  , text : String
+  { text : String
   , parse : MainParser.Model
-  , suggestions : List Suggestion
-  , lenses : List Suggestion.Lens
-  , focusedSelection : Maybe ( Int, Int )
+  , buffet : Buffet
   }
 
-init : Bool -> Location -> ( Model, Cmd Msg )
-init mac location =
+init : Location -> ( Model, Cmd Msg )
+init location =
   let
     text = textFromLocation location
   in let
@@ -91,12 +77,6 @@ init mac location =
       MainParser.init CircleOfFifths.chordCount (Substring 0 text)
   in let
     key = parse.key
-  in let
-    ( suggestions, rangeSets ) = MainParser.getSuggestions key parse
-  in let
-    n = String.length text
-  in let
-    modifierKey = if mac then "⌘" else "Ctrl+"
   in
     ( { player = { openings = [], schedule = [] }
       , history = { sequences = [], current = [] }
@@ -108,23 +88,15 @@ init mac location =
           , key = key
           }
       , home = True
-      , subscribeToSelection = True
-      , chordBoxFocused = True
-      , rangeSets = rangeSets
-      , selection = Nothing
       , chordBox =
-          { modifierKey = modifierKey
-          , text = text
+          { text = text
           , parse = parse
-          , suggestions = suggestions
-          , lenses = []
-          , focusedSelection = Nothing
+          , buffet =
+              Buffet.fromSuggestions
+                (MainParser.getSuggestions key parse)
           }
-      , clipboard = ""
-      , recentlyCopied = -1
-      , copyCount = 0
       }
-    , Selection.set ( n, n )
+    , Cmd.none
     )
 
 textFromLocation : Location -> String
@@ -152,11 +124,8 @@ type Msg
   | FocusVertical ( Bool, Int )
   | TextEdited String
   | UrlChange Location
-  | CheckSelection
-  | ReceivedSelection ( Int, Int )
-  | ChordBoxFocused Bool
-  | SuggestionMsg Suggestion.Msg
-  | RemoveCopied Int
+  | LensesChanged LensChange
+  | Replace Suggestion
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -265,13 +234,16 @@ update msg model =
               chordLens = model.chordLens
             in let
               chordBox = model.chordBox
-            in let
-              ( suggestions, _ ) =
-                MainParser.getSuggestions key chordBox.parse
             in
               { model
               | chordLens = { chordLens | key = key }
-              , chordBox = { chordBox | suggestions = suggestions }
+              , chordBox =
+                  { chordBox
+                  | buffet =
+                      Buffet.changeSuggestions
+                        (MainParser.getSuggestions key chordBox.parse)
+                        chordBox.buffet
+                  }
               }
           Err _ ->
             model
@@ -319,7 +291,14 @@ update msg model =
               )
 
     TextEdited newText ->
-      ( updateChordBoxText newText { model | home = False }
+      ( { model
+        | home = False
+        , chordBox =
+            changeChordBoxText
+              model.chordLens.key
+              newText
+              model.chordBox
+        }
       , if model.home then
           Navigation.newUrl
             ("#text=" ++ Url.percentEncode newText)
@@ -331,176 +310,69 @@ update msg model =
     UrlChange location ->
       ( let newText = textFromLocation location in
           if newText /= model.chordBox.text then
-            updateChordBoxText newText { model | home = True }
-          else
-            model
-      , Cmd.none
-      )
-
-    CheckSelection ->
-      ( model, Selection.check )
-
-    ReceivedSelection selection ->
-      let
-        modelSelection =
-          case Dict.get model.clipboard model.rangeSets of
-            Nothing -> Nothing
-            Just rangeSet ->
-              if Set.member selection rangeSet then Just selection
-              else Nothing
-      in
-        ( if modelSelection == model.selection then
-            model
-          else
-            updateFocusedSelection
-              { model | selection = modelSelection }
-        , Cmd.none
-        )
-
-    ChordBoxFocused chordBoxFocused ->
-      ( if chordBoxFocused == model.chordBoxFocused then
-          model
-        else
-          updateFocusedSelection
             { model
-            | chordBoxFocused = chordBoxFocused
-            , subscribeToSelection =
-                model.subscribeToSelection || chordBoxFocused
+            | home = True
+            , chordBox =
+                changeChordBoxText
+                  model.chordLens.key
+                  newText
+                  model.chordBox
             }
+          else
+            model
       , Cmd.none
       )
 
-    SuggestionMsg (Suggestion.AddLens lens) ->
+    LensesChanged lensChange ->
       ( let chordBox = model.chordBox in
           { model
           | chordBox =
               { chordBox
-              | lenses =
-                  lens ::
-                    List.filter
-                      ((/=) lens.hover << .hover)
-                      chordBox.lenses
+              | buffet =
+                  Buffet.changeLenses lensChange chordBox.buffet
               }
           }
       , Cmd.none
       )
 
-    SuggestionMsg (Suggestion.RemoveLens hover) ->
-      ( let chordBox = model.chordBox in
-          { model
-          | chordBox =
-              { chordBox
-              | lenses =
-                  List.filter
-                    ((/=) hover << .hover)
-                    chordBox.lenses
-              }
-          }
-      , Cmd.none
-      )
-
-    SuggestionMsg (Suggestion.Copied ( index, replacement )) ->
-      let copyCount = model.copyCount + 1 in
-        ( { model
-          | clipboard = replacement
-          , recentlyCopied = index
-          , copyCount = copyCount
-          }
-        , let
-            removeCopied =
-              Task.perform
-                (always (RemoveCopied copyCount))
-                (Process.sleep (1 * Time.second))
-          in
-            case List.reverse (getRangesByIndex model.chordBox index) of
-              [] ->
-                removeCopied
-              range :: _ ->
-                Cmd.batch
-                  [ Selection.set (Substring.range range)
-                  , removeCopied
+    Replace suggestion ->
+      ( case suggestion.ranges of
+          [] ->
+            model
+          range :: _ ->
+            let
+              newText =
+                String.concat
+                  [ String.left range.i model.chordBox.text
+                  , Swatch.concat suggestion.swatches
+                  , String.dropLeft
+                      (Substring.stop range)
+                      model.chordBox.text
                   ]
-        )
-
-    RemoveCopied oldCopyCount ->
-      ( if oldCopyCount < model.copyCount then model
-        else { model | recentlyCopied = -1 }
+            in
+              { model
+              | chordBox =
+                  changeChordBoxText
+                    model.chordLens.key
+                    newText
+                    model.chordBox
+              }
       , Cmd.none
       )
 
-updateFocusedSelection : Model -> Model
-updateFocusedSelection model =
+changeChordBoxText : Int -> String -> ChordBox -> ChordBox
+changeChordBoxText key newText chordBox =
   let
-    chordBox = model.chordBox
-  in let
-    focusedSelection =
-      if model.chordBoxFocused then model.selection else Nothing
-  in
-    if chordBox.focusedSelection == focusedSelection then
-      model
-    else
-      { model
-      | chordBox =
-          { chordBox | focusedSelection = focusedSelection }
-      }
-
-updateChordBoxText : String -> Model -> Model
-updateChordBoxText newText model =
-  let
-    chordBox = model.chordBox
-  in let
     parse = MainParser.update (Substring 0 newText) chordBox.parse
-  in let
-    ( suggestions, rangeSets ) =
-      MainParser.getSuggestions model.chordLens.key parse
-  in let
-    sameReplacement =
-      countSharedReplacements suggestions chordBox.suggestions
-  in let
-    samePosition =
-      min (sameReplacement + 1) (List.length suggestions)
   in
-    { model
-    | rangeSets = rangeSets
-    , selection = Nothing
-    , chordBox =
-        { chordBox
-        | text = newText
-        , parse = parse
-        , suggestions = suggestions
-        , lenses =
-            List.filter
-              (keepFirstN samePosition (List.length suggestions))
-              chordBox.lenses
-        , focusedSelection = Nothing
-        }
-    , recentlyCopied =
-        if model.recentlyCopied < sameReplacement then
-          model.recentlyCopied
-        else
-          -1
+    { chordBox
+    | text = newText
+    , parse = parse
+    , buffet =
+        Buffet.changeSuggestions
+          (MainParser.getSuggestions key parse)
+          chordBox.buffet
     }
-
-countSharedReplacements : List Suggestion -> List Suggestion -> Int
-countSharedReplacements xs ys =
-  case ( xs, ys ) of
-    ( x :: xRest, y :: yRest ) ->
-      if Swatch.concat x.swatches == Swatch.concat y.swatches then
-        1 + countSharedReplacements xRest yRest
-      else
-        0
-    _ ->
-      0
-
-keepFirstN : Int -> Int -> Suggestion.Lens -> Bool
-keepFirstN hoverCount focusCount lens =
-  lens.index < (if lens.hover then hoverCount else focusCount)
-
-getRangesByIndex : ChordBox -> Int -> List Substring
-getRangesByIndex chordBox index =
-  case List.drop index chordBox.suggestions of
-    suggestion :: _ -> suggestion.ranges
-    [] -> []
 
 notBeforeTrue : (a -> Bool) -> List a -> List a
 notBeforeTrue pred xs =
@@ -534,20 +406,10 @@ findTrueHelp i pred xs =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  Sub.batch
-    ( List.filterMap
-        identity
-        [ Just (Selection.receive ReceivedSelection)
-        , if model.subscribeToSelection then
-            Just (Time.every (1 * Time.second) (always CheckSelection))
-          else
-            Nothing
-        , if Player.willChange model.player then
-            Just (AnimationFrame.times (always (NeedsTime CurrentTime)))
-          else
-            Nothing
-        ]
-    )
+  if Player.willChange model.player then
+    AnimationFrame.times (always (NeedsTime CurrentTime))
+  else
+    Sub.none
 
 -- VIEW
 
@@ -564,8 +426,7 @@ view model =
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
     , Html.Lazy.lazy viewKey model.chordLens.key
     , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
-    , Html.Lazy.lazy2
-        viewSuggestionBar model.chordBox.suggestions model.recentlyCopied
+    , Html.Lazy.lazy viewBuffet model.chordBox.buffet
     , Html.Lazy.lazy3
         viewChordArea model.chordLens model.player model.chordBox.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
@@ -802,11 +663,7 @@ viewChordBox key chordBox =
     ]
     [ textarea
         [ onInput TextEdited
-        , onFocus (ChordBoxFocused True)
-        , onBlur (ChordBoxFocused False)
-        , onLeftClick CheckSelection
         , spellcheck False
-        , id "chordBox"
         , value chordBox.text
         , style
             [ ( "font", "inherit" )
@@ -842,26 +699,7 @@ viewChordBox key chordBox =
 
 getLayers : Int -> ChordBox -> List (List Highlight)
 getLayers key chordBox =
-  [ let
-      grays =
-        case chordBox.lenses of
-          [] -> []
-          lens :: _ ->
-            List.map
-              (Highlight "" "#ffffff" "#aaaaaa")
-              (getRangesByIndex chordBox lens.index)
-    in
-      case chordBox.focusedSelection of
-        Just ( start, stop ) ->
-          { bubbleText =
-              chordBox.modifierKey ++
-                if start == stop then "V to paste here"
-                else "V to replace"
-          , fg = ""
-          , bg = ""
-          , substring = Substring start ""
-          } :: grays
-        Nothing -> grays
+  [ Buffet.highlights chordBox.buffet
   , MainParser.view key chordBox.parse
   , [ Highlight
         ""
@@ -871,33 +709,17 @@ getLayers key chordBox =
     ]
   ]
 
-viewSuggestionBar : List Suggestion -> Int -> Html Msg
-viewSuggestionBar suggestions recentlyCopied =
-  if List.isEmpty suggestions then
-    div [] []
-  else
-    div
-      [ style
-          [ ( "margin-top", "3px" )
-          , ( "width", "500px" )
-          , ( "display", "flex" )
-          , ( "align-items", "flex-start" )
-          ]
-      ]
-      ( List.indexedMap
-          (viewSuggestion recentlyCopied)
-          suggestions
-      )
+viewBuffet : Buffet -> Html Msg
+viewBuffet buffet =
+  Html.map interpretBuffetMessage (Buffet.view buffet)
 
-viewSuggestion : Int -> Int -> Suggestion -> Html Msg
-viewSuggestion recentlyCopied index suggestion =
-  Html.map
-    SuggestionMsg
-    ( Suggestion.view
-        (index == recentlyCopied)
-        index
-        suggestion.swatches
-    )
+interpretBuffetMessage : Buffet.Msg -> Msg
+interpretBuffetMessage buffetMessage =
+  case buffetMessage of
+    Buffet.LensesChanged lensChange ->
+      LensesChanged lensChange
+    Buffet.Replace suggestion ->
+      Replace suggestion
 
 viewChordArea : ChordLens -> Player -> MainParser.Model -> Html Msg
 viewChordArea chordLens player parse =

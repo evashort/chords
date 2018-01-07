@@ -2,7 +2,7 @@ module CircleOfFifths exposing (chordCount, view, Msg(..))
 
 import CachedChord
 import ChordParser exposing (IdChord)
-import CustomEvents exposing (onLeftDown, onLeftClick, onKeyDown)
+import CustomEvents exposing (onLeftDown, onKeyDown)
 import Player exposing (PlayStatus)
 
 import Html exposing (Html)

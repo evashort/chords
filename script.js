@@ -31,16 +31,3 @@ function changeAudio(changes) {
     }
   }
 }
-
-function setSelection(selection) {
-  let chordBox = document.getElementById("chordBox");
-  chordBox.selectionStart = selection[0];
-  chordBox.selectionEnd = selection[1];
-  chordBox.focus();
-  return [chordBox.selectionStart, chordBox.selectionEnd];
-}
-
-function checkSelection() {
-  let chordBox = document.getElementById("chordBox");
-  return [chordBox.selectionStart, chordBox.selectionEnd];
-}

@@ -8,9 +8,8 @@ import ParsedFlag exposing (ParsedFlag)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
-import Dict exposing (Dict)
+import Dict
 import Regex exposing (Regex, HowMany(..))
-import Set exposing (Set)
 
 type alias Model =
   { chordModel : ChordParser.Model
@@ -58,32 +57,15 @@ getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
 
 getSuggestions :
-  Int -> Model -> ( List Suggestion, Dict String (Set ( Int, Int )) )
+  Int -> Model -> List Suggestion
 getSuggestions key model =
-  let
-    flagSuggestions =
-      Suggestion.groupByReplacement
-        (List.filterMap ParsedFlag.getSuggestion model.flags)
-  in let
-    flagRangeSets =
-      Dict.map (always Suggestion.rangeSet) flagSuggestions
-  in let
-    ( chordSuggestions, chordRangeSets ) =
-      ChordParser.getSuggestions key model.chordModel
-  in
-    ( Suggestion.sort
-        (Dict.values flagSuggestions ++ chordSuggestions)
-    , Dict.merge
-        Dict.insert insertUnion Dict.insert
-        flagRangeSets chordRangeSets
-        Dict.empty
+  Suggestion.sort
+    ( List.concat
+        [ Suggestion.groupByReplacement
+            (List.filterMap ParsedFlag.getSuggestion model.flags)
+        , ChordParser.getSuggestions key model.chordModel
+        ]
     )
-
-insertUnion :
-  comparable1 -> Set comparable2 -> Set comparable2 ->
-    Dict comparable1 (Set comparable2) -> Dict comparable1 (Set comparable2)
-insertUnion k x y dict =
-  Dict.insert k (Set.union x y) dict
 
 type alias ParseResult =
   { words : List Substring

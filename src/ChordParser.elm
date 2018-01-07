@@ -9,9 +9,6 @@ import Suggestion exposing (Suggestion)
 import Swatch exposing (Swatch)
 import Zipper
 
-import Dict exposing (Dict)
-import Set exposing (Set)
-
 type alias IdChord =
   { id : Int
   , cache : CachedChord
@@ -82,17 +79,10 @@ splitListHelp pred xs =
     [] ->
       ( [], [] )
 
-getSuggestions :
-  Int -> Model -> ( List Suggestion, Dict String (Set ( Int, Int )) )
+getSuggestions : Int -> Model -> List Suggestion
 getSuggestions key model =
-  let
-    suggestions =
-      Suggestion.groupByReplacement
-        (List.filterMap (getSuggestion key) model.words)
-  in
-    ( Dict.values suggestions
-    , Dict.map (always Suggestion.rangeSet) suggestions
-    )
+  Suggestion.groupByReplacement
+    (List.filterMap (getSuggestion key) model.words)
 
 getSuggestion : Int -> Word -> Maybe ( List Swatch, Substring )
 getSuggestion key word =

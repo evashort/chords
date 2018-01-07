@@ -78,21 +78,8 @@
   <body>
     <div id="main"></div>
     <script>
-      var app = Elm.Main.fullscreen(
-        navigator.userAgent.indexOf("Mac OS X") != -1
-      );
-
+      var app = Elm.Main.fullscreen();
       app.ports.changeAudio.subscribe(changeAudio);
-      app.ports.setSelection.subscribe(
-        function(selection) {
-          app.ports.receiveSelection.send(setSelection(selection));
-        }
-      );
-      app.ports.checkSelection.subscribe(
-        function(dummy) {
-          app.ports.receiveSelection.send(checkSelection());
-        }
-      );
     </script>
   </body>
 </html>
