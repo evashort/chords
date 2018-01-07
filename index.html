@@ -78,6 +78,50 @@
   <body>
     <div id="main"></div>
     <script>
+      function isUndoOrRedo(ev) {
+        return (ev.which == 90 || (ev.which == 89 && !ev.shiftKey)) &&
+          ev.ctrlKey + ev.metaKey == 1 &&
+          !ev.altKey;
+      }
+
+      function isUndoNotRedo(ev) {
+        return ev.which == 90 && !ev.shiftKey;
+      }
+
+      function lockCatcher(ev) {
+        if (isUndoOrRedo(ev)) {
+          let catcher = ev.target;
+          if (catcher.lockedValue != null) {
+            ev.preventDefault();
+          } else {
+            let undo = isUndoNotRedo(ev);
+            let lockedValue = undo ? catcher.undoValue : catcher.redoValue;
+            if (catcher.value == lockedValue) {
+              catcher.lockedValue = lockedValue;
+              let port = undo ? app.ports.undoPort : app.ports.redoPort;
+              catcher.timeout = setTimeout(
+                function() {
+                  if (catcher.lockedValue != null) {
+                    catcher.timeout = 0;
+                    port.send(null);
+                  }
+                },
+                5
+              );
+            }
+          }
+        }
+      }
+
+      function unlockCatcher(ev) {
+        let catcher = ev.target;
+        if (catcher.timeout && catcher.value != catcher.lockedValue) {
+          catcher.lockedValue = null;
+          clearTimeout(catcher.timeout);
+          catcher.timeout = 0;
+        }
+      }
+
       var app = Elm.Main.fullscreen();
       app.ports.changeAudio.subscribe(changeAudio);
     </script>

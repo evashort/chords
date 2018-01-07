@@ -33,6 +33,7 @@ view swatch =
             , ( "background", "transparent" )
             , ( "text-shadow", "0px 0px 0px white" )
             , ( "position", "relative" )
+            , ( "z-index", "1" )
             , ( "pointer-events", "none" )
             ]
         ]
@@ -51,6 +52,7 @@ view swatch =
                 , ( "background", "transparent" )
                 , ( "text-shadow", "0px 0px 0px " ++ swatch.bg )
                 , ( "position", "relative" )
+                , ( "z-index", "1" )
                 , ( "pointer-events", "none" )
                 ]
             ]

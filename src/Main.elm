@@ -15,6 +15,7 @@ import Player exposing (Player, PlayStatus)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Swatch
+import UndoCatcher exposing (UndoCatcher)
 
 import AnimationFrame
 import Array
@@ -32,7 +33,7 @@ import Url
 main : Program Never Model Msg
 main =
   Navigation.program
-    UrlChange
+    UrlChanged
     { init = init
     , view = Html.Lazy.lazy view
     , update = update
@@ -63,7 +64,7 @@ type alias ChordLens =
   }
 
 type alias ChordBox =
-  { text : String
+  { catcher : UndoCatcher
   , parse : MainParser.Model
   , buffet : Buffet
   }
@@ -89,7 +90,7 @@ init location =
           }
       , home = True
       , chordBox =
-          { text = text
+          { catcher = UndoCatcher.fromString text
           , parse = parse
           , buffet =
               Buffet.fromSuggestions
@@ -122,10 +123,12 @@ type Msg
   | SetKey String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
-  | TextEdited String
-  | UrlChange Location
+  | TextChanged String
+  | UrlChanged Location
   | LensesChanged LensChange
   | Replace Suggestion
+  | Undo
+  | Redo
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -290,13 +293,13 @@ update msg model =
               , Task.attempt (always NoOp) (Dom.focus (toString chord.id))
               )
 
-    TextEdited newText ->
+    TextChanged newText ->
       ( { model
         | home = False
         , chordBox =
-            changeChordBoxText
+            mapCatcher
               model.chordLens.key
-              newText
+              (UndoCatcher.update newText)
               model.chordBox
         }
       , if model.home then
@@ -307,21 +310,25 @@ update msg model =
             ("#text=" ++ Url.percentEncode newText)
       )
 
-    UrlChange location ->
-      ( let newText = textFromLocation location in
-          if newText /= model.chordBox.text then
-            { model
+    UrlChanged location ->
+      let newText = textFromLocation location in
+        if newText /= model.chordBox.catcher.frame.text then
+          ( { model
             | home = True
             , chordBox =
-                changeChordBoxText
+                mapCatcher
                   model.chordLens.key
-                  newText
+                  ( UndoCatcher.replace
+                      0
+                      (String.length model.chordBox.catcher.frame.text)
+                      newText
+                  )
                   model.chordBox
             }
-          else
-            model
-      , Cmd.none
-      )
+          , Task.attempt (always NoOp) (Dom.focus "catcher")
+          )
+        else
+          ( model, Cmd.none )
 
     LensesChanged lensChange ->
       ( let chordBox = model.chordBox in
@@ -340,33 +347,45 @@ update msg model =
           [] ->
             model
           range :: _ ->
-            let
-              newText =
-                String.concat
-                  [ String.left range.i model.chordBox.text
-                  , Swatch.concat suggestion.swatches
-                  , String.dropLeft
+            { model
+            | chordBox =
+                mapCatcher
+                  model.chordLens.key
+                  ( UndoCatcher.replace
+                      range.i
                       (Substring.stop range)
-                      model.chordBox.text
-                  ]
-            in
-              { model
-              | chordBox =
-                  changeChordBoxText
-                    model.chordLens.key
-                    newText
-                    model.chordBox
-              }
-      , Cmd.none
+                      (Swatch.concat suggestion.swatches)
+                  )
+                  model.chordBox
+            }
+      , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
 
-changeChordBoxText : Int -> String -> ChordBox -> ChordBox
-changeChordBoxText key newText chordBox =
+    Undo ->
+      ( { model
+        | chordBox =
+            mapCatcher model.chordLens.key UndoCatcher.undo model.chordBox
+        }
+      , Task.attempt (always NoOp) (Dom.focus "catcher")
+      )
+
+    Redo ->
+      ( { model
+        | chordBox =
+            mapCatcher model.chordLens.key UndoCatcher.redo model.chordBox
+        }
+      , Task.attempt (always NoOp) (Dom.focus "catcher")
+      )
+
+mapCatcher : Int -> (UndoCatcher -> UndoCatcher) -> ChordBox -> ChordBox
+mapCatcher key f chordBox =
   let
-    parse = MainParser.update (Substring 0 newText) chordBox.parse
+    catcher = f chordBox.catcher
+  in let
+    parse =
+      MainParser.update (Substring 0 catcher.frame.text) chordBox.parse
   in
-    { chordBox
-    | text = newText
+    { catcher = catcher
     , parse = parse
     , buffet =
         Buffet.changeSuggestions
@@ -406,10 +425,18 @@ findTrueHelp i pred xs =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  if Player.willChange model.player then
-    AnimationFrame.times (always (NeedsTime CurrentTime))
-  else
-    Sub.none
+  let
+    rest =
+      [ UndoCatcher.undoPort (always Undo)
+      , UndoCatcher.redoPort (always Redo)
+      ]
+  in
+    if Player.willChange model.player then
+      Sub.batch
+        (AnimationFrame.times (always (NeedsTime CurrentTime)) :: rest)
+    else
+      Sub.batch rest
+
 
 -- VIEW
 
@@ -425,7 +452,29 @@ view model =
     , Html.Lazy.lazy viewBpm model.bpm
     , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
     , Html.Lazy.lazy viewKey model.chordLens.key
-    , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
+    , div
+        [ style
+            [ ( "width", "500px" )
+            , ( "position", "relative" )
+            , ( "font-size", "20pt" )
+            , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+            ]
+        ]
+        [ Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
+        , div
+            [ style
+                [ ( "position", "absolute" )
+                , ( "top", "0" )
+                , ( "left", "0" )
+                , ( "right", "0" )
+                , ( "bottom", "0" )
+                ]
+            ]
+            [ Html.map
+                TextChanged
+                (Html.Lazy.lazy UndoCatcher.view model.chordBox.catcher)
+            ]
+        ]
     , Html.Lazy.lazy viewBuffet model.chordBox.buffet
     , Html.Lazy.lazy3
         viewChordArea model.chordLens model.player model.chordBox.parse
@@ -653,61 +702,31 @@ viewKey key =
 
 viewChordBox : Int -> ChordBox -> Html Msg
 viewChordBox key chordBox =
-  div
+  pre
     [ style
-        [ ( "width", "500px" )
-        , ( "position", "relative" )
-        , ( "font-size", "20pt" )
-        , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+        [ ( "font", "inherit" )
+        , ( "padding", "10px" )
+        , ( "border", "2px solid")
+        , ( "margin", "0" )
+        , ( "white-space", "pre-wrap" )
+        , ( "word-wrap", "break-word" )
+        , ( "color", "transparent" )
         ]
     ]
-    [ textarea
-        [ onInput TextEdited
-        , spellcheck False
-        , value chordBox.text
-        , style
-            [ ( "font", "inherit" )
-            , ( "width", "100%" )
-            , ( "height", "100%" )
-            , ( "padding", "10px" )
-            , ( "border", "2px inset #e3e3e3")
-            , ( "margin", "0px" )
-            , ( "position", "absolute" )
-            , ( "resize", "none" )
-            , ( "overflow", "hidden" )
-            , ( "box-sizing", "border-box" )
-            , ( "background", "transparent" )
+    ( List.map
+        BubbleSwatch.view
+        ( Highlight.mergeLayers
+            [ Buffet.highlights chordBox.buffet
+            , MainParser.view key chordBox.parse
+            , [ Highlight
+                  ""
+                  "#000000"
+                  "#ffffff"
+                  (Substring 0 (chordBox.catcher.frame.text ++ "\n"))
+              ]
             ]
-        ]
-        []
-    , pre
-        [ style
-            [ ( "font", "inherit" )
-            , ( "padding", "10px" )
-            , ( "border", "2px solid transparent")
-            , ( "margin", "0px" )
-            , ( "white-space", "pre-wrap" )
-            , ( "word-wrap", "break-word" )
-            , ( "color", "transparent" )
-            ]
-        ]
-        ( List.map
-            BubbleSwatch.view
-            (Highlight.mergeLayers (getLayers key chordBox))
         )
-    ]
-
-getLayers : Int -> ChordBox -> List (List Highlight)
-getLayers key chordBox =
-  [ Buffet.highlights chordBox.buffet
-  , MainParser.view key chordBox.parse
-  , [ Highlight
-        ""
-        "#000000"
-        "#ffffff"
-        (Substring 0 (chordBox.text ++ "\n"))
-    ]
-  ]
+    )
 
 viewBuffet : Buffet -> Html Msg
 viewBuffet buffet =
