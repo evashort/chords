@@ -17,7 +17,7 @@ import Swatch
 import UndoCatcher exposing (UndoCatcher)
 
 import AnimationFrame
-import Array
+import Array exposing (Array)
 import Dom
 import Html exposing
   (Html, a, button, div, pre, span, text, textarea, input, select, option)
@@ -58,7 +58,7 @@ type PlayStyle
   | PadStyle
 
 type alias ChordLens =
-  { octaveBase : Int
+  { lowestNote : Int
   , key : Int
   }
 
@@ -84,7 +84,7 @@ init location =
       , strumInterval = 0.06
       , bpm = 85
       , chordLens =
-          { octaveBase = 48
+          { lowestNote = 48
           , key = key
           }
       , home = True
@@ -118,7 +118,7 @@ type Msg
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | SetBpm String
-  | SetOctaveBase String
+  | SetLowestNote String
   | SetKey String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
@@ -205,8 +205,10 @@ update msg model =
 
     SetStrumInterval strumIntervalString ->
       ( case String.toFloat strumIntervalString of
-          Ok strumInterval -> { model | strumInterval = strumInterval }
-          Err _ -> model
+          Ok strumInterval ->
+            { model | strumInterval = 0.001 * strumInterval }
+          Err _ ->
+            model
       , Cmd.none
       )
 
@@ -217,12 +219,12 @@ update msg model =
       , Cmd.none
       )
 
-    SetOctaveBase octaveBaseString ->
-      ( case String.toInt octaveBaseString of
-          Ok octaveBase ->
+    SetLowestNote lowestNoteString ->
+      ( case String.toInt lowestNoteString of
+          Ok lowestNote ->
             let chordLens = model.chordLens in
               { model
-              | chordLens = { chordLens | octaveBase = octaveBase }
+              | chordLens = { chordLens | lowestNote = lowestNote + 48 }
               }
           Err _ ->
             model
@@ -444,25 +446,73 @@ view model =
   div
     [ style
         [ ( "font-family", "Arial, Helvetica, sans-serif" )
-        , ( "font-size", "10pt" )
+        , ( "font-size", "85%" )
         ]
     ]
-    [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
-    , Html.Lazy.lazy viewBpm model.bpm
-    , Html.Lazy.lazy viewOctaveBase model.chordLens.octaveBase
-    , Html.Lazy.lazy viewKey model.chordLens.key
-    , div
+    [ span
         [ style
-            [ ( "width", "500px" )
-            , ( "position", "relative" )
-            , ( "font-size", "20pt" )
-            , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+            [ ( "position", "relative" )
+            , ( "display", "grid" )
+            , ( "grid", """
+"ps   ps   ps   ps   ps  "
+"bpm  bpm  bpm  bpm  bpm "
+"key  key  key  key  key "
+"o1   o1   .    o2   o2  "
+"ln1  ln2  ln2  ln2  ln3 "
+"txt  txt  txt  txt  txt "
+"buf  buf  buf  buf  buf "
+/auto calc(6.5px + 0.5ch)
+           auto calc(8.5px + 0.5ch)
+                     1fr
+"""
+              )
+            , ( "align-items", "center" )
+            , ( "line-height", "2.2" )
+            , ( "width", "37.5em" )
+            , ( "white-space", "nowrap" )
             ]
         ]
-        [ Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
+        [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
+        , Html.Lazy.lazy viewBpm model.bpm
+        , Html.Lazy.lazy viewKey model.chordLens.key
+        , span
+            [ style
+                [ ( "grid-area", "o1" )
+                , ( "display", "flex" )
+                , ( "justify-content", "space-between" )
+                ]
+            ]
+            [ Html.text "Octave\xA0"
+            , span [] [ Html.text "1" ]
+            ]
+        , input
+            [ type_ "number"
+            , value "2"
+            , Html.Attributes.min "2"
+            , Html.Attributes.max "2"
+            , style
+                [ ( "grid-area", "o2" )
+                , ( "width", "3em" )
+                ]
+            ]
+            []
+        , span
+            [ style
+                [ ( "grid-area", "ln1" )
+                ]
+            ]
+            [ Html.text "Lowest note\xA0"
+            ]
+        , Html.Lazy.lazy viewLowestNote model.chordLens.lowestNote
+        , viewOctaveBrackets
+        , Html.Lazy.lazy viewLowestNoteText model.chordLens.lowestNote
         , div
             [ style
-                [ ( "position", "absolute" )
+                [ ( "grid-area", "txt" )
+                , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+                , ( "font-size", "200%" )
+                , ( "line-height", "initial" )
+                , ( "position", "absolute" )
                 , ( "top", "0" )
                 , ( "left", "0" )
                 , ( "right", "0" )
@@ -473,8 +523,11 @@ view model =
                 TextChanged
                 (Html.Lazy.lazy UndoCatcher.view model.chordBox.catcher)
             ]
+        , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
+        , Html.map
+            interpretBuffetMessage
+            (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
         ]
-    , Html.Lazy.lazy viewBuffet model.chordBox.buffet
     , Html.Lazy.lazy3
         viewChordArea model.chordLens model.player model.chordBox.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
@@ -489,84 +542,59 @@ view model =
 
 viewPlayStyle : PlayStyle -> Float -> Html Msg
 viewPlayStyle playStyle strumInterval =
-  div
+  span
     [ style
-        [ ( "line-height", "26px" )
-        , ( "margin-bottom", "5px" )
+        [ ( "grid-area", "ps" )
+        , ( "display", "flex" )
+        , ( "align-items", "center" )
         ]
     ]
     ( List.concat
-        [ [ span []
-              [ Html.text "Play chords as " ]
-          , button
-              [ onClick (SetPlayStyle ArpeggioStyle)
-              , classList
-                  [ ( "pressMe", True )
-                  , ( "extended", True )
-                  , ( "chosen", playStyle == ArpeggioStyle )
-                  ]
-              , style
-                  [ ( "padding", "0px 3px" )
-                  , ( "border-width", "1px" )
-                  , ( "border-style", "solid" )
-                  , ( "border-radius", "3px 0px 0px 3px" )
-                  , ( "font", "inherit" )
-                  , ( "line-height", "24px" )
-                  ]
+        [ [ Html.text "Play chords as\xA0"
+          , span
+              [ class "radio"
               ]
-              [ Html.text "Arpeggio" ]
-          , button
-              [ onClick (SetPlayStyle StrumStyle)
-              , classList
-                  [ ( "pressMe", True )
-                  , ( "extension", True )
-                  , ( "middle", True )
-                  , ( "chosen", playStyle == StrumStyle )
+              [ button
+                  [ onClick (SetPlayStyle ArpeggioStyle)
+                  , classList [ ( "chosen", playStyle == ArpeggioStyle ) ]
                   ]
-              , style
-                  [ ( "padding", "0px 3px" )
-                  , ( "border-width", "1px" )
-                  , ( "font", "inherit" )
-                  , ( "line-height", "24px" )
+                  [ Html.text "Arpeggio", span [] [], span [] [] ]
+              , button
+                  [ onClick (SetPlayStyle StrumStyle)
+                  , classList [ ( "chosen", playStyle == StrumStyle ) ]
                   ]
+                  [ Html.text "Strum", span [] [], span [] [] ]
+              , button
+                  [ onClick (SetPlayStyle PadStyle)
+                  , classList [ ( "chosen", playStyle == PadStyle ) ]
+                  ]
+                  [ Html.text "Pad", span [] [], span [] [] ]
               ]
-              [ Html.text "Strum" ]
-          , button
-              [ onClick (SetPlayStyle PadStyle)
-              , classList
-                  [ ( "pressMe", True )
-                  , ( "extension", True )
-                  , ( "chosen", playStyle == PadStyle )
-                  ]
-              , style
-                  [ ( "padding", "0px 3px" )
-                  , ( "border-width", "1px" )
-                  , ( "border-radius", "0px 3px 3px 0px" )
-                  , ( "font", "inherit" )
-                  , ( "line-height", "24px" )
-                  ]
-              ]
-              [ Html.text "Pad" ]
           ]
         , if playStyle == StrumStyle then
-            [ input
+            [ Html.text "\xA0"
+            , input
                 [ type_ "range"
                 , onInput SetStrumInterval
                 , Html.Attributes.min "0"
-                , Html.Attributes.max "0.1"
-                , Html.Attributes.step "0.02"
-                , value (toString strumInterval)
+                , Html.Attributes.max "100"
+                , Html.Attributes.step "20"
+                , value (toString (1000 * strumInterval))
                 , style
-                    [ ( "margin", "0px 5px" )
-                    , ( "height", "26px" )
-                    , ( "vertical-align", "top" )
-                    , ( "box-sizing", "border-box" )
+                    [ ( "width", "auto" )
+                    , ( "min-width", "7em" )
                     ]
                 ]
                 []
-            , span []
+            , Html.text "\xA0"
+            , span
+                [ style
+                    [ ( "line-height", "1.25" )
+                    , ( "white-space", "normal" )
+                    ]
+                ]
                 [ Html.text
-                    (toString (strumInterval * 1000) ++ "ms between notes")
+                    (toString (1000 * strumInterval) ++ "ms between notes")
                 ]
             ]
           else
@@ -576,113 +604,43 @@ viewPlayStyle playStyle strumInterval =
 
 viewBpm : Int -> Html Msg
 viewBpm bpm =
-  div
+  span
     [ style
-        [ ( "line-height", "26px" )
-        , ( "margin-bottom", "5px" )
+        [ ( "grid-area", "bpm" )
+        , ( "display", "flex" )
+        , ( "align-items", "center" )
         ]
     ]
     [ span []
-        [ Html.text "Tempo " ]
+        [ Html.text "Tempo\xA0" ]
     , input
-        [ type_ "number"
+        [ type_ "range"
         , onInput SetBpm
         , value (toString bpm)
         , Html.Attributes.size 3
         , Html.Attributes.min "60"
-        , Html.Attributes.max "120"
+        , Html.Attributes.max "140"
+        , Html.Attributes.step "5"
         , style
-            [ ( "width", "4em" )
+            [ ( "width", "auto" )
+            , ( "min-width", "7em" )
             ]
         ]
         []
     , span []
-        [ Html.text " BPM" ]
+        [ Html.text ("\xA0" ++ toString bpm ++ " BPM") ]
     ]
-
-viewOctaveBase : Int -> Html Msg
-viewOctaveBase octaveBase =
-  div
-    [ style
-        [ ( "line-height", "26px" )
-        , ( "margin-bottom", "5px" )
-        ]
-    ]
-    [ span []
-        [ Html.text "Default octave " ]
-    , input
-        [ type_ "range"
-        , onInput SetOctaveBase
-        , Html.Attributes.min "40"
-        , Html.Attributes.max "53"
-        , value (toString octaveBase)
-        , style
-            [ ( "margin", "0px 5px" )
-            , ( "height", "26px" )
-            , ( "vertical-align", "top" )
-            , ( "box-sizing", "border-box" )
-            ]
-        ]
-        []
-    , span []
-        [ Html.text
-            ( let
-                octaveOffset = octaveBase % 12
-              in let
-                octave = (octaveBase - octaveOffset) // 12 - 2
-              in
-                String.concat
-                  [ getFlatName octaveOffset
-                  , toString octave
-                  , " through "
-                  , getSharpName ((octaveOffset + 11) % 12)
-                  , toString (octave + min octaveOffset 1)
-                  ]
-            )
-        ]
-    ]
-
-getSharpName : Int -> String
-getSharpName note =
-  Maybe.withDefault
-    ""
-    ( Array.get
-        note
-        ( Array.fromList
-            [ "C", "C♯", "D", "D♯", "E"
-            , "F", "F♯", "G", "G♯", "A", "A♯", "B"
-            ]
-        )
-    )
-
-getFlatName : Int -> String
-getFlatName note =
-  Maybe.withDefault
-    ""
-    ( Array.get
-        note
-        ( Array.fromList
-            [ "C", "D♭", "D", "E♭", "E"
-            , "F", "G♭", "G", "A♭", "A", "B♭", "B"
-            ]
-        )
-    )
 
 viewKey : Int -> Html Msg
 viewKey key =
-  div
+  span
     [ style
-        [ ( "line-height", "26px" )
-        , ( "margin-bottom", "5px" )
+        [ ( "grid-area", "key" )
         ]
     ]
-    [ span []
-      [ Html.text "Key signature " ]
+    [ Html.text "Key signature "
     , select
         [ onInput SetKey
-        , style
-            [ ( "margin-right", "5px" )
-            ]
         ]
         [ option [ value "0", selected (key == 0) ] [ Html.text "C / Am" ]
         , option [ value "7", selected (key == 7) ] [ Html.text "G / Em" ]
@@ -697,13 +655,93 @@ viewKey key =
         , option [ value "10", selected (key == 10) ] [ Html.text "B♭ / Gm" ]
         , option [ value "5", selected (key == 5) ] [ Html.text "F / Dm" ]
         ]
+    ]
+
+viewOctaveBrackets : Html msg
+viewOctaveBrackets =
+  span
+    [ style
+        [ ( "grid-area", "ln2" )
+        , ( "display", "flex" )
+        , ( "position", "absolute" )
+        , ( "top", "-0.6em" )
+        , ( "bottom", "calc(50% + 11px)" )
+        , ( "left", "calc(6px - 1ch)" )
+        , ( "right", "calc(6px - 1ch)" )
+        , ( "pointer-events", "none" )
+        ]
+    ]
+    [ span
+        [ style
+            [ ( "flex", "5 0 1ch" )
+            , ( "border-top", "1px solid" )
+            , ( "border-right", "1px solid" )
+            ]
+        ]
+        []
+    , span
+        [ style
+            [ ( "flex", "1" )
+            ]
+        ]
+        []
+    , span
+        [ style
+            [ ( "flex", "6 0 1ch" )
+            , ( "border-top", "1px solid" )
+            , ( "border-left", "1px solid" )
+            ]
+        ]
+        []
+    ]
+
+viewLowestNote : Int -> Html Msg
+viewLowestNote lowestNote =
+  input
+    [ type_ "range"
+    , onInput SetLowestNote
+    , Html.Attributes.min "-6"
+    , Html.Attributes.max "6"
+    , value (toString (lowestNote - 48))
+    , style
+        [ ( "grid-area", "ln2" )
+        , ( "width", "auto" )
+        , ( "min-width", "7em" )
+        ]
+    ]
+    []
+
+
+viewLowestNoteText : Int -> Html Msg
+viewLowestNoteText lowestNote =
+  let
+    octaveOffset = lowestNote % 12
+  in let
+    octave = (lowestNote - octaveOffset) // 12 - 2
+  in
+    span
+      [ style [ ( "grid-area", "ln3" ) ]
       ]
+      [ Html.text
+          ( case Array.get octaveOffset flatNames of
+              Nothing -> "error"
+              Just flatName -> "\xA0" ++ flatName ++ toString octave
+          )
+      ]
+
+flatNames : Array String
+flatNames =
+  Array.fromList
+    [ "C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B" ]
 
 viewChordBox : Int -> ChordBox -> Html Msg
 viewChordBox key chordBox =
   pre
     [ style
-        [ ( "font", "inherit" )
+        [ ( "grid-area", "txt" )
+        , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+        , ( "font-size", "200%" )
+        , ( "line-height", "initial" )
         , ( "padding", "10px" )
         , ( "border", "2px solid")
         , ( "margin", "0" )
@@ -725,10 +763,6 @@ viewChordBox key chordBox =
             ]
         )
     )
-
-viewBuffet : Buffet -> Html Msg
-viewBuffet buffet =
-  Html.map interpretBuffetMessage (Buffet.view buffet)
 
 interpretBuffetMessage : Buffet.Msg -> Msg
 interpretBuffetMessage buffetMessage =
@@ -769,7 +803,7 @@ viewMaybeChord chordLens playStatus maybeChord =
         playStatus
         { chord
         | cache =
-            CachedChord.transposeRootOctave chordLens.octaveBase chord.cache
+            CachedChord.transposeRootOctave chordLens.lowestNote chord.cache
         }
     Nothing ->
       viewSpace
@@ -871,7 +905,7 @@ viewCircleOfFifths chordLens player =
   Html.map
     msgFromCircleOfFifths
     ( CircleOfFifths.view
-        chordLens.octaveBase
+        chordLens.lowestNote
         chordLens.key
         (Player.playStatus player)
     )

@@ -20,35 +20,35 @@ chordCount : Int
 chordCount = 24
 
 getMajorChords : Int -> Int -> List IdChord
-getMajorChords octaveBase rotation =
+getMajorChords lowestNote rotation =
   List.map
-    (nthMajorChord 0 octaveBase)
+    (nthMajorChord 0 lowestNote)
     (List.range rotation (rotation + 11))
 
 nthMajorChord : Int -> Int -> Int -> IdChord
-nthMajorChord firstId octaveBase i =
+nthMajorChord firstId lowestNote i =
   { id = firstId + i % 12
   , cache =
       CachedChord.fromChord
         ( List.map
-            ((+) (octaveBase + (7 * i - octaveBase) % 12))
+            ((+) (lowestNote + (7 * i - lowestNote) % 12))
             [ 0, 4, 7 ]
         )
   }
 
 getMinorChords : Int -> Int -> List IdChord
-getMinorChords octaveBase rotation =
+getMinorChords lowestNote rotation =
   List.map
-    (nthMinorChord 12 octaveBase)
+    (nthMinorChord 12 lowestNote)
     (List.range rotation (rotation + 11))
 
 nthMinorChord : Int -> Int -> Int -> IdChord
-nthMinorChord firstId octaveBase i =
+nthMinorChord firstId lowestNote i =
   { id = firstId + i % 12
   , cache =
       CachedChord.fromChord
         ( List.map
-            ((+) (octaveBase + (7 * i + 9 - octaveBase) % 12))
+            ((+) (lowestNote + (7 * i + 9 - lowestNote) % 12))
             [ 0, 3, 7 ]
         )
   }
@@ -58,7 +58,7 @@ type Msg
   | StopChord
 
 view : Int -> Int -> PlayStatus -> Html Msg
-view octaveBase key playStatus =
+view lowestNote key playStatus =
   let
     rInner = 100
   in let
@@ -68,9 +68,9 @@ view octaveBase key playStatus =
   in let
     rotation = 7 * key
   in let
-    majorChords = getMajorChords octaveBase rotation
+    majorChords = getMajorChords lowestNote rotation
   in let
-    minorChords = getMinorChords octaveBase rotation
+    minorChords = getMinorChords lowestNote rotation
   in let
     stopButtonId =
       if playStatus.stoppable then playStatus.active else -1

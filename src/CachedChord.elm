@@ -21,13 +21,13 @@ type alias CachedChord =
   }
 
 transposeRootOctave : Int -> CachedChord -> CachedChord
-transposeRootOctave octaveBase cache =
+transposeRootOctave lowestNote cache =
   let
     root = Chord.get cache.chord 0
   in let
     newRoot =
       if 48 <= root && root < 60 then
-        (root - octaveBase) % 12 + octaveBase
+        (root - lowestNote) % 12 + lowestNote
       else
         root
   in
