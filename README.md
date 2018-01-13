@@ -18,3 +18,22 @@ On the JS side, I use the Web Audio API to set up 6 sawtooth oscillators, connec
 On the Elm side, when you click a chord play button, I generate a list of `AudioChange` objects, such as `AddNote { t : Float, f : Float }` or `MuteAllNotes`. Then I encode them with a custom json encoder and send them through a port to JS. So the entire arpeggio is sent to the Web Audio API as soon as you click the button.
 
 To update the UI when the arpeggio finishes playing, I use the `AnimationFrame` package to query the audio clock continuously and update the UI when a time threshold is passed. I had to write a native module to access the audio clock.
+
+Possible brackets:
+```
+---+ +- =
+---+ #===
+---# #===
+- =# #===
+- =# #= -
+
+-+ +---#
+-+ +- =#
+-+ #===#
+-# #= -+
+
++---+ #=
++---# #=
++- =# #=
+#===# +-
+```
