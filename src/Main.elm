@@ -508,7 +508,11 @@ view model =
             [ Html.text "Lowest note\xA0"
             ]
         , Html.Lazy.lazy viewLowestNote model.chordLens.lowestNote
-        , Html.Lazy.lazy viewOctaveBrackets model.chordLens.lowestNote
+        , Html.map never
+            ( Html.Lazy.lazy
+                viewOctaveBrackets
+                model.chordLens.lowestNote
+            )
         , Html.Lazy.lazy viewLowestNoteText model.chordLens.lowestNote
         , div
             [ style
@@ -661,140 +665,150 @@ viewKey key =
         ]
     ]
 
-viewOctaveBrackets : Int -> Html msg
+viewOctaveBrackets : Int -> Html Never
 viewOctaveBrackets lowestNote =
-  if lowestNote < 44 then
-    interpretBrackets
-      [ ( [ add1ch (px (3 * toFloat (lowestNote - 42)))
-          , fr (lowestNote - 42)
-          ]
-        , thinBracket False False
-        )
-      , ( [ px (1.5 + 3 * toFloat (47 - lowestNote))
-          , fr (47 - lowestNote)
-          ]
-        , thickBracket False True
-        )
-      , ( [ fr 1 ], always Nothing )
-      , ( [ px (1.5 + 3 * toFloat (lowestNote - 37))
-          , fr (lowestNote - 37)
-          ]
-        , thickBracket True False
-        )
-      , ( [ add1ch (px (3 * toFloat (43 - lowestNote)))
-          , fr (43 - lowestNote)
-          ]
-        , thinBracket False False
-        )
-      ]
-  else if lowestNote < 47 then
-    interpretBrackets
-      [ ( [ add1ch (px (3 * toFloat (lowestNote - 42)))
-          , fr (lowestNote - 42)
-          ]
-        , thinBracket False False
-        )
-      , ( [ px (1.5 + 3 * toFloat (47 - lowestNote))
-          , fr (47 - lowestNote)
-          ]
-        , thickBracket False True
-        )
-      , ( [ fr 1 ], always Nothing )
-      , ( [ add1ch (px 19.5), fr 6 ], thickBracket True False )
-      ]
-  else if lowestNote == 47 then
-    interpretBrackets
-      [ ( [ add1ch (px 16.5), fr 5 ], tadpole False )
-      , ( [ fr 1 ], always Nothing )
-      , ( [ add1ch (px 19.5), fr 6 ], thickBracket True False )
-      ]
-  else if lowestNote == 48 then
-    interpretBrackets
-      [ ( [ add1ch (px 15.5), fr 5 ], thinBracket False True )
-      , ( [ px 1, fr 1 ], always Nothing )
-      , ( [ add1ch (px 19.5), fr 6 ], thickBracket True False )
-      ]
-  else
-    interpretBrackets
-      [ ( [ add1ch (px 15.5), fr 5 ], thinBracket False True )
-      , ( [ px 2, fr 1 ], always Nothing )
-      , ( [ px (0.5 + 3 * toFloat (lowestNote - 48))
-          , fr (lowestNote - 48)
-          ]
-        , thinBracket True False
-        )
-      , ( [ add1ch (px (3 * toFloat (54 - lowestNote)))
-          , fr (54 - lowestNote)
-          ]
-        , thickBracket False False
-        )
-      ]
-
-px : Float -> String
-px x =
-  toString x ++ "px"
-
-fr : Int -> String
-fr n =
-  toString n ++ "fr"
-
-add1ch : String -> String
-add1ch s =
-  "calc(1ch + " ++ s ++ ")"
-
-thinBracket : Bool -> Bool -> Int -> Maybe (Html msg)
-thinBracket = bracketHelp "1px solid"
-
-thickBracket : Bool -> Bool -> Int -> Maybe (Html msg)
-thickBracket = bracketHelp "3px solid"
-
-bracketHelp : String -> Bool -> Bool -> Int -> Maybe (Html msg)
-bracketHelp border start end i =
-  Just
-    ( span
-        [ style
-            [ ( "grid-area", "a" ++ toString i )
-            , ( "border-left", if start then border else "none" )
-            , ( "border-top", border )
-            , ( "border-right", if end then border else "none" )
-            ]
+  let oldLowestNote = 48 in
+    if lowestNote < oldLowestNote - 4 then
+      interpretBrackets
+        [ thinBracket False (lowestNote - oldLowestNote + 6) False
+        , thickBracket False (oldLowestNote - 1 - lowestNote) True
+        , bracketSpace
+        , thickBracket True (lowestNote - oldLowestNote + 11) False
+        , thinBracket False (oldLowestNote - 5 - lowestNote) False
         ]
-        []
-    )
-
-tadpole : Bool -> Int -> Maybe (Html msg)
-tadpole start i =
-  Just
-    ( span
-        [ style
-            [ ( "grid-area", "a" ++ toString i )
-            , ( "border-left", if start then "1px solid" else "none" )
-            , ( "border-top", "1px solid" )
-            , ( "border-right", "3px solid" )
-            ]
+    else if lowestNote < 47 then
+      interpretBrackets
+        [ thinBracket False (lowestNote - oldLowestNote + 6) False
+        , thickBracket False (oldLowestNote - 1 - lowestNote) True
+        , bracketSpace
+        , thickBracket True 6 False
         ]
-        []
-    )
+    else if lowestNote == 47 then
+      interpretBrackets
+        [ tadpole False 5
+        , bracketSpace
+        , thickBracket True 6 False
+        ]
+    else if lowestNote == 48 then
+      interpretBrackets
+        [ thinBracket False 5 True
+        , bracketSpace
+        , thickBracket True 6 False
+        ]
+    else
+      interpretBrackets
+        [ thinBracket False 5 True
+        , bracketSpace
+        , thinBracket True (lowestNote - oldLowestNote) False
+        , thickBracket False (oldLowestNote + 6 - lowestNote) False
+        ]
 
-interpretBrackets :
-  List (List String, Int -> Maybe (Html msg)) -> Html msg
-interpretBrackets brackets =
-  span
-    [ let columns = List.map Tuple.first brackets in
-        style
+type alias Bracket =
+  { areas : String
+  , columns : String
+  , nodes : List (Html Never)
+  }
+
+bracketSpace : Int -> Int -> Bracket
+bracketSpace len i =
+  { areas = "a" ++ toString i
+  , columns =
+      if i == 0 || i == len - 1 then "calc(1ch - 1.5px)"
+      else "1fr"
+  , nodes = []
+  }
+
+thinBracket : Bool -> Int -> Bool -> Int -> Int -> Bracket
+thinBracket = bracketHelp "1px solid" "1px"
+
+thickBracket : Bool -> Int -> Bool -> Int -> Int -> Bracket
+thickBracket = bracketHelp "3px solid" "0"
+
+bracketHelp :
+  String -> String -> Bool -> Int -> Bool -> Int -> Int -> Bracket
+bracketHelp border margin start n end len i =
+  { areas = "a" ++ toString i ++ " a" ++ toString i
+  , columns =
+      String.join
+        " "
+        [ let
+            px =
+              (if start then 1.5 else 0) +
+                (if end then 1.5 else 0) + 3 * toFloat n
+          in
+            if i == 0 || i == len - 1 then
+              "calc(1ch + " ++ toString px ++ "px)"
+            else
+              toString px ++ "px"
+        , toString n ++ "fr"
+        ]
+  , nodes =
+      [ span
+          [ style
+              [ ( "grid-area", "a" ++ toString i )
+              , ( "margin-left", if start then margin else "0" )
+              , ( "border-left", if start then border else "none" )
+              , ( "border-top", border )
+              , ( "border-right", if end then border else "none" )
+              , ( "margin-right", if end then margin else "0" )
+              ]
+          ]
+          []
+      ]
+  }
+
+tadpole : Bool -> Int -> Int -> Int -> Bracket
+tadpole start n len i =
+  { areas = "a" ++ toString i ++ " a" ++ toString i
+  , columns =
+      String.join
+        " "
+        [ let
+            px = (if start then 1.5 else 0) + 1.5 + 3 * toFloat n
+          in
+            if i == 0 || i == len - 1 then
+              "calc(1ch + " ++ toString px ++ "px)"
+            else
+              toString px ++ "px"
+        , toString n ++ "fr"
+        ]
+  , nodes =
+      [ span
+          [ style
+              [ ( "grid-area", "a" ++ toString i )
+              , ( "margin-left", if start then "1px" else "0" )
+              , ( "border-left"
+                , if start then "1px solid" else "none"
+                )
+              , ( "border-top", "1px solid" )
+              , ( "border-right", "3px solid" )
+              ]
+          ]
+          []
+      ]
+  }
+
+interpretBrackets : List (Int -> Int -> Bracket) -> Html Never
+interpretBrackets bracketFunctions =
+  let
+    brackets =
+      List.indexedMap
+        (flip (flip identity (List.length bracketFunctions)))
+        bracketFunctions
+  in
+    span
+      [ style
           [ ( "grid-area", "ln2" )
           , ( "display", "grid" )
           , ( "grid-template-areas"
             , String.concat
                 [ "\""
-                , String.join
-                    " "
-                    (List.indexedMap bracketArea columns)
+                , String.join " " (List.map .areas brackets)
                 , "\""
                 ]
             )
           , ( "grid-template-columns"
-            , String.join " " (List.concat columns)
+            , String.join " " (List.map .columns brackets)
             )
           , ( "position", "absolute" )
           , ( "top", "-0.6em" )
@@ -803,17 +817,8 @@ interpretBrackets brackets =
           , ( "right", "calc(6.5px - 1ch)" )
           , ( "pointer-events", "none" )
           ]
-    ]
-    ( List.filterMap
-        identity
-        (List.indexedMap (flip Tuple.second) brackets)
-    )
-
-bracketArea : Int -> List String -> String
-bracketArea i columns =
-  String.join
-    " "
-    (List.repeat (List.length columns) ("a" ++ toString i))
+      ]
+      (List.concatMap .nodes brackets)
 
 viewLowestNote : Int -> Html Msg
 viewLowestNote lowestNote =
