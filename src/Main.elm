@@ -52,6 +52,7 @@ type alias Model =
   , strumInterval : Float
   , bpm : Int
   , chordLens : ChordLens
+  , oldLowestNote : Int
   , home : Bool
   , chordBox : ChordBox
   }
@@ -91,6 +92,7 @@ init location =
           { lowestNote = 48
           , key = key
           }
+      , oldLowestNote = 48
       , home = True
       , chordBox =
           { catcher = UndoCatcher.fromString text
@@ -122,7 +124,9 @@ type Msg
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | SetBpm String
+  | SetOctave2 String
   | SetLowestNote String
+  | SetOldLowestNote
   | SetKey String
   | FocusHorizontal ( Bool, Int )
   | FocusVertical ( Bool, Int )
@@ -223,15 +227,45 @@ update msg model =
       , Cmd.none
       )
 
-    SetLowestNote lowestNoteString ->
-      ( case String.toInt lowestNoteString of
-          Ok lowestNote ->
-            let chordLens = model.chordLens in
+    SetOctave2 octave2String ->
+      ( case String.toInt octave2String of
+          Ok octave2 ->
+            let
+              chordLens = model.chordLens
+            in let
+              oldOctave2 = getOctave (model.oldLowestNote + 6)
+            in let
+              offset = 12 * (octave2 - oldOctave2)
+            in
               { model
-              | chordLens = { chordLens | lowestNote = lowestNote + 48 }
+              | chordLens =
+                  { chordLens
+                  | lowestNote = chordLens.lowestNote + offset
+                  }
+              , oldLowestNote = model.oldLowestNote + offset
               }
           Err _ ->
             model
+      , Cmd.none
+      )
+
+    SetLowestNote offsetString ->
+      ( case String.toInt offsetString of
+          Ok offset ->
+            let chordLens = model.chordLens in
+              { model
+              | chordLens =
+                  { chordLens
+                  | lowestNote = model.oldLowestNote + offset
+                  }
+              }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
+    SetOldLowestNote ->
+      ( { model | oldLowestNote = model.chordLens.lowestNote }
       , Cmd.none
       )
 
@@ -487,13 +521,18 @@ view model =
                 ]
             ]
             [ Html.text "Octave\xA0"
-            , span [] [ Html.text "1" ]
+            , span
+                []
+                [ Html.text
+                    (toString (getOctave (model.oldLowestNote - 6)))
+                ]
             ]
         , input
             [ type_ "number"
-            , value "2"
-            , Html.Attributes.min "2"
-            , Html.Attributes.max "2"
+            , value (toString (getOctave (model.oldLowestNote + 6)))
+            , Html.Attributes.min "-1"
+            , Html.Attributes.max "5"
+            , onInput SetOctave2
             , style
                 [ ( "grid-area", "o2" )
                 , ( "width", "3em" )
@@ -507,13 +546,19 @@ view model =
             ]
             [ Html.text "Lowest note\xA0"
             ]
-        , Html.Lazy.lazy viewLowestNote model.chordLens.lowestNote
+        , Html.Lazy.lazy
+            viewLowestNote
+            (model.chordLens.lowestNote - model.oldLowestNote)
         , Html.map never
-            ( Html.Lazy.lazy
+            ( Html.Lazy.lazy2
                 viewOctaveBrackets
+                model.oldLowestNote
                 model.chordLens.lowestNote
             )
-        , Html.Lazy.lazy viewLowestNoteText model.chordLens.lowestNote
+        , Html.Lazy.lazy2
+            viewLowestNoteText
+            model.oldLowestNote
+            model.chordLens.lowestNote
         , div
             [ style
                 [ ( "grid-area", "txt" )
@@ -547,6 +592,10 @@ view model =
             [ text "GitHub" ]
         ]
     ]
+
+getOctave : Int -> Int
+getOctave pitch =
+  (pitch - pitch % 12) // 12 - 2
 
 viewPlayStyle : PlayStyle -> Float -> Html Msg
 viewPlayStyle playStyle strumInterval =
@@ -665,43 +714,79 @@ viewKey key =
         ]
     ]
 
-viewOctaveBrackets : Int -> Html Never
-viewOctaveBrackets lowestNote =
-  let oldLowestNote = 48 in
-    if lowestNote < oldLowestNote - 4 then
-      interpretBrackets
-        [ thinBracket False (lowestNote - oldLowestNote + 6) False
-        , thickBracket False (oldLowestNote - 1 - lowestNote) True
-        , bracketSpace
-        , thickBracket True (lowestNote - oldLowestNote + 11) False
-        , thinBracket False (oldLowestNote - 5 - lowestNote) False
-        ]
-    else if lowestNote < 47 then
-      interpretBrackets
-        [ thinBracket False (lowestNote - oldLowestNote + 6) False
-        , thickBracket False (oldLowestNote - 1 - lowestNote) True
-        , bracketSpace
-        , thickBracket True 6 False
-        ]
-    else if lowestNote == 47 then
-      interpretBrackets
-        [ tadpole False 5
-        , bracketSpace
-        , thickBracket True 6 False
-        ]
-    else if lowestNote == 48 then
-      interpretBrackets
-        [ thinBracket False 5 True
-        , bracketSpace
-        , thickBracket True 6 False
-        ]
-    else
-      interpretBrackets
-        [ thinBracket False 5 True
-        , bracketSpace
-        , thinBracket True (lowestNote - oldLowestNote) False
-        , thickBracket False (oldLowestNote + 6 - lowestNote) False
-        ]
+viewOctaveBrackets : Int -> Int -> Html Never
+viewOctaveBrackets oldLowestNote lowestNote =
+  let
+    gapEnd = 6 - (oldLowestNote + 6) % 12
+  in let
+    gapStart = gapEnd - 1
+  in let
+    boldStart = lowestNote - oldLowestNote
+  in let
+    boldEnd = boldStart + 11
+  in
+    (interpretBrackets << List.concat)
+      [ if gapStart == 5 then
+          if boldEnd <= gapStart then
+            [ bracketSpace
+            , thickBracket True 11 True
+            ]
+          else if boldStart < gapStart then
+            [ bracketSpace
+            , thinBracket True (boldStart + 6) False
+            , thickBracket False (gapStart - boldStart) True
+            ]
+          else if boldStart == gapStart then
+            [ bracketSpace
+            , tadpole True 11
+            ]
+          else
+            [ bracketSpace
+            , thinBracket True 11 True
+            ]
+        else if boldStart < gapStart then
+          [ thinBracket False (boldStart + 6) False
+          , thickBracket False (gapStart - boldStart) True
+          ]
+        else if boldStart == gapStart then
+          [ tadpole False (gapStart + 6) ]
+        else
+          [ thinBracket False (gapStart + 6) True ]
+      , [ bracketSpace ]
+      , if gapEnd == -5 then
+          if boldEnd < 6 then
+            [ thickBracket True (boldEnd - gapEnd) False
+            , thinBracket False (6 - boldEnd) True
+            , bracketSpace
+            ]
+          else if boldStart <= gapEnd then
+            [ thickBracket True 11 True
+            , bracketSpace
+            ]
+          else if boldStart < 6 then
+            [ thinBracket True (boldStart - gapEnd) False
+            , thickBracket False (6 - boldStart) True
+            , bracketSpace
+            ]
+          else
+            [ tadpole True 11
+            , bracketSpace
+            ]
+        else if boldEnd < gapEnd then
+          [ thinBracket True (6 - gapEnd) False ]
+        else if boldEnd == gapEnd then
+          [ badpole (6 - gapEnd) False ]
+        else if boldEnd <= 6 then
+          [ thickBracket True (boldEnd - gapEnd) False
+          , thinBracket False (6 - boldEnd) False
+          ]
+        else if boldStart <= gapEnd then
+          [ thickBracket True (6 - gapEnd) False ]
+        else
+          [ thinBracket True (boldStart - gapEnd) False
+          , thickBracket False (6 - boldStart) False
+          ]
+      ]
 
 type alias Bracket =
   { areas : String
@@ -788,6 +873,37 @@ tadpole start n len i =
       ]
   }
 
+badpole : Int -> Bool -> Int -> Int -> Bracket
+badpole n end len i =
+  { areas = "a" ++ toString i ++ " a" ++ toString i
+  , columns =
+      String.join
+        " "
+        [ let
+            px = (if end then 1.5 else 0) + 1.5 + 3 * toFloat n
+          in
+            if i == 0 || i == len - 1 then
+              "calc(1ch + " ++ toString px ++ "px)"
+            else
+              toString px ++ "px"
+        , toString n ++ "fr"
+        ]
+  , nodes =
+      [ span
+          [ style
+              [ ( "grid-area", "a" ++ toString i )
+              , ( "border-left", "3px solid" )
+              , ( "border-top", "1px solid" )
+              , ( "margin-right", if end then "1px" else "0" )
+              , ( "border-right"
+                , if end then "1px solid" else "none"
+                )
+              ]
+          ]
+          []
+      ]
+  }
+
 interpretBrackets : List (Int -> Int -> Bracket) -> Html Never
 interpretBrackets bracketFunctions =
   let
@@ -821,13 +937,13 @@ interpretBrackets bracketFunctions =
       (List.concatMap .nodes brackets)
 
 viewLowestNote : Int -> Html Msg
-viewLowestNote lowestNote =
+viewLowestNote offset =
   input
     [ type_ "range"
     , onInput SetLowestNote
     , Html.Attributes.min "-6"
     , Html.Attributes.max "6"
-    , value (toString (lowestNote - 48))
+    , value (toString offset)
     , style
         [ ( "grid-area", "ln2" )
         , ( "width", "auto" )
@@ -836,22 +952,46 @@ viewLowestNote lowestNote =
     ]
     []
 
-viewLowestNoteText : Int -> Html Msg
-viewLowestNoteText lowestNote =
+viewLowestNoteText : Int -> Int -> Html Msg
+viewLowestNoteText oldLowestNote lowestNote =
   let
     octaveOffset = lowestNote % 12
   in let
     octave = (lowestNote - octaveOffset) // 12 - 2
+  in let
+    lowestNoteText =
+      case Array.get octaveOffset flatNames of
+        Nothing -> "error"
+        Just flatName -> "\xA0" ++ flatName ++ toString octave
   in
     span
       [ style [ ( "grid-area", "ln3" ) ]
       ]
-      [ Html.text
-          ( case Array.get octaveOffset flatNames of
-              Nothing -> "error"
-              Just flatName -> "\xA0" ++ flatName ++ toString octave
-          )
-      ]
+      ( if lowestNote == oldLowestNote then
+          [ span
+              [ style
+                  [ ( "display", "inline-block" )
+                  , ( "width", "5ch" )
+                  ]
+              ]
+              [ Html.text lowestNoteText ]
+          ]
+        else
+          [ span
+              [ style
+                  [ ( "display", "inline-block" )
+                  , ( "width", "5ch" )
+                  ]
+              ]
+              [ Html.text lowestNoteText ]
+          , button
+              [ onClick SetOldLowestNote ]
+              [ Html.text "OK" ]
+          , button
+              [ onClick (SetLowestNote "0") ]
+              [ Html.text "Cancel" ]
+          ]
+      )
 
 flatNames : Array String
 flatNames =
