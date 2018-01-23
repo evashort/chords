@@ -1,6 +1,6 @@
 port module UndoCatcher exposing
-  ( undoPort, redoPort, UndoCatcher, fromString, update, undo, redo, replace
-  , view
+  ( undoPort, redoPort, UndoCatcher, fromString, update, undo, redo
+  , replace, switch, view
   )
 
 import Html exposing (Html, div, textarea)
@@ -102,6 +102,30 @@ replace start stop replacement catcher =
     , editCount = catcher.editCount + 1
     , futureEdits = []
     }
+
+switch : Int -> Int -> String -> UndoCatcher -> UndoCatcher
+switch start stop replacement catcher =
+  case catcher.edits of
+    [] ->
+      catcher
+    oldEdit :: rest ->
+      let
+        after =
+          { text =
+              String.concat
+                [ String.left start oldEdit.before.text
+                , replacement
+                , String.dropLeft stop oldEdit.before.text
+                ]
+          , start = start + String.length replacement
+          , stop = start + String.length replacement
+          }
+      in
+        { catcher
+        | frame = after
+        , edits = { oldEdit | after = after } :: rest
+        , futureEdits = []
+        }
 
 view : UndoCatcher -> Html String
 view catcher =

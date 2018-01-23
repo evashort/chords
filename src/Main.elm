@@ -55,6 +55,7 @@ type alias Model =
   , oldLowestNote : Int
   , home : Bool
   , chordBox : ChordBox
+  , preTranspose : Maybe MainParser.Model
   }
 
 type PlayStyle
@@ -92,6 +93,7 @@ init location =
           , buffet =
               Buffet.fromSuggestions (MainParser.getSuggestions parse)
           }
+      , preTranspose = Nothing
       }
     , Cmd.none
     )
@@ -253,18 +255,28 @@ update msg model =
       ( case String.toInt keyString of
           Ok key ->
             let
+              preTranspose =
+                case model.preTranspose of
+                  Just x -> x
+                  Nothing -> model.chordBox.parse
+            in let
               (landingPad, replacement) =
-                MainParser.setKey key model.chordBox.parse
+                MainParser.setKey key preTranspose
             in
               { model
               | chordBox =
                   mapCatcher
-                    ( UndoCatcher.replace
+                    ( ( if model.preTranspose == Nothing then
+                          UndoCatcher.replace
+                        else
+                          UndoCatcher.switch
+                      )
                         landingPad.i
                         (Substring.stop landingPad)
                         replacement
                     )
                     model.chordBox
+              , preTranspose = Just preTranspose
               }
           Err _ ->
             model
@@ -316,6 +328,7 @@ update msg model =
         | home = False
         , chordBox =
             mapCatcher (UndoCatcher.update newText) model.chordBox
+        , preTranspose = Nothing
         }
       , if model.home then
           Navigation.newUrl
@@ -338,6 +351,7 @@ update msg model =
                       newText
                   )
                   model.chordBox
+            , preTranspose = Nothing
             }
           , Task.attempt (always NoOp) (Dom.focus "catcher")
           )
@@ -370,6 +384,7 @@ update msg model =
                       (Swatch.concat suggestion.swatches)
                   )
                   model.chordBox
+            , preTranspose = Nothing
             }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
@@ -377,6 +392,7 @@ update msg model =
     Undo ->
       ( { model
         | chordBox = mapCatcher UndoCatcher.undo model.chordBox
+        , preTranspose = Nothing
         }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
@@ -384,6 +400,7 @@ update msg model =
     Redo ->
       ( { model
         | chordBox = mapCatcher UndoCatcher.redo model.chordBox
+        , preTranspose = Nothing
         }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
