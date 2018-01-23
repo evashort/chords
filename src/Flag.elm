@@ -1,4 +1,4 @@
-module Flag exposing (Flag(..), parseKey, codeValue)
+module Flag exposing (Flag(..), parseKey, codeValue, getKey)
 
 import NoteParser
 
@@ -49,3 +49,8 @@ codeValue flag =
         10 -> "Bb"
         11 -> "B"
         _ -> "error"
+
+getKey : Flag -> Maybe Int
+getKey flag =
+  case flag of
+    KeyFlag key -> Just key

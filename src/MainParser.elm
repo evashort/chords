@@ -1,5 +1,5 @@
 module MainParser exposing
-  (Model, init, update, view, getChords, getSuggestions)
+  (Model, init, update, view, getChords, getSuggestions, getKey, setKey)
 
 import ChordParser exposing (IdChord)
 import Flag exposing (Flag(..))
@@ -44,28 +44,55 @@ update whole model =
     , keyRange = parseResult.keyRange
     }
 
-view : Int -> Model -> List Highlight
-view key model =
-  ChordParser.view key model.chordModel ++
-    List.map (Highlight "#008000" "#ffffff") model.comments ++
-      List.map (Highlight "#ffffff" "#ff0000") model.indents ++
-        List.concatMap
-          (ParsedFlag.view (if key == model.key then key else -1))
-          model.flags
+view : Model -> List Highlight
+view model =
+  let key = getKey model in
+    List.concat
+      [ ChordParser.view key model.chordModel
+      , List.map (Highlight "#008000" "#ffffff") model.comments
+      , List.map (Highlight "#ffffff" "#ff0000") model.indents
+      , List.concatMap (ParsedFlag.view key) model.flags
+      ]
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords = ChordParser.getChords << .chordModel
 
-getSuggestions :
-  Int -> Model -> List Suggestion
-getSuggestions key model =
+getSuggestions : Model -> List Suggestion
+getSuggestions model =
   Suggestion.sort
     ( List.concat
         [ Suggestion.groupByReplacement
             (List.filterMap ParsedFlag.getSuggestion model.flags)
-        , ChordParser.getSuggestions key model.chordModel
+        , ChordParser.getSuggestions (getKey model) model.chordModel
         ]
     )
+
+getKey : Model -> Int
+getKey model =
+  case
+    List.reverse
+      ( List.filterMap
+          (Maybe.andThen Flag.getKey << .flag)
+          model.flags
+      )
+  of
+    [] -> 0
+    key :: _ -> key
+
+setKey : Int -> Model -> (Substring, String)
+setKey key model =
+  case
+    List.reverse
+      (List.filter ((==) "key:" << .s << .name) model.flags)
+  of
+    [] ->
+      ( { i = 0, s = "" }
+      , "key: " ++ Flag.codeValue (KeyFlag key) ++ "\n"
+      )
+    flag :: _ ->
+      ( flag.value
+      , Flag.codeValue (KeyFlag key)
+      )
 
 type alias ParseResult =
   { words : List Substring
@@ -150,7 +177,14 @@ parseTerminatedLine linen =
           | flag = Just { flag | nextLineStart = Substring.stop linen }
           }
   else
-    parseLine linen
+    let result = parseLine linen in
+      case result.flag of
+        Nothing ->
+          result
+        Just flag ->
+          { result
+          | flag = Just { flag | nextLineStart = Substring.stop linen + 1 }
+          }
 
 parseLine : Substring -> LineResult
 parseLine line =

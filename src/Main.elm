@@ -51,7 +51,7 @@ type alias Model =
   , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
-  , chordLens : ChordLens
+  , lowestNote : Int
   , oldLowestNote : Int
   , home : Bool
   , chordBox : ChordBox
@@ -61,11 +61,6 @@ type PlayStyle
   = ArpeggioStyle
   | StrumStyle
   | PadStyle
-
-type alias ChordLens =
-  { lowestNote : Int
-  , key : Int
-  }
 
 type alias ChordBox =
   { catcher : UndoCatcher
@@ -88,18 +83,14 @@ init location =
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
-      , chordLens =
-          { lowestNote = 48
-          , key = key
-          }
+      , lowestNote = 48
       , oldLowestNote = 48
       , home = True
       , chordBox =
           { catcher = UndoCatcher.fromString text
           , parse = parse
           , buffet =
-              Buffet.fromSuggestions
-                (MainParser.getSuggestions key parse)
+              Buffet.fromSuggestions (MainParser.getSuggestions parse)
           }
       }
     , Cmd.none
@@ -231,17 +222,12 @@ update msg model =
       ( case String.toInt octave2String of
           Ok octave2 ->
             let
-              chordLens = model.chordLens
-            in let
               oldOctave2 = getOctave (model.oldLowestNote + 6)
             in let
               offset = 12 * (octave2 - oldOctave2)
             in
               { model
-              | chordLens =
-                  { chordLens
-                  | lowestNote = chordLens.lowestNote + offset
-                  }
+              | lowestNote = model.lowestNote + offset
               , oldLowestNote = model.oldLowestNote + offset
               }
           Err _ ->
@@ -252,20 +238,14 @@ update msg model =
     SetLowestNote offsetString ->
       ( case String.toInt offsetString of
           Ok offset ->
-            let chordLens = model.chordLens in
-              { model
-              | chordLens =
-                  { chordLens
-                  | lowestNote = model.oldLowestNote + offset
-                  }
-              }
+            { model | lowestNote = model.oldLowestNote + offset }
           Err _ ->
             model
       , Cmd.none
       )
 
     SetOldLowestNote ->
-      ( { model | oldLowestNote = model.chordLens.lowestNote }
+      ( { model | oldLowestNote = model.lowestNote }
       , Cmd.none
       )
 
@@ -273,19 +253,18 @@ update msg model =
       ( case String.toInt keyString of
           Ok key ->
             let
-              chordLens = model.chordLens
-            in let
-              chordBox = model.chordBox
+              (landingPad, replacement) =
+                MainParser.setKey key model.chordBox.parse
             in
               { model
-              | chordLens = { chordLens | key = key }
-              , chordBox =
-                  { chordBox
-                  | buffet =
-                      Buffet.changeSuggestions
-                        (MainParser.getSuggestions key chordBox.parse)
-                        chordBox.buffet
-                  }
+              | chordBox =
+                  mapCatcher
+                    ( UndoCatcher.replace
+                        landingPad.i
+                        (Substring.stop landingPad)
+                        replacement
+                    )
+                    model.chordBox
               }
           Err _ ->
             model
@@ -336,10 +315,7 @@ update msg model =
       ( { model
         | home = False
         , chordBox =
-            mapCatcher
-              model.chordLens.key
-              (UndoCatcher.update newText)
-              model.chordBox
+            mapCatcher (UndoCatcher.update newText) model.chordBox
         }
       , if model.home then
           Navigation.newUrl
@@ -356,7 +332,6 @@ update msg model =
             | home = True
             , chordBox =
                 mapCatcher
-                  model.chordLens.key
                   ( UndoCatcher.replace
                       0
                       (String.length model.chordBox.catcher.frame.text)
@@ -389,7 +364,6 @@ update msg model =
             { model
             | chordBox =
                 mapCatcher
-                  model.chordLens.key
                   ( UndoCatcher.replace
                       range.i
                       (Substring.stop range)
@@ -402,22 +376,20 @@ update msg model =
 
     Undo ->
       ( { model
-        | chordBox =
-            mapCatcher model.chordLens.key UndoCatcher.undo model.chordBox
+        | chordBox = mapCatcher UndoCatcher.undo model.chordBox
         }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
 
     Redo ->
       ( { model
-        | chordBox =
-            mapCatcher model.chordLens.key UndoCatcher.redo model.chordBox
+        | chordBox = mapCatcher UndoCatcher.redo model.chordBox
         }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
 
-mapCatcher : Int -> (UndoCatcher -> UndoCatcher) -> ChordBox -> ChordBox
-mapCatcher key f chordBox =
+mapCatcher : (UndoCatcher -> UndoCatcher) -> ChordBox -> ChordBox
+mapCatcher f chordBox =
   let
     catcher = f chordBox.catcher
   in let
@@ -428,7 +400,7 @@ mapCatcher key f chordBox =
     , parse = parse
     , buffet =
         Buffet.changeSuggestions
-          (MainParser.getSuggestions key parse)
+          (MainParser.getSuggestions parse)
           chordBox.buffet
     }
 
@@ -512,7 +484,7 @@ view model =
         ]
         [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
         , Html.Lazy.lazy viewBpm model.bpm
-        , Html.Lazy.lazy viewKey model.chordLens.key
+        , Html.Lazy.lazy viewKey (MainParser.getKey model.chordBox.parse)
         , span
             [ style
                 [ ( "grid-area", "o1" )
@@ -548,17 +520,17 @@ view model =
             ]
         , Html.Lazy.lazy
             viewLowestNote
-            (model.chordLens.lowestNote - model.oldLowestNote)
+            (model.lowestNote - model.oldLowestNote)
         , Html.map never
             ( Html.Lazy.lazy2
                 viewOctaveBrackets
                 model.oldLowestNote
-                model.chordLens.lowestNote
+                model.lowestNote
             )
         , Html.Lazy.lazy2
             viewLowestNoteText
             model.oldLowestNote
-            model.chordLens.lowestNote
+            model.lowestNote
         , div
             [ style
                 [ ( "grid-area", "txt" )
@@ -576,16 +548,22 @@ view model =
                 TextChanged
                 (Html.Lazy.lazy UndoCatcher.view model.chordBox.catcher)
             ]
-        , Html.Lazy.lazy2 viewChordBox model.chordLens.key model.chordBox
+        , Html.Lazy.lazy viewChordBox model.chordBox
         , Html.map
             interpretBuffetMessage
             (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
         ]
     , Html.Lazy.lazy3
-        viewChordArea model.chordLens model.player model.chordBox.parse
-    , Html.Lazy.lazy2 viewCircleOfFifths model.chordLens model.player
+        viewChordArea model.lowestNote model.player model.chordBox.parse
+    , Html.Lazy.lazy3
+        viewCircleOfFifths
+        (MainParser.getKey model.chordBox.parse)
+        model.lowestNote
+        model.player
     , Html.Lazy.lazy2
-        History.view model.chordLens.key model.history.sequences
+        History.view
+        (MainParser.getKey model.chordBox.parse)
+        model.history.sequences
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]
@@ -998,8 +976,8 @@ flatNames =
   Array.fromList
     [ "C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B" ]
 
-viewChordBox : Int -> ChordBox -> Html Msg
-viewChordBox key chordBox =
+viewChordBox : ChordBox -> Html Msg
+viewChordBox chordBox =
   pre
     [ style
         [ ( "grid-area", "txt" )
@@ -1018,7 +996,7 @@ viewChordBox key chordBox =
         Swatch.view
         ( Highlight.mergeLayers
             [ Buffet.highlights chordBox.buffet
-            , MainParser.view key chordBox.parse
+            , MainParser.view chordBox.parse
             , [ Highlight
                   "#000000"
                   "#ffffff"
@@ -1036,8 +1014,8 @@ interpretBuffetMessage buffetMessage =
     Buffet.Replace suggestion ->
       Replace suggestion
 
-viewChordArea : ChordLens -> Player -> MainParser.Model -> Html Msg
-viewChordArea chordLens player parse =
+viewChordArea : Int -> Player -> MainParser.Model -> Html Msg
+viewChordArea lowestNote player parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -1046,28 +1024,32 @@ viewChordArea chordLens player parse =
         ]
     ]
     ( List.map
-        (viewLine chordLens (Player.playStatus player))
+        ( viewLine
+            (MainParser.getKey parse)
+            lowestNote
+            (Player.playStatus player)
+        )
         (MainParser.getChords parse)
     )
 
-viewLine : ChordLens -> PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine chordLens playStatus line =
+viewLine : Int -> Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine key lowestNote playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord chordLens playStatus) line)
+    (List.map (viewMaybeChord key lowestNote playStatus) line)
 
-viewMaybeChord : ChordLens -> PlayStatus -> Maybe IdChord -> Html Msg
-viewMaybeChord chordLens playStatus maybeChord =
+viewMaybeChord : Int -> Int -> PlayStatus -> Maybe IdChord -> Html Msg
+viewMaybeChord key lowestNote playStatus maybeChord =
   case maybeChord of
     Just chord ->
       viewChord
-        chordLens.key
+        key
         playStatus
         { chord
         | cache =
-            CachedChord.transposeRootOctave chordLens.lowestNote chord.cache
+            CachedChord.transposeRootOctave lowestNote chord.cache
         }
     Nothing ->
       viewSpace
@@ -1164,15 +1146,11 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : ChordLens -> Player -> Html Msg
-viewCircleOfFifths chordLens player =
+viewCircleOfFifths : Int -> Int -> Player -> Html Msg
+viewCircleOfFifths key lowestNote player =
   Html.map
     msgFromCircleOfFifths
-    ( CircleOfFifths.view
-        chordLens.lowestNote
-        chordLens.key
-        (Player.playStatus player)
-    )
+    (CircleOfFifths.view lowestNote key (Player.playStatus player))
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =
