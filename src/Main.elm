@@ -11,6 +11,7 @@ import Highlight exposing (Highlight)
 import History exposing (History)
 import MainParser
 import Player exposing (Player, PlayStatus)
+import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Swatch
@@ -260,20 +261,24 @@ update msg model =
                   Just x -> x
                   Nothing -> model.chordBox.parse
             in let
-              (landingPad, replacement) =
-                MainParser.setKey key preTranspose
+              keyReplacement = MainParser.setKey key preTranspose
+            in let
+              oldKey = MainParser.getKey preTranspose
+            in let
+              transposition =
+                MainParser.transpose
+                  ((5 + key - oldKey) % 12 - 5)
+                  preTranspose
             in
               { model
               | chordBox =
                   mapCatcher
                     ( ( if model.preTranspose == Nothing then
-                          UndoCatcher.replace
+                          UndoCatcher.replaceAll
                         else
-                          UndoCatcher.switch
+                          UndoCatcher.switchAll
                       )
-                        landingPad.i
-                        (Substring.stop landingPad)
-                        replacement
+                        (keyReplacement :: transposition)
                     )
                     model.chordBox
               , preTranspose = Just preTranspose
@@ -346,9 +351,13 @@ update msg model =
             , chordBox =
                 mapCatcher
                   ( UndoCatcher.replace
-                      0
-                      (String.length model.chordBox.catcher.frame.text)
-                      newText
+                      ( Replacement
+                          ( Substring
+                              0
+                              model.chordBox.catcher.frame.text
+                          )
+                          newText
+                      )
                   )
                   model.chordBox
             , preTranspose = Nothing
@@ -379,9 +388,10 @@ update msg model =
             | chordBox =
                 mapCatcher
                   ( UndoCatcher.replace
-                      range.i
-                      (Substring.stop range)
-                      (Swatch.concat suggestion.swatches)
+                      ( Replacement
+                          range
+                          (Swatch.concat suggestion.swatches)
+                      )
                   )
                   model.chordBox
             , preTranspose = Nothing

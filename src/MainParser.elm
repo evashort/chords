@@ -1,10 +1,13 @@
 module MainParser exposing
-  (Model, init, update, view, getChords, getSuggestions, getKey, setKey)
+  ( Model, init, update, view, getChords, getSuggestions, getKey, setKey
+  , transpose
+  )
 
 import ChordParser exposing (IdChord)
 import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
 import ParsedFlag exposing (ParsedFlag)
+import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
@@ -79,20 +82,24 @@ getKey model =
     [] -> 0
     key :: _ -> key
 
-setKey : Int -> Model -> (Substring, String)
+setKey : Int -> Model -> Replacement
 setKey key model =
   case
     List.reverse
       (List.filter ((==) "key:" << .s << .name) model.flags)
   of
     [] ->
-      ( { i = 0, s = "" }
-      , "key: " ++ Flag.codeValue (KeyFlag key) ++ "\n"
-      )
+      Replacement
+        { i = 0, s = "" }
+        ("key: " ++ Flag.codeValue (KeyFlag key) ++ "\n")
     flag :: _ ->
-      ( flag.value
-      , Flag.codeValue (KeyFlag key)
-      )
+      Replacement
+        flag.value
+        (Flag.codeValue (KeyFlag key))
+
+transpose : Int -> Model -> List Replacement
+transpose offset model =
+  ChordParser.transpose offset model.chordModel
 
 type alias ParseResult =
   { words : List Substring

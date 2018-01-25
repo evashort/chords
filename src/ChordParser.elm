@@ -1,9 +1,10 @@
 module ChordParser exposing
-  (IdChord, Model, init, update, view, getChords, getSuggestions)
+  (IdChord, Model, init, update, view, getChords, getSuggestions, transpose)
 
 import CachedChord exposing (CachedChord)
 import ChordFromCode exposing (chordFromCode)
 import Highlight exposing (Highlight)
+import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Swatch exposing (Swatch)
@@ -91,6 +92,26 @@ getSuggestion key word =
     Just { cache } ->
       if word.substring.s == cache.codeName then Nothing
       else Just ( [ CachedChord.swatch key cache ], word.substring )
+
+transpose : Int -> Model -> List Replacement
+transpose offset model =
+  List.filterMap (transposeWord offset) model.words
+
+transposeWord : Int -> Word -> Maybe Replacement
+transposeWord offset word =
+  case word.chord of
+    Nothing ->
+      Nothing
+    Just chord ->
+      if word.substring.s == chord.cache.codeName then
+        let
+          newChord = List.map ((+) offset) chord.cache.chord
+        in let
+          newCache = CachedChord.fromChord newChord
+        in
+          Just (Replacement word.substring newCache.codeName)
+      else
+        Nothing
 
 parseChord : Substring -> ( List Word, Int ) -> ( List Word, Int )
 parseChord substring ( rest, nextId ) =

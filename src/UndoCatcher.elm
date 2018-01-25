@@ -1,6 +1,6 @@
 port module UndoCatcher exposing
   ( undoPort, redoPort, UndoCatcher, fromString, update, undo, redo
-  , replace, switch, view
+  , replace, replaceAll, switch, switchAll, view
   )
 
 import Html exposing (Html, div, textarea)
@@ -8,6 +8,9 @@ import Html.Attributes exposing (style, id, value, property, attribute)
 import Html.Events exposing (onInput)
 import Html.Keyed as Keyed
 import Json.Encode
+
+import Replacement exposing (Replacement)
+import Substring
 
 port undoPort : (() -> msg) -> Sub msg
 
@@ -74,18 +77,13 @@ redo catcher =
       , futureEdits = futureEdits
       }
 
-replace : Int -> Int -> String -> UndoCatcher -> UndoCatcher
-replace start stop replacement catcher =
+replace : Replacement -> UndoCatcher -> UndoCatcher
+replace replacement catcher =
   let
     after =
-      { text =
-          String.concat
-            [ String.left start catcher.frame.text
-            , replacement
-            , String.dropLeft stop catcher.frame.text
-            ]
-      , start = start + String.length replacement
-      , stop = start + String.length replacement
+      { text = Replacement.apply replacement catcher.frame.text
+      , start = replacement.old.i + String.length replacement.new
+      , stop = replacement.old.i + String.length replacement.new
       }
   in
     { catcher
@@ -93,8 +91,8 @@ replace start stop replacement catcher =
     , edits =
         { before =
             { text = catcher.frame.text
-            , start = start
-            , stop = stop
+            , start = replacement.old.i
+            , stop = Substring.stop replacement.old
             }
         , after = after
         } ::
@@ -103,27 +101,85 @@ replace start stop replacement catcher =
     , futureEdits = []
     }
 
-switch : Int -> Int -> String -> UndoCatcher -> UndoCatcher
-switch start stop replacement catcher =
+replaceAll : List Replacement -> UndoCatcher -> UndoCatcher
+replaceAll replacements catcher =
+  let
+    text = Replacement.applyAll replacements catcher.frame.text
+  in let
+    after =
+      { text = text
+      , start = String.length text
+      , stop = String.length text
+      }
+  in
+    { catcher
+    | frame = after
+    , edits =
+        { before =
+            { text = catcher.frame.text
+            , start = 0
+            , stop = String.length catcher.frame.text
+            }
+        , after = after
+        } ::
+          catcher.edits
+    , editCount = catcher.editCount + 1
+    , futureEdits = []
+    }
+
+switch : Replacement -> UndoCatcher -> UndoCatcher
+switch replacement catcher =
   case catcher.edits of
     [] ->
       catcher
     oldEdit :: rest ->
       let
         after =
-          { text =
-              String.concat
-                [ String.left start oldEdit.before.text
-                , replacement
-                , String.dropLeft stop oldEdit.before.text
-                ]
-          , start = start + String.length replacement
-          , stop = start + String.length replacement
+          { text = Replacement.apply replacement oldEdit.before.text
+          , start = replacement.old.i + String.length replacement.new
+          , stop = replacement.old.i + String.length replacement.new
           }
       in
         { catcher
         | frame = after
-        , edits = { oldEdit | after = after } :: rest
+        , edits =
+            { before =
+                { text = oldEdit.before.text
+                , start = replacement.old.i
+                , stop = Substring.stop replacement.old
+                }
+            , after = after
+            } ::
+              rest
+        , futureEdits = []
+        }
+
+switchAll : List Replacement -> UndoCatcher -> UndoCatcher
+switchAll replacements catcher =
+  case catcher.edits of
+    [] ->
+      catcher
+    oldEdit :: rest ->
+      let
+        text = Replacement.applyAll replacements oldEdit.before.text
+      in let
+        after =
+          { text = text
+          , start = String.length text
+          , stop = String.length text
+          }
+      in
+        { catcher
+        | frame = after
+        , edits =
+            { before =
+                { text = oldEdit.before.text
+                , start = 0
+                , stop = String.length oldEdit.before.text
+                }
+            , after = after
+            } ::
+              rest
         , futureEdits = []
         }
 
