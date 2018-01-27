@@ -11,7 +11,6 @@ import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
-import Dict
 import Regex exposing (Regex, HowMany(..))
 
 type alias Model =
@@ -19,8 +18,6 @@ type alias Model =
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
-  , key : Int
-  , keyRange : Substring
   }
 
 init : Int -> Substring -> Model
@@ -31,8 +28,6 @@ init firstId whole =
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
-    , key = parseResult.key
-    , keyRange = parseResult.keyRange
     }
 
 update : Substring -> Model -> Model
@@ -43,8 +38,6 @@ update whole model =
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
-    , key = parseResult.key
-    , keyRange = parseResult.keyRange
     }
 
 view : Model -> List Highlight
@@ -106,8 +99,6 @@ type alias ParseResult =
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
-  , key : Int
-  , keyRange : Substring
   }
 
 parse : Substring -> ParseResult
@@ -124,28 +115,11 @@ parse whole =
       of
         [] -> lineResults
         _ :: beyond -> beyond
-  in let
-    flags = List.filterMap .flag lineResults
-  in let
-    canon = ParsedFlag.canon flags
-  in let
-    ( key, keyRange ) =
-      case Dict.get "key:" canon of
-        Nothing ->
-          ( 0, Substring 0 "" ) -- C major is the default
-        Just flag ->
-          ( case ParsedFlag.officialFlag flag of
-              Just (KeyFlag k) -> k
-              _ -> 0
-          , flag.code
-          )
   in
     { words = List.concatMap .words chordArea
-    , flags = flags
+    , flags = List.filterMap .flag lineResults
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
-    , key = key
-    , keyRange = keyRange
     }
 
 lastTrueAndBeyond : (a -> Bool) -> List a -> List a

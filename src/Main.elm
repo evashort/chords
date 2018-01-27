@@ -77,8 +77,6 @@ init location =
   in let
     parse =
       MainParser.init CircleOfFifths.chordCount (Substring 0 text)
-  in let
-    key = parse.key
   in
     ( { player = { openings = [], schedule = [] }
       , history = { sequences = [], current = [] }
