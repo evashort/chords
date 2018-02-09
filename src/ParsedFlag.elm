@@ -18,8 +18,8 @@ type alias ParsedFlag =
   , nextLineStart : Int
   }
 
-view : Int -> ParsedFlag -> List Highlight
-view key flag =
+view : Int -> Int -> ParsedFlag -> List Highlight
+view key lowestNote flag =
   List.concat
     [ if flag.name.s == flag.cleanName then
       [ Highlight "#0000ff" "#ffffff" flag.name ]
@@ -29,8 +29,13 @@ view key flag =
         case flag.flag of
           Just innerFlag ->
             [ { fg =
-                  if innerFlag == KeyFlag key then "#c00000"
-                  else "#a0a0a0"
+                  if
+                    innerFlag == KeyFlag key ||
+                      innerFlag == LowestNoteFlag lowestNote
+                  then
+                    "#c00000"
+                  else
+                    "#a0a0a0"
               , bg = "#ffffff"
               , substring = flag.value
               }
@@ -102,6 +107,7 @@ fromCode code =
         parser =
           case cleanName of
             "key:" -> Just Flag.parseKey
+            "octave:" -> Just Flag.parseLowestNote
             _ -> Nothing
       in
         case parser of

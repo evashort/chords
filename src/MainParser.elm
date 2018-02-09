@@ -1,6 +1,6 @@
 module MainParser exposing
   ( Model, init, update, view, getChords, getSuggestions, getKey, setKey
-  , transpose
+  , getLowestNote, setLowestNote, transpose
   )
 
 import ChordParser exposing (IdChord)
@@ -42,12 +42,16 @@ update whole model =
 
 view : Model -> List Highlight
 view model =
-  let key = getKey model in
+  let
+    key = getKey model
+  in let
+    lowestNote = getLowestNote model
+  in
     List.concat
       [ ChordParser.view key model.chordModel
       , List.map (Highlight "#008000" "#ffffff") model.comments
       , List.map (Highlight "#ffffff" "#ff0000") model.indents
-      , List.concatMap (ParsedFlag.view key) model.flags
+      , List.concatMap (ParsedFlag.view key lowestNote) model.flags
       ]
 
 getChords : Model -> List (List (Maybe IdChord))
@@ -89,6 +93,33 @@ setKey key model =
       Replacement
         flag.value
         (Flag.codeValue (KeyFlag key))
+
+getLowestNote : Model -> Int
+getLowestNote model =
+  case
+    List.reverse
+      ( List.filterMap
+          (Maybe.andThen Flag.getLowestNote << .flag)
+          model.flags
+      )
+  of
+    [] -> 48
+    lowestNote :: _ -> lowestNote
+
+setLowestNote : Int -> Model -> Replacement
+setLowestNote lowestNote model =
+  case
+    List.reverse
+      (List.filter ((==) "octave:" << .s << .name) model.flags)
+  of
+    [] ->
+      Replacement
+        { i = 0, s = "" }
+        ("octave: " ++ Flag.codeValue (LowestNoteFlag lowestNote) ++ "\n")
+    flag :: _ ->
+      Replacement
+        flag.value
+        (Flag.codeValue (LowestNoteFlag lowestNote))
 
 transpose : Int -> Model -> List Replacement
 transpose offset model =

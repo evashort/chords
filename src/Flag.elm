@@ -1,9 +1,13 @@
-module Flag exposing (Flag(..), parseKey, codeValue, getKey)
+module Flag exposing
+  (Flag(..), parseKey, parseLowestNote, codeValue, getKey, getLowestNote)
+
+import Array exposing (Array)
 
 import NoteParser
 
 type Flag
   = KeyFlag Int
+  | LowestNoteFlag Int
 
 parseKey : String -> Maybe Flag
 parseKey code =
@@ -31,6 +35,18 @@ parseKey code =
         else
           Just (KeyFlag ((pitch + offset) % 12))
 
+parseLowestNote : String -> Maybe Flag
+parseLowestNote code =
+  case NoteParser.parseAtStart code of
+    Nothing ->
+      Nothing
+    Just ( offset, octaveString ) ->
+      case String.toInt octaveString of
+        Err _ ->
+          Nothing
+        Ok octave ->
+          Just (LowestNoteFlag (offset + 12 * (octave + 2)))
+
 codeValue : Flag -> String
 codeValue flag =
   case flag of
@@ -49,8 +65,29 @@ codeValue flag =
         10 -> "Bb"
         11 -> "B"
         _ -> "error"
+    LowestNoteFlag lowestNote ->
+      let
+        offset = lowestNote % 12
+      in let
+        octave = (lowestNote - offset) // 12 - 2
+      in
+        case Array.get offset flatNames of
+          Nothing -> "error"
+          Just flatName -> flatName ++ toString octave
+
+flatNames : Array String
+flatNames =
+  Array.fromList
+    [ "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B" ]
 
 getKey : Flag -> Maybe Int
 getKey flag =
   case flag of
     KeyFlag key -> Just key
+    _ -> Nothing
+
+getLowestNote : Flag -> Maybe Int
+getLowestNote flag =
+  case flag of
+    LowestNoteFlag lowestNote -> Just lowestNote
+    _ -> Nothing

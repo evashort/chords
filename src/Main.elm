@@ -52,11 +52,10 @@ type alias Model =
   , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
-  , lowestNote : Int
-  , oldLowestNote : Int
+  , lnOffset : Int
   , home : Bool
   , chordBox : ChordBox
-  , preTranspose : Maybe MainParser.Model
+  , undoHistory : List (MainParser.Model, String)
   }
 
 type PlayStyle
@@ -83,8 +82,7 @@ init location =
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
-      , lowestNote = 48
-      , oldLowestNote = 48
+      , lnOffset = 0
       , home = True
       , chordBox =
           { catcher = UndoCatcher.fromString text
@@ -92,7 +90,7 @@ init location =
           , buffet =
               Buffet.fromSuggestions (MainParser.getSuggestions parse)
           }
-      , preTranspose = Nothing
+      , undoHistory = []
       }
     , Cmd.none
     )
@@ -223,13 +221,27 @@ update msg model =
       ( case String.toInt octave2String of
           Ok octave2 ->
             let
-              oldOctave2 = getOctave (model.oldLowestNote + 6)
+              ( oldParse, oldUndoHistory, f ) =
+                case model.undoHistory of
+                  ( p, "octave" ) :: rest ->
+                    ( p, rest, UndoCatcher.switch )
+                  h ->
+                    ( model.chordBox.parse, h, UndoCatcher.replace )
             in let
-              offset = 12 * (octave2 - oldOctave2)
+              oldLowestNote =
+                MainParser.getLowestNote oldParse
+            in let
+              oldOctave2 = getOctave (oldLowestNote + 6)
+            in let
+              lowestNote =
+                oldLowestNote + 12 * (octave2 - oldOctave2)
+            in let
+              replacement =
+                MainParser.setLowestNote lowestNote oldParse
             in
               { model
-              | lowestNote = model.lowestNote + offset
-              , oldLowestNote = model.oldLowestNote + offset
+              | chordBox = mapCatcher (f replacement) model.chordBox
+              , undoHistory = ( oldParse, "octave" ) :: oldUndoHistory
               }
           Err _ ->
             model
@@ -239,14 +251,35 @@ update msg model =
     SetLowestNote offsetString ->
       ( case String.toInt offsetString of
           Ok offset ->
-            { model | lowestNote = model.oldLowestNote + offset }
+            { model | lnOffset = offset }
           Err _ ->
             model
       , Cmd.none
       )
 
     SetOldLowestNote ->
-      ( { model | oldLowestNote = model.lowestNote }
+      ( let
+          ( oldParse, oldUndoHistory, f ) =
+            case model.undoHistory of
+              ( p, "lowestNote" ) :: rest ->
+                ( p, rest, UndoCatcher.switch )
+              h ->
+                ( model.chordBox.parse, h, UndoCatcher.replace )
+        in let
+          lowestNote =
+            MainParser.getLowestNote model.chordBox.parse +
+              model.lnOffset
+        in let
+          replacement =
+            MainParser.setLowestNote lowestNote oldParse
+        in
+          { model
+          | lnOffset = 0
+          , chordBox =
+              mapCatcher (f replacement) model.chordBox
+          , undoHistory =
+              ( oldParse, "lowestNote" ) :: oldUndoHistory
+          }
       , Cmd.none
       )
 
@@ -254,32 +287,40 @@ update msg model =
       ( case String.toInt keyString of
           Ok key ->
             let
-              preTranspose =
-                case model.preTranspose of
-                  Just x -> x
-                  Nothing -> model.chordBox.parse
+              ( oldParse, oldUndoHistory, f ) =
+                case model.undoHistory of
+                  ( p, "key" ) :: rest ->
+                    ( p, rest, UndoCatcher.switchAll )
+                  h ->
+                    ( model.chordBox.parse, h, UndoCatcher.replaceAll )
             in let
-              keyReplacement = MainParser.setKey key preTranspose
+              oldLowestNote =
+                MainParser.getLowestNote oldParse
             in let
-              oldKey = MainParser.getKey preTranspose
+              oldKey = MainParser.getKey oldParse
+            in let
+              offset = (key - oldKey + 5) % 12 - 5
+            in let
+              lowestNote = oldLowestNote + offset
+            in let
+              keyReplacement = MainParser.setKey key oldParse
+            in let
+              lnReplacement =
+                MainParser.setLowestNote lowestNote oldParse
             in let
               transposition =
-                MainParser.transpose
-                  ((5 + key - oldKey) % 12 - 5)
-                  preTranspose
+                MainParser.transpose offset oldParse
+            in let
+              replacements =
+                if keyReplacement.old.i < lnReplacement.old.i then
+                  keyReplacement :: lnReplacement :: transposition
+                else
+                  lnReplacement :: keyReplacement :: transposition
             in
               { model
               | chordBox =
-                  mapCatcher
-                    ( ( if model.preTranspose == Nothing then
-                          UndoCatcher.replaceAll
-                        else
-                          UndoCatcher.switchAll
-                      )
-                        (keyReplacement :: transposition)
-                    )
-                    model.chordBox
-              , preTranspose = Just preTranspose
+                  mapCatcher (f replacements) model.chordBox
+              , undoHistory = ( oldParse, "key" ) :: oldUndoHistory
               }
           Err _ ->
             model
@@ -331,7 +372,7 @@ update msg model =
         | home = False
         , chordBox =
             mapCatcher (UndoCatcher.update newText) model.chordBox
-        , preTranspose = Nothing
+        , undoHistory = []
         }
       , if model.home then
           Navigation.newUrl
@@ -358,7 +399,7 @@ update msg model =
                       )
                   )
                   model.chordBox
-            , preTranspose = Nothing
+            , undoHistory = []
             }
           , Task.attempt (always NoOp) (Dom.focus "catcher")
           )
@@ -392,7 +433,7 @@ update msg model =
                       )
                   )
                   model.chordBox
-            , preTranspose = Nothing
+            , undoHistory = []
             }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
@@ -400,7 +441,7 @@ update msg model =
     Undo ->
       ( { model
         | chordBox = mapCatcher UndoCatcher.undo model.chordBox
-        , preTranspose = Nothing
+        , undoHistory = List.drop 1 model.undoHistory
         }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
@@ -408,7 +449,7 @@ update msg model =
     Redo ->
       ( { model
         | chordBox = mapCatcher UndoCatcher.redo model.chordBox
-        , preTranspose = Nothing
+        , undoHistory = []
         }
       , Task.attempt (always NoOp) (Dom.focus "catcher")
       )
@@ -521,12 +562,27 @@ view model =
             , span
                 []
                 [ Html.text
-                    (toString (getOctave (model.oldLowestNote - 6)))
+                    ( toString
+                        ( getOctave
+                            ( MainParser.getLowestNote
+                                model.chordBox.parse -
+                              6
+                            )
+                        )
+                    )
                 ]
             ]
         , input
             [ type_ "number"
-            , value (toString (getOctave (model.oldLowestNote + 6)))
+            , value
+                ( toString
+                    ( getOctave
+                        ( MainParser.getLowestNote
+                            model.chordBox.parse +
+                          6
+                        )
+                    )
+                )
             , Html.Attributes.min "-1"
             , Html.Attributes.max "5"
             , onInput SetOctave2
@@ -544,18 +600,25 @@ view model =
             [ Html.text "Lowest note\xA0"
             ]
         , Html.Lazy.lazy
-            viewLowestNote
-            (model.lowestNote - model.oldLowestNote)
+            viewLowestNote model.lnOffset
         , Html.map never
-            ( Html.Lazy.lazy2
-                viewOctaveBrackets
-                model.oldLowestNote
-                model.lowestNote
+            ( let
+                oldLowestNote =
+                  MainParser.getLowestNote model.chordBox.parse
+              in let
+                lowestNote = oldLowestNote + model.lnOffset
+              in
+                Html.Lazy.lazy2
+                  viewOctaveBrackets oldLowestNote lowestNote
             )
-        , Html.Lazy.lazy2
-            viewLowestNoteText
-            model.oldLowestNote
-            model.lowestNote
+        , let
+            oldLowestNote =
+              MainParser.getLowestNote model.chordBox.parse
+          in let
+            lowestNote = oldLowestNote + model.lnOffset
+          in
+            Html.Lazy.lazy2
+              viewLowestNoteText oldLowestNote lowestNote
         , div
             [ style
                 [ ( "grid-area", "txt" )
@@ -579,11 +642,13 @@ view model =
             (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
         ]
     , Html.Lazy.lazy3
-        viewChordArea model.lowestNote model.player model.chordBox.parse
+        viewChordArea model.lnOffset model.player model.chordBox.parse
     , Html.Lazy.lazy3
         viewCircleOfFifths
         (MainParser.getKey model.chordBox.parse)
-        model.lowestNote
+        ( MainParser.getLowestNote model.chordBox.parse +
+            model.lnOffset
+        )
         model.player
     , Html.Lazy.lazy2
         History.view
@@ -1040,7 +1105,7 @@ interpretBuffetMessage buffetMessage =
       Replace suggestion
 
 viewChordArea : Int -> Player -> MainParser.Model -> Html Msg
-viewChordArea lowestNote player parse =
+viewChordArea lnOffset player parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -1051,22 +1116,23 @@ viewChordArea lowestNote player parse =
     ( List.map
         ( viewLine
             (MainParser.getKey parse)
-            lowestNote
+            (MainParser.getLowestNote parse)
+            lnOffset
             (Player.playStatus player)
         )
         (MainParser.getChords parse)
     )
 
-viewLine : Int -> Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine key lowestNote playStatus line =
+viewLine : Int -> Int -> Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine key lowestNote lnOffset playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord key lowestNote playStatus) line)
+    (List.map (viewMaybeChord key lowestNote lnOffset playStatus) line)
 
-viewMaybeChord : Int -> Int -> PlayStatus -> Maybe IdChord -> Html Msg
-viewMaybeChord key lowestNote playStatus maybeChord =
+viewMaybeChord : Int -> Int -> Int -> PlayStatus -> Maybe IdChord -> Html Msg
+viewMaybeChord key lowestNote lnOffset playStatus maybeChord =
   case maybeChord of
     Just chord ->
       viewChord
@@ -1074,7 +1140,7 @@ viewMaybeChord key lowestNote playStatus maybeChord =
         playStatus
         { chord
         | cache =
-            CachedChord.transposeRootOctave lowestNote chord.cache
+            CachedChord.transposeRootOctave lowestNote lnOffset chord.cache
         }
     Nothing ->
       viewSpace
