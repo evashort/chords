@@ -6,23 +6,23 @@ import NoteParser
 import Dict exposing (Dict)
 import Regex exposing (Regex, HowMany(..), Match)
 
-chordFromCode : String -> Maybe Chord
-chordFromCode code =
+chordFromCode : Int -> String -> Maybe Chord
+chordFromCode lowestNote code =
   case partsFromCode code of
     Nothing ->
       Nothing
     Just ( chordCode, Nothing ) ->
-      fromCodeGivenOctave 2 chordCode
+      fromCodeGivenOctave lowestNote chordCode
     Just ( chordCode, Just rootCode ) ->
-      case rootFromCode rootCode of
+      case rootFromCode lowestNote rootCode of
         Nothing ->
           case String.toInt rootCode of
             Err _ ->
               Nothing
             Ok octave ->
-              fromCodeGivenOctave octave chordCode
+              fromCodeGivenOctave (12 * (octave + 2)) chordCode
         Just root ->
-          case fromCodeGivenOctave 2 chordCode of
+          case fromCodeGivenOctave lowestNote chordCode of
             Nothing ->
               Nothing
             Just namesakeChord ->
@@ -49,7 +49,7 @@ normalizeSeparatorChar char =
     _ -> char
 
 fromCodeGivenOctave : Int -> String -> Maybe Chord
-fromCodeGivenOctave octave code =
+fromCodeGivenOctave octaveStart code =
   case NoteParser.parseAtStart code of
     Nothing ->
       Nothing
@@ -58,15 +58,20 @@ fromCodeGivenOctave octave code =
         Nothing ->
           Nothing
         Just offsets ->
-          Just (List.map ((+) (12 * (octave + 2) + pitch)) offsets)
+          Just
+            ( List.map
+                ((+) (octaveStart + (pitch - octaveStart) % 12))
+                offsets
+            )
 
-rootFromCode : String -> Maybe Int
-rootFromCode code =
+rootFromCode : Int -> String -> Maybe Int
+rootFromCode lowestNote code =
   case NoteParser.parseAtStart code of
     Nothing ->
       Nothing
     Just ( pitch, "" ) ->
-      Just (48 + pitch)
+      let relativePitch = pitch - lowestNote in
+        Just (lowestNote + (pitch - lowestNote) % 12)
     Just ( pitch, octaveName ) ->
       case String.toInt octaveName of
         Err _ ->

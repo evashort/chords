@@ -57,8 +57,8 @@ type Msg
   = PlayChord ( IdChord )
   | StopChord
 
-view : Int -> Int -> PlayStatus -> Html Msg
-view lowestNote key playStatus =
+view : Int -> Int -> Int -> PlayStatus -> Html Msg
+view key lowestNote lnOffset playStatus =
   let
     rInner = 100
   in let
@@ -68,9 +68,9 @@ view lowestNote key playStatus =
   in let
     rotation = 7 * key
   in let
-    majorChords = getMajorChords lowestNote rotation
+    majorChords = getMajorChords (lowestNote + lnOffset) rotation
   in let
-    minorChords = getMinorChords lowestNote rotation
+    minorChords = getMinorChords (lowestNote + lnOffset) rotation
   in let
     stopButtonId =
       if playStatus.stoppable then playStatus.active else -1
@@ -112,10 +112,10 @@ view lowestNote key playStatus =
                 )
             ]
           , List.indexedMap
-              (viewChordText stopButtonId (0.5 * (rMid + rOuter)))
+              (viewChordText lowestNote stopButtonId (0.5 * (rMid + rOuter)))
               majorChords
           , List.indexedMap
-              (viewChordText stopButtonId (0.5 * (rInner + rMid)))
+              (viewChordText lowestNote stopButtonId (0.5 * (rInner + rMid)))
               minorChords
           ]
       )
@@ -235,8 +235,8 @@ viewChord key playStatus rInner rOuter i chord =
     ]
 
 
-viewChordText : Int -> Float -> Int -> IdChord -> Html msg
-viewChordText stopButtonId r i chord =
+viewChordText : Int -> Int -> Float -> Int -> IdChord -> Html msg
+viewChordText lowestNote stopButtonId r i chord =
   let
     ( x, y ) =
       polar r (2 * pi * (0.25 - toFloat i / 12))
@@ -271,7 +271,7 @@ viewChordText stopButtonId r i chord =
                 , ( "width", "75px" )
                 ]
             ]
-            (CachedChord.view chord.cache)
+            (CachedChord.view lowestNote chord.cache)
         ]
 
 twelfth : Float -> Float -> Float -> Int -> String

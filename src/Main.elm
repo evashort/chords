@@ -643,16 +643,15 @@ view model =
         ]
     , Html.Lazy.lazy3
         viewChordArea model.lnOffset model.player model.chordBox.parse
-    , Html.Lazy.lazy3
-        viewCircleOfFifths
+    , viewCircleOfFifths
         (MainParser.getKey model.chordBox.parse)
-        ( MainParser.getLowestNote model.chordBox.parse +
-            model.lnOffset
-        )
+        (MainParser.getLowestNote model.chordBox.parse)
+        model.lnOffset
         model.player
-    , Html.Lazy.lazy2
+    , Html.Lazy.lazy3
         History.view
         (MainParser.getKey model.chordBox.parse)
+        (MainParser.getLowestNote model.chordBox.parse)
         model.history.sequences
     , div []
         [ a
@@ -1137,6 +1136,7 @@ viewMaybeChord key lowestNote lnOffset playStatus maybeChord =
     Just chord ->
       viewChord
         key
+        lowestNote
         playStatus
         { chord
         | cache =
@@ -1145,8 +1145,8 @@ viewMaybeChord key lowestNote lnOffset playStatus maybeChord =
     Nothing ->
       viewSpace
 
-viewChord : Int -> PlayStatus -> IdChord -> Html Msg
-viewChord key playStatus chord =
+viewChord : Int -> Int -> PlayStatus -> IdChord -> Html Msg
+viewChord key lowestNote playStatus chord =
   let
     selected =
       playStatus.active == chord.id || playStatus.next == chord.id
@@ -1222,7 +1222,7 @@ viewChord key playStatus chord =
                   []
               ]
             else
-              CachedChord.view chord.cache
+              CachedChord.view lowestNote chord.cache
           )
       ]
 
@@ -1237,11 +1237,11 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : Int -> Int -> Player -> Html Msg
-viewCircleOfFifths key lowestNote player =
+viewCircleOfFifths : Int -> Int -> Int -> Player -> Html Msg
+viewCircleOfFifths key lowestNote lnOffset player =
   Html.map
     msgFromCircleOfFifths
-    (CircleOfFifths.view lowestNote key (Player.playStatus player))
+    (CircleOfFifths.view key lowestNote lnOffset (Player.playStatus player))
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

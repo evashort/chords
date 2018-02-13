@@ -30,8 +30,8 @@ finishSequence history =
   else
     { history | current = [] }
 
-view : Int -> List (List CachedChord) -> Html msg
-view key sequences =
+view : Int -> Int -> List (List CachedChord) -> Html msg
+view key lowestNote sequences =
   span
     [ style
         [ ( "display", "inline-block" )
@@ -47,19 +47,19 @@ view key sequences =
             , ( "font-size", "13pt" )
             ]
         ]
-        (List.map (viewSequence key) sequences)
+        (List.map (viewSequence key lowestNote) sequences)
     ]
 
-viewSequence : Int -> List CachedChord -> Html msg
-viewSequence key sequence =
+viewSequence : Int -> Int -> List CachedChord -> Html msg
+viewSequence key lowestNote sequence =
   div []
     ( List.intersperse
         (text " ")
-        (List.map (viewChord key) (List.reverse sequence))
+        (List.map (viewChord key lowestNote) (List.reverse sequence))
     )
 
-viewChord : Int -> CachedChord -> Html msg
-viewChord key cache =
+viewChord : Int -> Int -> CachedChord -> Html msg
+viewChord key lowestNote cache =
   mark
     [ style
         [ ( "background", CachedChord.bg key cache )
@@ -67,5 +67,5 @@ viewChord key cache =
         , ( "border-radius", "3px" )
         ]
     ]
-    [ text cache.codeName
+    [ text (CachedChord.codeName lowestNote cache)
     ]

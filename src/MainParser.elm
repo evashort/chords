@@ -24,7 +24,7 @@ init : Int -> Substring -> Model
 init firstId whole =
   let parseResult = parse whole in
     { chordModel =
-        ChordParser.init firstId parseResult.words
+        ChordParser.init firstId parseResult.lowestNote parseResult.words
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
@@ -34,7 +34,10 @@ update : Substring -> Model -> Model
 update whole model =
   let parseResult = parse whole in
     { chordModel =
-        ChordParser.update parseResult.words model.chordModel
+        ChordParser.update
+          parseResult.lowestNote
+          parseResult.words
+          model.chordModel
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
@@ -55,7 +58,8 @@ view model =
       ]
 
 getChords : Model -> List (List (Maybe IdChord))
-getChords = ChordParser.getChords << .chordModel
+getChords =
+  ChordParser.getChords << .chordModel
 
 getSuggestions : Model -> List Suggestion
 getSuggestions model =
@@ -123,13 +127,14 @@ setLowestNote lowestNote model =
 
 transpose : Int -> Model -> List Replacement
 transpose offset model =
-  ChordParser.transpose offset model.chordModel
+  ChordParser.transpose (getLowestNote model) offset model.chordModel
 
 type alias ParseResult =
   { words : List Substring
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
+  , lowestNote : Int
   }
 
 parse : Substring -> ParseResult
@@ -146,11 +151,23 @@ parse whole =
       of
         [] -> lineResults
         _ :: beyond -> beyond
+  in let
+    flags = List.filterMap .flag lineResults
   in
     { words = List.concatMap .words chordArea
-    , flags = List.filterMap .flag lineResults
+    , flags = flags
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
+    , lowestNote =
+        case
+          List.reverse
+            ( List.filterMap
+                (Maybe.andThen Flag.getLowestNote << .flag)
+                flags
+            )
+        of
+          [] -> 48
+          lowestNote :: _ -> lowestNote
     }
 
 lastTrueAndBeyond : (a -> Bool) -> List a -> List a

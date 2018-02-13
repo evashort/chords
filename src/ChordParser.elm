@@ -17,6 +17,7 @@ type alias IdChord =
 
 type alias Model =
   { nextId : Int
+  , lowestNote : Int
   , words : List Word
   }
 
@@ -25,37 +26,53 @@ type alias Word =
   , chord : Maybe IdChord
   }
 
-init : Int -> List Substring -> Model
-init firstId substrings =
+init : Int -> Int -> List Substring -> Model
+init firstId lowestNote substrings =
   let
     ( words, nextId ) =
-      List.foldr parseChord ( [], firstId ) substrings
+      List.foldr (parseChord lowestNote) ( [], firstId ) substrings
   in
-    { nextId = nextId, words = words }
+    { nextId = nextId, lowestNote = lowestNote, words = words }
 
-update : List Substring -> Model -> Model
-update substrings model =
+update : Int -> List Substring -> Model -> Model
+update lowestNote substrings model =
   let
+    lnOffset = lowestNote - model.lowestNote
+  in let
+    lnWords =
+      if lnOffset == 0 then
+        model.words
+      else
+        List.map
+          ( mapChord
+              (CachedChord.transposeRootOctave model.lowestNote lnOffset)
+          )
+          model.words
+  in let
     doubleZipped =
-      Zipper.doubleZip updateChord substrings model.words
+      Zipper.doubleZip updateChord substrings lnWords
   in let
     ( newUpper, nextId ) =
-      List.foldr parseChord ( [], model.nextId ) doubleZipped.upper
+      List.foldr
+        (parseChord lowestNote)
+        ( [], model.nextId )
+        doubleZipped.upper
   in
     { nextId = nextId
+    , lowestNote = lowestNote
     , words = doubleZipped.left ++ newUpper ++ doubleZipped.right
     }
 
 view : Int -> Model -> List Highlight
 view key model =
-  List.filterMap (viewWord key) model.words
+  List.filterMap (viewWord key model.lowestNote) model.words
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords model =
   List.filter
     (not << List.isEmpty)
     ( List.map
-        (List.filterMap getChord)
+        (List.filterMap (getChord model.lowestNote))
         (splitList isNewline model.words)
     )
 
@@ -83,39 +100,48 @@ splitListHelp pred xs =
 getSuggestions : Int -> Model -> List Suggestion
 getSuggestions key model =
   Suggestion.groupByReplacement
-    (List.filterMap (getSuggestion key) model.words)
+    (List.filterMap (getSuggestion key model.lowestNote) model.words)
 
-getSuggestion : Int -> Word -> Maybe ( List Swatch, Substring )
-getSuggestion key word =
+getSuggestion : Int -> Int -> Word -> Maybe ( List Swatch, Substring )
+getSuggestion key lowestNote word =
   case word.chord of
     Nothing -> Nothing
     Just { cache } ->
-      if word.substring.s == cache.codeName then Nothing
-      else Just ( [ CachedChord.swatch key cache ], word.substring )
+      if word.substring.s == CachedChord.codeName lowestNote cache then
+        Nothing
+      else
+        Just
+          ( [ CachedChord.swatch key lowestNote cache ]
+          , word.substring
+          )
 
-transpose : Int -> Model -> List Replacement
-transpose offset model =
-  List.filterMap (transposeWord offset) model.words
+transpose : Int -> Int -> Model -> List Replacement
+transpose lowestNote offset model =
+  List.filterMap (transposeWord model.lowestNote offset) model.words
 
-transposeWord : Int -> Word -> Maybe Replacement
-transposeWord offset word =
+transposeWord : Int -> Int -> Word -> Maybe Replacement
+transposeWord lowestNote offset word =
   case word.chord of
     Nothing ->
       Nothing
     Just chord ->
-      if word.substring.s == chord.cache.codeName then
+      if word.substring.s == CachedChord.codeName lowestNote chord.cache then
         let
           newChord = List.map ((+) offset) chord.cache.chord
         in let
           newCache = CachedChord.fromChord newChord
         in
-          Just (Replacement word.substring newCache.codeName)
+          Just
+            ( Replacement
+                word.substring
+                (CachedChord.codeName (lowestNote + offset) newCache)
+            )
       else
         Nothing
 
-parseChord : Substring -> ( List Word, Int ) -> ( List Word, Int )
-parseChord substring ( rest, nextId ) =
-  case chordFromCode substring.s of
+parseChord : Int -> Substring -> ( List Word, Int ) -> ( List Word, Int )
+parseChord lowestNote substring ( rest, nextId ) =
+  case chordFromCode lowestNote substring.s of
     Nothing ->
       ( { substring = substring
         , chord = Nothing
@@ -140,8 +166,18 @@ updateChord substring word =
   else
     Nothing
 
-getChord : Word -> Maybe (Maybe IdChord)
-getChord word =
+mapChord : (CachedChord -> CachedChord) -> Word -> Word
+mapChord f word =
+  case word.chord of
+    Nothing ->
+      word
+    Just chord ->
+      { word
+      | chord = Just { chord | cache = f chord.cache }
+      }
+
+getChord : Int -> Word -> Maybe (Maybe IdChord)
+getChord lowestNote word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
@@ -149,13 +185,13 @@ getChord word =
       else
         Nothing
     Just chord ->
-      if word.substring.s == chord.cache.codeName then
+      if word.substring.s == CachedChord.codeName lowestNote chord.cache then
         Just (Just chord)
       else
         Nothing
 
-viewWord : Int -> Word -> Maybe Highlight
-viewWord key word =
+viewWord : Int -> Int -> Word -> Maybe Highlight
+viewWord key lowestNote word =
   case word.chord of
     Nothing ->
       if word.substring.s == "_" then
@@ -163,7 +199,7 @@ viewWord key word =
       else
         Nothing
     Just chord ->
-      if word.substring.s == chord.cache.codeName then
+      if word.substring.s == CachedChord.codeName lowestNote chord.cache then
         Just
           ( Highlight
               (CachedChord.fg chord.cache)
