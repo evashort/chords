@@ -1,8 +1,9 @@
 module ParsedFlag exposing
-  (ParsedFlag, view, getSuggestion, fromCode, isOfficial)
+  (ParsedFlag, view, getSuggestion, fromCode, isOfficial, getSkin)
 
 import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
+import Skin exposing (Skin)
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
 
@@ -18,8 +19,8 @@ type alias ParsedFlag =
   , nextLineStart : Int
   }
 
-view : Int -> Int -> ParsedFlag -> List Highlight
-view key lowestNote flag =
+view : Skin -> ParsedFlag -> List Highlight
+view skin flag =
   List.concat
     [ if flag.name.s == flag.cleanName then
       [ Highlight "#0000ff" "#ffffff" flag.name ]
@@ -30,8 +31,8 @@ view key lowestNote flag =
           Just innerFlag ->
             [ { fg =
                   if
-                    innerFlag == KeyFlag key ||
-                      innerFlag == LowestNoteFlag lowestNote
+                    innerFlag == KeyFlag skin.key ||
+                      innerFlag == LowestNoteFlag skin.lowestNote
                   then
                     "#c00000"
                   else
@@ -144,3 +145,16 @@ isOfficial maybeFlag =
   case maybeFlag of
     Nothing -> False
     Just flag -> flag.name.s == flag.cleanName
+
+getSkin : List ParsedFlag -> Skin
+getSkin flags =
+  let innerFlags = List.reverse (List.filterMap .flag flags) in
+    { lowestNote =
+        case List.filterMap Flag.getLowestNote innerFlags of
+          [] -> 48
+          x :: _ -> x
+    , key =
+        case List.filterMap Flag.getKey innerFlags of
+          [] -> 0
+          x :: _ -> x
+    }

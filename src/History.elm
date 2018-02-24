@@ -1,6 +1,7 @@
 module History exposing (History, add, finishSequence, view)
 
 import CachedChord exposing (CachedChord)
+import Skin exposing (Skin)
 
 import Html exposing (Html, div, mark, span, text)
 import Html.Attributes exposing (style)
@@ -30,8 +31,8 @@ finishSequence history =
   else
     { history | current = [] }
 
-view : Int -> Int -> List (List CachedChord) -> Html msg
-view key lowestNote sequences =
+view : Skin -> List (List CachedChord) -> Html msg
+view skin sequences =
   span
     [ style
         [ ( "display", "inline-block" )
@@ -47,25 +48,25 @@ view key lowestNote sequences =
             , ( "font-size", "13pt" )
             ]
         ]
-        (List.map (viewSequence key lowestNote) sequences)
+        (List.map (viewSequence skin) sequences)
     ]
 
-viewSequence : Int -> Int -> List CachedChord -> Html msg
-viewSequence key lowestNote sequence =
+viewSequence : Skin -> List CachedChord -> Html msg
+viewSequence skin sequence =
   div []
     ( List.intersperse
         (text " ")
-        (List.map (viewChord key lowestNote) (List.reverse sequence))
+        (List.map (viewChord skin) (List.reverse sequence))
     )
 
-viewChord : Int -> Int -> CachedChord -> Html msg
-viewChord key lowestNote cache =
+viewChord : Skin -> CachedChord -> Html msg
+viewChord skin cache =
   mark
     [ style
-        [ ( "background", CachedChord.bg key cache )
+        [ ( "background", CachedChord.bg skin.key cache )
         , ( "color", CachedChord.fg cache )
         , ( "border-radius", "3px" )
         ]
     ]
-    [ text (CachedChord.codeName lowestNote cache)
+    [ text (CachedChord.codeName skin.lowestNote cache)
     ]

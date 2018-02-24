@@ -12,6 +12,7 @@ import History exposing (History)
 import MainParser
 import Player exposing (Player, PlayStatus)
 import Replacement exposing (Replacement)
+import Skin exposing (Skin)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Swatch
@@ -228,13 +229,10 @@ update msg model =
                   h ->
                     ( model.chordBox.parse, h, UndoCatcher.replace )
             in let
-              oldLowestNote =
-                MainParser.getLowestNote oldParse
-            in let
-              oldOctave2 = getOctave (oldLowestNote + 6)
+              oldOctave2 = getOctave (oldParse.skin.lowestNote + 6)
             in let
               lowestNote =
-                oldLowestNote + 12 * (octave2 - oldOctave2)
+                oldParse.skin.lowestNote + 12 * (octave2 - oldOctave2)
             in let
               replacement =
                 MainParser.setLowestNote lowestNote oldParse
@@ -267,8 +265,7 @@ update msg model =
                 ( model.chordBox.parse, h, UndoCatcher.replace )
         in let
           lowestNote =
-            MainParser.getLowestNote model.chordBox.parse +
-              model.lnOffset
+            model.chordBox.parse.skin.lowestNote + model.lnOffset
         in let
           replacement =
             MainParser.setLowestNote lowestNote oldParse
@@ -294,14 +291,9 @@ update msg model =
                   h ->
                     ( model.chordBox.parse, h, UndoCatcher.replaceAll )
             in let
-              oldLowestNote =
-                MainParser.getLowestNote oldParse
+              offset = (key - oldParse.skin.key + 5) % 12 - 5
             in let
-              oldKey = MainParser.getKey oldParse
-            in let
-              offset = (key - oldKey + 5) % 12 - 5
-            in let
-              lowestNote = oldLowestNote + offset
+              lowestNote = oldParse.skin.lowestNote + offset
             in let
               keyReplacement = MainParser.setKey key oldParse
             in let
@@ -550,7 +542,7 @@ view model =
         ]
         [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
         , Html.Lazy.lazy viewBpm model.bpm
-        , Html.Lazy.lazy viewKey (MainParser.getKey model.chordBox.parse)
+        , Html.Lazy.lazy viewKey model.chordBox.parse.skin.key
         , span
             [ style
                 [ ( "grid-area", "o1" )
@@ -564,10 +556,7 @@ view model =
                 [ Html.text
                     ( toString
                         ( getOctave
-                            ( MainParser.getLowestNote
-                                model.chordBox.parse -
-                              6
-                            )
+                            (model.chordBox.parse.skin.lowestNote - 6)
                         )
                     )
                 ]
@@ -577,10 +566,7 @@ view model =
             , value
                 ( toString
                     ( getOctave
-                        ( MainParser.getLowestNote
-                            model.chordBox.parse +
-                          6
-                        )
+                        (model.chordBox.parse.skin.lowestNote + 6)
                     )
                 )
             , Html.Attributes.min "-1"
@@ -599,26 +585,18 @@ view model =
             ]
             [ Html.text "Lowest note\xA0"
             ]
-        , Html.Lazy.lazy
-            viewLowestNote model.lnOffset
-        , Html.map never
-            ( let
-                oldLowestNote =
-                  MainParser.getLowestNote model.chordBox.parse
-              in let
-                lowestNote = oldLowestNote + model.lnOffset
-              in
-                Html.Lazy.lazy2
-                  viewOctaveBrackets oldLowestNote lowestNote
+        , Html.Lazy.lazy viewLowestNote model.lnOffset
+        , Html.map
+            never
+            ( Html.Lazy.lazy2
+                viewOctaveBrackets
+                model.chordBox.parse.skin.lowestNote
+                model.lnOffset
             )
-        , let
-            oldLowestNote =
-              MainParser.getLowestNote model.chordBox.parse
-          in let
-            lowestNote = oldLowestNote + model.lnOffset
-          in
-            Html.Lazy.lazy2
-              viewLowestNoteText oldLowestNote lowestNote
+        , Html.Lazy.lazy2
+            viewLowestNoteText
+            model.chordBox.parse.skin.lowestNote
+            model.lnOffset
         , div
             [ style
                 [ ( "grid-area", "txt" )
@@ -643,15 +621,14 @@ view model =
         ]
     , Html.Lazy.lazy3
         viewChordArea model.lnOffset model.player model.chordBox.parse
-    , viewCircleOfFifths
-        (MainParser.getKey model.chordBox.parse)
-        (MainParser.getLowestNote model.chordBox.parse)
+    , Html.Lazy.lazy3
+        viewCircleOfFifths
+        model.chordBox.parse.skin
         model.lnOffset
         model.player
-    , Html.Lazy.lazy3
+    , Html.Lazy.lazy2
         History.view
-        (MainParser.getKey model.chordBox.parse)
-        (MainParser.getLowestNote model.chordBox.parse)
+        model.chordBox.parse.skin
         model.history.sequences
     , div []
         [ a
@@ -782,13 +759,13 @@ viewKey key =
     ]
 
 viewOctaveBrackets : Int -> Int -> Html Never
-viewOctaveBrackets oldLowestNote lowestNote =
+viewOctaveBrackets oldLowestNote lnOffset =
   let
     gapEnd = 6 - (oldLowestNote + 6) % 12
   in let
     gapStart = gapEnd - 1
   in let
-    boldStart = lowestNote - oldLowestNote
+    boldStart = lnOffset
   in let
     boldEnd = boldStart + 11
   in
@@ -1020,8 +997,10 @@ viewLowestNote offset =
     []
 
 viewLowestNoteText : Int -> Int -> Html Msg
-viewLowestNoteText oldLowestNote lowestNote =
+viewLowestNoteText oldLowestNote lnOffset =
   let
+    lowestNote = oldLowestNote + lnOffset
+  in let
     octaveOffset = lowestNote % 12
   in let
     octave = (lowestNote - octaveOffset) // 12 - 2
@@ -1034,7 +1013,7 @@ viewLowestNoteText oldLowestNote lowestNote =
     span
       [ style [ ( "grid-area", "ln3" ) ]
       ]
-      ( if lowestNote == oldLowestNote then
+      ( if lnOffset == 0 then
           [ span
               [ style
                   [ ( "display", "inline-block" )
@@ -1114,39 +1093,40 @@ viewChordArea lnOffset player parse =
     ]
     ( List.map
         ( viewLine
-            (MainParser.getKey parse)
-            (MainParser.getLowestNote parse)
+            parse.skin
             lnOffset
             (Player.playStatus player)
         )
         (MainParser.getChords parse)
     )
 
-viewLine : Int -> Int -> Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine key lowestNote lnOffset playStatus line =
+viewLine : Skin -> Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine skin lnOffset playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord key lowestNote lnOffset playStatus) line)
+    (List.map (viewMaybeChord skin lnOffset playStatus) line)
 
-viewMaybeChord : Int -> Int -> Int -> PlayStatus -> Maybe IdChord -> Html Msg
-viewMaybeChord key lowestNote lnOffset playStatus maybeChord =
+viewMaybeChord : Skin -> Int -> PlayStatus -> Maybe IdChord -> Html Msg
+viewMaybeChord skin lnOffset playStatus maybeChord =
   case maybeChord of
     Just chord ->
       viewChord
-        key
-        lowestNote
+        skin
         playStatus
         { chord
         | cache =
-            CachedChord.transposeRootOctave lowestNote lnOffset chord.cache
+            CachedChord.transposeRootOctave
+              skin.lowestNote
+              lnOffset
+              chord.cache
         }
     Nothing ->
       viewSpace
 
-viewChord : Int -> Int -> PlayStatus -> IdChord -> Html Msg
-viewChord key lowestNote playStatus chord =
+viewChord : Skin -> PlayStatus -> IdChord -> Html Msg
+viewChord skin playStatus chord =
   let
     selected =
       playStatus.active == chord.id || playStatus.next == chord.id
@@ -1190,7 +1170,7 @@ viewChord key lowestNote playStatus chord =
               ]
           , id (toString chord.id)
           , style
-              [ ( "background", CachedChord.bg key chord.cache )
+              [ ( "background", CachedChord.bg skin.key chord.cache )
               , ( "color", CachedChord.fg chord.cache )
               , ( "font", "inherit" )
               , ( "width", "75px" )
@@ -1222,7 +1202,7 @@ viewChord key lowestNote playStatus chord =
                   []
               ]
             else
-              CachedChord.view lowestNote chord.cache
+              CachedChord.view skin.lowestNote chord.cache
           )
       ]
 
@@ -1237,11 +1217,11 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : Int -> Int -> Int -> Player -> Html Msg
-viewCircleOfFifths key lowestNote lnOffset player =
+viewCircleOfFifths : Skin -> Int -> Player -> Html Msg
+viewCircleOfFifths skin lnOffset player =
   Html.map
     msgFromCircleOfFifths
-    (CircleOfFifths.view key lowestNote lnOffset (Player.playStatus player))
+    (CircleOfFifths.view skin lnOffset (Player.playStatus player))
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

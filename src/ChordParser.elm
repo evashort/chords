@@ -115,8 +115,8 @@ getSuggestion key lowestNote word =
           , word.substring
           )
 
-transpose : Int -> Int -> Model -> List Replacement
-transpose lowestNote offset model =
+transpose : Int -> Model -> List Replacement
+transpose offset model =
   List.filterMap (transposeWord model.lowestNote offset) model.words
 
 transposeWord : Int -> Int -> Word -> Maybe Replacement

@@ -1,6 +1,6 @@
 module MainParser exposing
-  ( Model, init, update, view, getChords, getSuggestions, getKey, setKey
-  , getLowestNote, setLowestNote, transpose
+  ( Model, init, update, view, getChords, getSuggestions, setKey
+  , setLowestNote, transpose
   )
 
 import ChordParser exposing (IdChord)
@@ -8,6 +8,7 @@ import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
 import ParsedFlag exposing (ParsedFlag)
 import Replacement exposing (Replacement)
+import Skin exposing (Skin)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
@@ -18,16 +19,18 @@ type alias Model =
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
+  , skin : Skin
   }
 
 init : Int -> Substring -> Model
 init firstId whole =
   let parseResult = parse whole in
     { chordModel =
-        ChordParser.init firstId parseResult.lowestNote parseResult.words
+        ChordParser.init firstId parseResult.skin.lowestNote parseResult.words
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
+    , skin = parseResult.skin
     }
 
 update : Substring -> Model -> Model
@@ -35,27 +38,27 @@ update whole model =
   let parseResult = parse whole in
     { chordModel =
         ChordParser.update
-          parseResult.lowestNote
+          parseResult.skin.lowestNote
           parseResult.words
           model.chordModel
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
+    , skin =
+        if parseResult.skin == model.skin then
+          model.skin
+        else
+          parseResult.skin
     }
 
 view : Model -> List Highlight
 view model =
-  let
-    key = getKey model
-  in let
-    lowestNote = getLowestNote model
-  in
-    List.concat
-      [ ChordParser.view key model.chordModel
-      , List.map (Highlight "#008000" "#ffffff") model.comments
-      , List.map (Highlight "#ffffff" "#ff0000") model.indents
-      , List.concatMap (ParsedFlag.view key lowestNote) model.flags
-      ]
+  List.concat
+    [ ChordParser.view model.skin.key model.chordModel
+    , List.map (Highlight "#008000" "#ffffff") model.comments
+    , List.map (Highlight "#ffffff" "#ff0000") model.indents
+    , List.concatMap (ParsedFlag.view model.skin) model.flags
+    ]
 
 getChords : Model -> List (List (Maybe IdChord))
 getChords =
@@ -67,21 +70,9 @@ getSuggestions model =
     ( List.concat
         [ Suggestion.groupByReplacement
             (List.filterMap ParsedFlag.getSuggestion model.flags)
-        , ChordParser.getSuggestions (getKey model) model.chordModel
+        , ChordParser.getSuggestions model.skin.key model.chordModel
         ]
     )
-
-getKey : Model -> Int
-getKey model =
-  case
-    List.reverse
-      ( List.filterMap
-          (Maybe.andThen Flag.getKey << .flag)
-          model.flags
-      )
-  of
-    [] -> 0
-    key :: _ -> key
 
 setKey : Int -> Model -> Replacement
 setKey key model =
@@ -97,18 +88,6 @@ setKey key model =
       Replacement
         flag.value
         (Flag.codeValue (KeyFlag key))
-
-getLowestNote : Model -> Int
-getLowestNote model =
-  case
-    List.reverse
-      ( List.filterMap
-          (Maybe.andThen Flag.getLowestNote << .flag)
-          model.flags
-      )
-  of
-    [] -> 48
-    lowestNote :: _ -> lowestNote
 
 setLowestNote : Int -> Model -> Replacement
 setLowestNote lowestNote model =
@@ -127,14 +106,14 @@ setLowestNote lowestNote model =
 
 transpose : Int -> Model -> List Replacement
 transpose offset model =
-  ChordParser.transpose (getLowestNote model) offset model.chordModel
+  ChordParser.transpose offset model.chordModel
 
 type alias ParseResult =
   { words : List Substring
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
-  , lowestNote : Int
+  , skin : Skin
   }
 
 parse : Substring -> ParseResult
@@ -158,16 +137,7 @@ parse whole =
     , flags = flags
     , comments = List.filterMap .comment lineResults
     , indents = List.filterMap .indent lineResults
-    , lowestNote =
-        case
-          List.reverse
-            ( List.filterMap
-                (Maybe.andThen Flag.getLowestNote << .flag)
-                flags
-            )
-        of
-          [] -> 48
-          lowestNote :: _ -> lowestNote
+    , skin = ParsedFlag.getSkin flags
     }
 
 lastTrueAndBeyond : (a -> Bool) -> List a -> List a
