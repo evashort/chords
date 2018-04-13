@@ -4,7 +4,6 @@ import CachedChord
 import ChordParser exposing (IdChord)
 import CustomEvents exposing (onLeftDown, onKeyDown)
 import Player exposing (PlayStatus)
-import Skin exposing (Skin)
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
@@ -58,8 +57,8 @@ type Msg
   = PlayChord ( IdChord )
   | StopChord
 
-view : Skin -> Int -> PlayStatus -> Html Msg
-view skin lnOffset playStatus =
+view : Int -> Int -> Int -> PlayStatus -> Html Msg
+view key lowestNote lnOffset playStatus =
   let
     rInner = 100
   in let
@@ -67,11 +66,11 @@ view skin lnOffset playStatus =
   in let
     rMid = areaAverage 100 247.5
   in let
-    rotation = 7 * skin.key
+    rotation = 7 * key
   in let
-    majorChords = getMajorChords (skin.lowestNote + lnOffset) rotation
+    majorChords = getMajorChords (lowestNote + lnOffset) rotation
   in let
-    minorChords = getMinorChords (skin.lowestNote + lnOffset) rotation
+    minorChords = getMinorChords (lowestNote + lnOffset) rotation
   in let
     stopButtonId =
       if playStatus.stoppable then playStatus.active else -1
@@ -101,30 +100,22 @@ view skin lnOffset playStatus =
                     , keyShadow
                     , List.concat
                         ( List.indexedMap
-                            (viewChord skin.key playStatus rMid rOuter)
+                            (viewChord key playStatus rMid rOuter)
                             majorChords
                         )
                     , List.concat
                         ( List.indexedMap
-                            (viewChord skin.key playStatus rInner rMid)
+                            (viewChord key playStatus rInner rMid)
                             minorChords
                         )
                     ]
                 )
             ]
           , List.indexedMap
-              ( viewChordText
-                  skin.lowestNote
-                  stopButtonId
-                  (0.5 * (rMid + rOuter))
-              )
+              (viewChordText lowestNote stopButtonId (0.5 * (rMid + rOuter)))
               majorChords
           , List.indexedMap
-              ( viewChordText
-                  skin.lowestNote
-                  stopButtonId
-                  (0.5 * (rInner + rMid))
-              )
+              (viewChordText lowestNote stopButtonId (0.5 * (rInner + rMid)))
               minorChords
           ]
       )
