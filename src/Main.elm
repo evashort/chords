@@ -117,8 +117,6 @@ type Msg
   | SetLowestNote String
   | SetOldLowestNote
   | SetKey String
-  | FocusHorizontal ( Bool, Int )
-  | FocusVertical ( Bool, Int )
   | TextChanged String
   | UrlChanged Location
   | LensesChanged LensChange
@@ -328,46 +326,6 @@ update msg model =
       , Cmd.none
       )
 
-    FocusHorizontal ( forwards, id ) ->
-      case
-        notBeforeJust
-          ( List.tail <<
-              notBeforeTrue ((==) id << .id) <<
-                (if forwards then identity else List.reverse) <<
-                  List.filterMap identity
-          )
-          (MainParser.meaning model.chordBox.parse)
-      of
-        Just ( chord :: _, _ ) ->
-          ( model
-          , Task.attempt (always NoOp) (Dom.focus (toString chord.id))
-          )
-        _ ->
-          ( model, Cmd.none )
-
-    FocusVertical ( forwards, id ) ->
-      case
-        notBeforeJust
-          (findTrue ((==) (Just id) << Maybe.map .id))
-          ( (if forwards then identity else List.reverse)
-              (MainParser.meaning model.chordBox.parse)
-          )
-      of
-        Nothing ->
-          ( model, Cmd.none )
-        Just ( x, lines ) ->
-          case
-            notBeforeJust
-              (Maybe.andThen identity << List.head << List.drop x)
-              lines
-          of
-            Nothing ->
-              ( model, Cmd.none )
-            Just ( chord, _ ) ->
-              ( model
-              , Task.attempt (always NoOp) (Dom.focus (toString chord.id))
-              )
-
     TextChanged newText ->
       ( { model
         | home = False
@@ -470,34 +428,6 @@ mapCatcher f chordBox =
           (MainParser.suggestions parse)
           chordBox.buffet
     }
-
-notBeforeTrue : (a -> Bool) -> List a -> List a
-notBeforeTrue pred xs =
-  case xs of
-    [] -> []
-    x :: rest ->
-      if pred x then xs
-      else notBeforeTrue pred rest
-
-notBeforeJust : (a -> Maybe b) -> List a -> Maybe ( b, List a )
-notBeforeJust f xs =
-  case xs of
-    [] -> Nothing
-    x :: rest ->
-      case f x of
-        Just y -> Just ( y, rest )
-        Nothing -> notBeforeJust f rest
-
-findTrue : (a -> Bool) -> List a -> Maybe Int
-findTrue = findTrueHelp 0
-
-findTrueHelp : Int -> (a -> Bool) -> List a -> Maybe Int
-findTrueHelp i pred xs =
-  case xs of
-    [] -> Nothing
-    x :: rest ->
-      if pred x then Just i
-      else findTrueHelp (i + 1) pred rest
 
 -- SUBSCRIPTIONS
 
@@ -1173,10 +1103,6 @@ viewChord key playStatus { id, chord } =
           , onKeyDown
               [ ( 13, play )
               , ( 32, play )
-              , ( 37, FocusHorizontal ( False, id ) )
-              , ( 38, FocusVertical ( False, id ) )
-              , ( 39, FocusHorizontal ( True, id ) )
-              , ( 40, FocusVertical ( True, id ) )
               ]
           , Attributes.id (toString id)
           , style
