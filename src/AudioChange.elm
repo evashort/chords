@@ -1,4 +1,6 @@
-port module AudioChange exposing (AudioChange(..), Note, ChangeTime, perform)
+port module AudioChange exposing (AudioChange(..), ChangeTime, perform)
+
+import Note exposing (Note)
 
 import Json.Encode
 
@@ -9,11 +11,6 @@ type AudioChange
   | SetAttack Float
   | SetPeak Float
   | SetDecay Float
-
-type alias Note =
-  { t : Float
-  , f : Float
-  }
 
 type alias ChangeTime =
   { t : Float

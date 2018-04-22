@@ -1,11 +1,12 @@
 module MainParser exposing
-  ( Model, init, update, view, getChords, getSuggestions, getKey, setKey
+  ( Model, init, update, view, meaning, suggestions, getKey, setKey
   , getLowestNote, setLowestNote, transpose
   )
 
-import ChordParser exposing (IdChord)
 import Flag exposing (Flag(..))
 import Highlight exposing (Highlight)
+import IdChord exposing (IdChord)
+import Paragraph exposing (Paragraph)
 import ParsedFlag exposing (ParsedFlag)
 import Replacement exposing (Replacement)
 import Substring exposing (Substring)
@@ -14,7 +15,7 @@ import Suggestion exposing (Suggestion)
 import Regex exposing (Regex, HowMany(..))
 
 type alias Model =
-  { chordModel : ChordParser.Model
+  { paragraph : Paragraph
   , flags : List ParsedFlag
   , comments : List Substring
   , indents : List Substring
@@ -23,8 +24,7 @@ type alias Model =
 init : Int -> Substring -> Model
 init firstId whole =
   let parseResult = parse whole in
-    { chordModel =
-        ChordParser.init firstId parseResult.lowestNote parseResult.words
+    { paragraph = Paragraph.init firstId parseResult.words
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
@@ -33,11 +33,8 @@ init firstId whole =
 update : Substring -> Model -> Model
 update whole model =
   let parseResult = parse whole in
-    { chordModel =
-        ChordParser.update
-          parseResult.lowestNote
-          parseResult.words
-          model.chordModel
+    { paragraph =
+        Paragraph.update parseResult.words model.paragraph
     , flags = parseResult.flags
     , comments = parseResult.comments
     , indents = parseResult.indents
@@ -51,23 +48,23 @@ view model =
     lowestNote = getLowestNote model
   in
     List.concat
-      [ ChordParser.view key model.chordModel
+      [ Paragraph.view key model.paragraph
       , List.map (Highlight "#008000" "#ffffff") model.comments
       , List.map (Highlight "#ffffff" "#ff0000") model.indents
       , List.concatMap (ParsedFlag.view key lowestNote) model.flags
       ]
 
-getChords : Model -> List (List (Maybe IdChord))
-getChords =
-  ChordParser.getChords << .chordModel
+meaning : Model -> List (List (Maybe IdChord))
+meaning model =
+  Paragraph.meaning model.paragraph
 
-getSuggestions : Model -> List Suggestion
-getSuggestions model =
+suggestions : Model -> List Suggestion
+suggestions model =
   Suggestion.sort
     ( List.concat
         [ Suggestion.groupByReplacement
             (List.filterMap ParsedFlag.getSuggestion model.flags)
-        , ChordParser.getSuggestions (getKey model) model.chordModel
+        , Paragraph.suggestions (getKey model) model.paragraph
         ]
     )
 
@@ -127,7 +124,7 @@ setLowestNote lowestNote model =
 
 transpose : Int -> Model -> List Replacement
 transpose offset model =
-  ChordParser.transpose (getLowestNote model) offset model.chordModel
+  Paragraph.transpose offset model.paragraph
 
 type alias ParseResult =
   { words : List Substring

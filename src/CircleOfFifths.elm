@@ -1,8 +1,10 @@
 module CircleOfFifths exposing (chordCount, view, Msg(..))
 
-import CachedChord
-import ChordParser exposing (IdChord)
+import Chord exposing (Chord)
+import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
+import IdChord exposing (IdChord)
+import Name
 import Player exposing (PlayStatus)
 
 import Html exposing (Html)
@@ -19,46 +21,18 @@ import Svg.Attributes exposing
 chordCount : Int
 chordCount = 24
 
-getMajorChords : Int -> Int -> List IdChord
-getMajorChords lowestNote rotation =
-  List.map
-    (nthMajorChord 0 lowestNote)
-    (List.range rotation (rotation + 11))
-
-nthMajorChord : Int -> Int -> Int -> IdChord
-nthMajorChord firstId lowestNote i =
-  { id = firstId + i % 12
-  , cache =
-      CachedChord.fromChord
-        ( List.map
-            ((+) (lowestNote + (7 * i - lowestNote) % 12))
-            [ 0, 4, 7 ]
-        )
-  }
-
-getMinorChords : Int -> Int -> List IdChord
-getMinorChords lowestNote rotation =
-  List.map
-    (nthMinorChord 12 lowestNote)
-    (List.range rotation (rotation + 11))
-
-nthMinorChord : Int -> Int -> Int -> IdChord
-nthMinorChord firstId lowestNote i =
-  { id = firstId + i % 12
-  , cache =
-      CachedChord.fromChord
-        ( List.map
-            ((+) (lowestNote + (7 * i + 9 - lowestNote) % 12))
-            [ 0, 3, 7 ]
-        )
+idByRoot : Int -> Chord -> IdChord
+idByRoot firstId chord =
+  { id = firstId + chord.root
+  , chord = chord
   }
 
 type Msg
-  = PlayChord ( IdChord )
+  = PlayChord IdChord
   | StopChord
 
-view : Int -> Int -> Int -> PlayStatus -> Html Msg
-view key lowestNote lnOffset playStatus =
+view : Int -> PlayStatus -> Html Msg
+view key playStatus =
   let
     rInner = 100
   in let
@@ -66,11 +40,21 @@ view key lowestNote lnOffset playStatus =
   in let
     rMid = areaAverage 100 247.5
   in let
-    rotation = 7 * key
+    majorChords =
+      List.map
+        ( idByRoot 0 <<
+            Chord [ 4, 7 ] <<
+            (\i -> (9 + key + 7 * i) % 12)
+        )
+        (List.range 0 11)
   in let
-    majorChords = getMajorChords (lowestNote + lnOffset) rotation
-  in let
-    minorChords = getMinorChords (lowestNote + lnOffset) rotation
+    minorChords =
+      List.map
+        ( idByRoot 12 <<
+            Chord [ 3, 7 ] <<
+            (\i -> (key + 7 * i) % 12)
+        )
+        (List.range 0 11)
   in let
     stopButtonId =
       if playStatus.stoppable then playStatus.active else -1
@@ -112,10 +96,10 @@ view key lowestNote lnOffset playStatus =
                 )
             ]
           , List.indexedMap
-              (viewChordText lowestNote stopButtonId (0.5 * (rMid + rOuter)))
+              (viewChordText stopButtonId (0.5 * (rMid + rOuter)))
               majorChords
           , List.indexedMap
-              (viewChordText lowestNote stopButtonId (0.5 * (rInner + rMid)))
+              (viewChordText stopButtonId (0.5 * (rInner + rMid)))
               minorChords
           ]
       )
@@ -174,10 +158,10 @@ areaAverage x y =
 
 viewChord :
   Int -> PlayStatus -> Float -> Float -> Int -> IdChord -> List (Svg Msg)
-viewChord key playStatus rInner rOuter i chord =
+viewChord key playStatus rInner rOuter i { id, chord } =
   List.filterMap
     identity
-    [ if playStatus.active == chord.id || playStatus.next == chord.id then
+    [ if playStatus.active == id || playStatus.next == id then
         Just
           ( path
               [ fill "none"
@@ -185,7 +169,7 @@ viewChord key playStatus rInner rOuter i chord =
               , strokeWidth "5"
               , strokeLinejoin "round"
               , strokeDasharray
-                  (if playStatus.next == chord.id then "10, 10" else "none")
+                  (if playStatus.next == id then "10, 10" else "none")
               , d (twelfth 0 rInner rOuter i)
               ]
               []
@@ -193,11 +177,11 @@ viewChord key playStatus rInner rOuter i chord =
       else
         Nothing
     , let
-        stopButton = playStatus.active == chord.id && playStatus.stoppable
+        stopButton = playStatus.active == id && playStatus.stoppable
       in let
         play =
           if stopButton then StopChord
-          else PlayChord chord
+          else PlayChord (IdChord id chord)
       in
         Just
           ( path
@@ -206,7 +190,7 @@ viewChord key playStatus rInner rOuter i chord =
                   [ ( 13, play )
                   , ( 32, play )
                   ]
-              , fill (CachedChord.bg key chord.cache)
+              , fill (Colour.bg key chord)
               , attribute "tabindex" "0"
               , style [ ( "cursor", "pointer" ) ]
               , d (twelfth 5 rInner rOuter i)
@@ -216,7 +200,7 @@ viewChord key playStatus rInner rOuter i chord =
     , Just
         ( path
             [ fill "url(#twelfthShine)"
-            , opacity (CachedChord.shineOpacity chord.cache)
+            , opacity (Colour.shineOpacity chord)
             , d (twelfth 7 rInner rOuter i)
             , style [ ( "pointer-events", "none" ) ]
             ]
@@ -226,7 +210,7 @@ viewChord key playStatus rInner rOuter i chord =
         ( path
             [ fill "none"
             , stroke "black"
-            , strokeOpacity (CachedChord.borderOpacity chord.cache)
+            , strokeOpacity (Colour.borderOpacity chord)
             , d (twelfth 6 rInner rOuter i)
             , style [ ( "pointer-events", "none" ) ]
             ]
@@ -235,20 +219,20 @@ viewChord key playStatus rInner rOuter i chord =
     ]
 
 
-viewChordText : Int -> Int -> Float -> Int -> IdChord -> Html msg
-viewChordText lowestNote stopButtonId r i chord =
+viewChordText : Int -> Float -> Int -> IdChord -> Html msg
+viewChordText stopButtonId r i { id, chord } =
   let
     ( x, y ) =
       polar r (2 * pi * (0.25 - toFloat i / 12))
   in
-    if chord.id == stopButtonId then
+    if id == stopButtonId then
       Html.span
         [ style
             [ ( "position", "absolute" )
             , ( "left", toString (x - 10) ++ "px" )
             , ( "top", toString (y - 10) ++ "px" )
             , ( "pointer-events", "none" )
-            , ( "background", CachedChord.fg chord.cache )
+            , ( "background", Colour.fg chord )
             , ( "width", "20px" )
             , ( "height", "20px" )
             ]
@@ -262,7 +246,7 @@ viewChordText lowestNote stopButtonId r i chord =
             , ( "top", toString (y - 0.5 * 75) ++ "px" )
             , ( "pointer-events", "none" )
             , ( "line-height", "75px" )
-            , ( "color", CachedChord.fg chord.cache )
+            , ( "color", Colour.fg chord )
             ]
         ]
         [ Html.span
@@ -271,7 +255,7 @@ viewChordText lowestNote stopButtonId r i chord =
                 , ( "width", "75px" )
                 ]
             ]
-            (CachedChord.view lowestNote chord.cache)
+            (Name.view chord)
         ]
 
 twelfth : Float -> Float -> Float -> Int -> String

@@ -37,3 +37,26 @@ Possible brackets:
 +- =# #=
 #===# +-
 ```
+
+Chord flavors:
+```
+M
+m
+o
++
+sus4
+sus2
+7
+m7 / 6
+0 / m6
+M7
+o7
+mM7
+
+9 = 7 + 0
+M9 = M7 + m7
+add9
+madd9
+m9 = m7 + M7
+7b9 = 7 + o7
+```

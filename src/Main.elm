@@ -1,15 +1,16 @@
 module Main exposing (..)
 
-import AudioChange exposing (AudioChange(..), Note)
+import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
-import CachedChord
-import ChordParser exposing (IdChord)
 import CircleOfFifths
+import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
+import IdChord exposing (IdChord)
 import MainParser
+import Name
 import Player exposing (Player, PlayStatus)
 import Replacement exposing (Replacement)
 import Substring exposing (Substring)
@@ -24,10 +25,8 @@ import Html exposing
   ( Html, Attribute, a, button, div, pre, span, text, textarea, input
   , select, option
   )
-import Html.Attributes exposing
-  ( href, style, spellcheck, class, classList, id, type_, value
-  , selected
-  )
+import Html.Attributes as Attributes exposing
+  (href, style, spellcheck, class, classList, type_, value, selected)
 import Html.Events exposing (onClick, onInput)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -88,7 +87,7 @@ init location =
           { catcher = UndoCatcher.fromString text
           , parse = parse
           , buffet =
-              Buffet.fromSuggestions (MainParser.getSuggestions parse)
+              Buffet.fromSuggestions (MainParser.suggestions parse)
           }
       , undoHistory = []
       }
@@ -151,10 +150,8 @@ update msg model =
       , Cmd.none
       )
 
-    PlayChord ( chord, now ) ->
+    PlayChord ( idChord, now ) ->
       let
-        x = chord.cache.chord
-      in let
         ( player, sequenceFinished ) =
           Maybe.withDefault
             ( model.player, False )
@@ -162,22 +159,26 @@ update msg model =
       in let
         newHistory =
           History.add
-            chord.cache
+            idChord.chord
             ( if sequenceFinished then
                 History.finishSequence model.history
               else
                 model.history
             )
       in let
+        lowestNote =
+          MainParser.getLowestNote model.chordBox.parse + model.lnOffset
+      in let
         ( newPlayer, changes ) =
           case model.playStyle of
             ArpeggioStyle ->
               Player.playArpeggio
-                (60 / toFloat model.bpm) x chord.id now player
+                (60 / toFloat model.bpm) lowestNote idChord now player
             StrumStyle ->
-              Player.playStrum model.strumInterval x chord.id now player
+              Player.playStrum
+                model.strumInterval lowestNote idChord now player
             PadStyle ->
-              Player.playPad x chord.id now player
+              Player.playPad lowestNote idChord now player
       in
         ( { model | player = newPlayer, history = newHistory }
         , AudioChange.perform changes
@@ -335,7 +336,7 @@ update msg model =
                 (if forwards then identity else List.reverse) <<
                   List.filterMap identity
           )
-          (MainParser.getChords model.chordBox.parse)
+          (MainParser.meaning model.chordBox.parse)
       of
         Just ( chord :: _, _ ) ->
           ( model
@@ -349,7 +350,7 @@ update msg model =
         notBeforeJust
           (findTrue ((==) (Just id) << Maybe.map .id))
           ( (if forwards then identity else List.reverse)
-              (MainParser.getChords model.chordBox.parse)
+              (MainParser.meaning model.chordBox.parse)
           )
       of
         Nothing ->
@@ -466,7 +467,7 @@ mapCatcher f chordBox =
     , parse = parse
     , buffet =
         Buffet.changeSuggestions
-          (MainParser.getSuggestions parse)
+          (MainParser.suggestions parse)
           chordBox.buffet
     }
 
@@ -583,8 +584,8 @@ view model =
                         )
                     )
                 )
-            , Html.Attributes.min "-1"
-            , Html.Attributes.max "5"
+            , Attributes.min "-1"
+            , Attributes.max "5"
             , onInput SetOctave2
             , style
                 [ ( "grid-area", "o2" )
@@ -641,17 +642,15 @@ view model =
             interpretBuffetMessage
             (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
         ]
-    , Html.Lazy.lazy3
-        viewChordArea model.lnOffset model.player model.chordBox.parse
-    , viewCircleOfFifths
+    , Html.Lazy.lazy2
+        viewChordArea model.player model.chordBox.parse
+    , Html.Lazy.lazy2
+        viewCircleOfFifths
         (MainParser.getKey model.chordBox.parse)
-        (MainParser.getLowestNote model.chordBox.parse)
-        model.lnOffset
         model.player
-    , Html.Lazy.lazy3
+    , Html.Lazy.lazy2
         History.view
         (MainParser.getKey model.chordBox.parse)
-        (MainParser.getLowestNote model.chordBox.parse)
         model.history.sequences
     , div []
         [ a
@@ -700,9 +699,9 @@ viewPlayStyle playStyle strumInterval =
             , input
                 [ type_ "range"
                 , onInput SetStrumInterval
-                , Html.Attributes.min "0"
-                , Html.Attributes.max "100"
-                , Html.Attributes.step "20"
+                , Attributes.min "0"
+                , Attributes.max "100"
+                , Attributes.step "20"
                 , value (toString (1000 * strumInterval))
                 , style
                     [ ( "width", "auto" )
@@ -741,10 +740,10 @@ viewBpm bpm =
         [ type_ "range"
         , onInput SetBpm
         , value (toString bpm)
-        , Html.Attributes.size 3
-        , Html.Attributes.min "60"
-        , Html.Attributes.max "140"
-        , Html.Attributes.step "5"
+        , Attributes.size 3
+        , Attributes.min "60"
+        , Attributes.max "140"
+        , Attributes.step "5"
         , style
             [ ( "width", "auto" )
             , ( "min-width", "7em" )
@@ -1008,8 +1007,8 @@ viewLowestNote offset =
   input
     [ type_ "range"
     , onInput SetLowestNote
-    , Html.Attributes.min "-6"
-    , Html.Attributes.max "6"
+    , Attributes.min "-6"
+    , Attributes.max "6"
     , value (toString offset)
     , style
         [ ( "grid-area", "ln2" )
@@ -1103,8 +1102,8 @@ interpretBuffetMessage buffetMessage =
     Buffet.Replace suggestion ->
       Replace suggestion
 
-viewChordArea : Int -> Player -> MainParser.Model -> Html Msg
-viewChordArea lnOffset player parse =
+viewChordArea : Player -> MainParser.Model -> Html Msg
+viewChordArea player parse =
   div
     [ style
         [ ( "font-size", "18pt" )
@@ -1115,52 +1114,43 @@ viewChordArea lnOffset player parse =
     ( List.map
         ( viewLine
             (MainParser.getKey parse)
-            (MainParser.getLowestNote parse)
-            lnOffset
             (Player.playStatus player)
         )
-        (MainParser.getChords parse)
+        (MainParser.meaning parse)
     )
 
-viewLine : Int -> Int -> Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine key lowestNote lnOffset playStatus line =
+viewLine : Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
+viewLine key playStatus line =
   div
     [ style
         [ ( "display", "flex" ) ]
     ]
-    (List.map (viewMaybeChord key lowestNote lnOffset playStatus) line)
+    (List.map (viewMeaning key playStatus) line)
 
-viewMaybeChord : Int -> Int -> Int -> PlayStatus -> Maybe IdChord -> Html Msg
-viewMaybeChord key lowestNote lnOffset playStatus maybeChord =
-  case maybeChord of
-    Just chord ->
-      viewChord
-        key
-        lowestNote
-        playStatus
-        { chord
-        | cache =
-            CachedChord.transposeRootOctave lowestNote lnOffset chord.cache
-        }
+viewMeaning : Int -> PlayStatus -> Maybe IdChord -> Html Msg
+viewMeaning key playStatus meaning =
+  case meaning of
+    Just idChord ->
+      viewChord key playStatus idChord
     Nothing ->
       viewSpace
 
-viewChord : Int -> Int -> PlayStatus -> IdChord -> Html Msg
-viewChord key lowestNote playStatus chord =
+viewChord : Int -> PlayStatus -> IdChord -> Html Msg
+viewChord key playStatus { id, chord } =
   let
     selected =
-      playStatus.active == chord.id || playStatus.next == chord.id
+      playStatus.active == id || playStatus.next == id
   in let
-    stopButton = playStatus.active == chord.id && playStatus.stoppable
+    stopButton = playStatus.active == id && playStatus.stoppable
   in let
     play =
       if stopButton then NeedsTime StopChord
-      else NeedsTime (PlayChord << (,) chord)
+      else NeedsTime (PlayChord << (,) (IdChord id chord))
   in
     span
       [ style
           [ ( "border-style"
-            , if playStatus.next == chord.id then
+            , if playStatus.next == id then
                 "dashed"
               else
                 "solid"
@@ -1183,27 +1173,33 @@ viewChord key lowestNote playStatus chord =
           , onKeyDown
               [ ( 13, play )
               , ( 32, play )
-              , ( 37, FocusHorizontal ( False, chord.id ) )
-              , ( 38, FocusVertical ( False, chord.id ) )
-              , ( 39, FocusHorizontal ( True, chord.id ) )
-              , ( 40, FocusVertical ( True, chord.id ) )
+              , ( 37, FocusHorizontal ( False, id ) )
+              , ( 38, FocusVertical ( False, id ) )
+              , ( 39, FocusHorizontal ( True, id ) )
+              , ( 40, FocusVertical ( True, id ) )
               ]
-          , id (toString chord.id)
+          , Attributes.id (toString id)
           , style
-              [ ( "background", CachedChord.bg key chord.cache )
-              , ( "color", CachedChord.fg chord.cache )
+              [ ( "background", Colour.bg key chord )
+              , ( "color", Colour.fg chord )
               , ( "font", "inherit" )
               , ( "width", "75px" )
               , ( "height", "75px" )
               , ( "padding", "0px 3px" )
               , ( "border"
-                , "1px solid rgba(0, 0, 0, " ++
-                    CachedChord.borderOpacity chord.cache ++ ")"
+                , String.concat
+                    [ "1px solid rgba(0, 0, 0, "
+                    , Colour.borderOpacity chord
+                    , ")"
+                    ]
                 )
               , ( "border-radius", "5px" )
               , ( "box-shadow"
-                , "inset 18px 34px 20px -20px rgba(255, 255, 255, " ++
-                    CachedChord.shineOpacity chord.cache ++ ")"
+                , String.concat
+                    [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
+                    , Colour.shineOpacity chord
+                    , ")"
+                    ]
                 )
               , ( "cursor", "pointer" )
               , ( "white-space", "nowrap" )
@@ -1212,7 +1208,7 @@ viewChord key lowestNote playStatus chord =
           ( if stopButton then
               [ Html.span
                   [ style
-                     [ ( "background", CachedChord.fg chord.cache )
+                     [ ( "background", Colour.fg chord )
                      , ( "width", "20px" )
                      , ( "height", "20px" )
                      , ( "display", "inline-block" )
@@ -1222,7 +1218,7 @@ viewChord key lowestNote playStatus chord =
                   []
               ]
             else
-              CachedChord.view lowestNote chord.cache
+              Name.view chord
           )
       ]
 
@@ -1237,11 +1233,11 @@ viewSpace =
     ]
     []
 
-viewCircleOfFifths : Int -> Int -> Int -> Player -> Html Msg
-viewCircleOfFifths key lowestNote lnOffset player =
+viewCircleOfFifths : Int -> Player -> Html Msg
+viewCircleOfFifths key player =
   Html.map
     msgFromCircleOfFifths
-    (CircleOfFifths.view key lowestNote lnOffset (Player.playStatus player))
+    (CircleOfFifths.view key (Player.playStatus player))
 
 msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
 msgFromCircleOfFifths msg =

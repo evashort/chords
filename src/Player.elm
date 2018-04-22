@@ -3,8 +3,10 @@ module Player exposing
   , playPad, playStrum, playArpeggio
   )
 
-import AudioChange exposing (AudioChange(..), Note)
-import Chord exposing (Chord)
+import Arp
+import AudioChange exposing (AudioChange(..))
+import IdChord exposing (IdChord)
+import Note
 
 type alias Player =
   { openings : List Opening
@@ -94,8 +96,8 @@ stopPlaying now player =
   , [ MuteAllNotes { t = now, before = False } ]
   )
 
-playPad : Chord -> Int -> Float -> Player -> ( Player, List AudioChange )
-playPad chord id now player =
+playPad : Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
+playPad lowestNote { id, chord } now player =
   ( { player
     | openings = []
     , schedule = [ { id = id, stop = infinity } ]
@@ -106,20 +108,15 @@ playPad chord id now player =
         , SetPeak 0.25
         , SetDecay infinity
         ]
-      , let
-          notes =
-            List.map
-              (strumNote 0 chord now)
-              (List.range 0 (List.length chord))
-        in
-          List.map AddNote notes
+      , List.map
+          (AddNote << Note.mapTime (always now))
+          (Arp.strum lowestNote chord)
       ]
   )
 
 playStrum :
-  Float -> Chord -> Int -> Float -> Player ->
-    ( Player, List AudioChange )
-playStrum strumInterval chord id now player =
+  Float -> Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
+playStrum strumInterval lowestNote { id, chord } now player =
   ( { player
     | openings = []
     , schedule = [ { id = id, stop = now + 2.25 } ]
@@ -130,26 +127,17 @@ playStrum strumInterval chord id now player =
         , SetPeak 0.5
         , SetDecay 3
         ]
-      , let
-          notes =
-            List.map
-              (strumNote strumInterval chord now)
-              (List.range 0 (List.length chord))
-        in
-          List.map AddNote notes
+      , List.map
+          ( AddNote <<
+              Note.mapTime ((+) now << (*) strumInterval)
+          )
+          (Arp.strum lowestNote chord)
       ]
   )
 
-strumNote : Float -> Chord -> Float -> Int -> Note
-strumNote strumInterval chord now i =
-  { t = now + strumInterval * toFloat i
-  , f = pitchFrequency (Chord.get chord i)
-  }
-
 playArpeggio :
-  Float -> Chord -> Int -> Float -> Player ->
-    ( Player, List AudioChange )
-playArpeggio beatInterval chord id now player =
+  Float -> Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
+playArpeggio beatInterval lowestNote { id, chord } now player =
   let
     truncatedOpenings = dropOpeningsAfter now player.openings
   in let
@@ -210,16 +198,16 @@ playArpeggio beatInterval chord id now player =
           , SetPeak 0.5
           , SetDecay 1.5
           ]
-        , let
-            arpeggio =
-              if highStart then highArpeggio else lowArpeggio
-          in let
-            notes =
-              List.map
-                (arpeggioNote chord now startTime beatInterval)
-                arpeggio
-          in
-            List.map AddNote notes
+        , List.map
+            ( AddNote <<
+                Note.mapTime
+                  (max now << (+) startTime << (*) beatInterval)
+            )
+            ( if highStart then
+                Arp.continuation lowestNote chord
+              else
+                Arp.intro lowestNote chord
+            )
         ]
     )
 
@@ -236,46 +224,6 @@ dropOpeningsAfter t openings =
 
 leniency : Float
 leniency = 0.05
-
-arpeggioNote : Chord -> Float -> Float -> Float -> IndexNote -> Note
-arpeggioNote chord now startTime beatInterval { offset, beat, i } =
-  { t = max now (startTime + beatInterval * beat)
-  , f = pitchFrequency (Chord.get chord i + offset)
-  }
-
-pitchFrequency : Int -> Float
-pitchFrequency pitch =
-  440 * 2 ^ (toFloat (pitch - 69) / 12)
-
-type alias IndexNote =
-  { offset : Int
-  , beat : Float
-  , i : Int
-  }
-
-highArpeggio : List IndexNote
-highArpeggio = IndexNote 24 0 0 :: lowArpeggio
-
-lowArpeggio : List IndexNote
-lowArpeggio =
-  [ IndexNote 0 0 0
-  , IndexNote 0 0.25 1
-  , IndexNote 0 0.5 2
-  , IndexNote 0 0.75 3
-  , IndexNote 0 1 4
-  , IndexNote 0 1.25 5
-  , IndexNote 0 1.5 3
-  , IndexNote 0 1.75 4
-  , IndexNote 0 2 0
-  , IndexNote 0 2 6
-  , IndexNote 0 2.25 1
-  , IndexNote 0 2.5 2
-  , IndexNote 0 2.75 3
-  , IndexNote 0 3 4
-  , IndexNote 0 3.25 5
-  , IndexNote 0 3.5 3
-  , IndexNote 0 3.75 4
-  ]
 
 stopOldChord : Float -> Int -> Float -> List Segment -> List AudioChange
 stopOldChord startTime id now schedule =

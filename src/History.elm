@@ -1,25 +1,27 @@
 module History exposing (History, add, finishSequence, view)
 
-import CachedChord exposing (CachedChord)
+import Chord exposing (Chord)
+import Colour
+import Name
 
 import Html exposing (Html, div, mark, span, text)
 import Html.Attributes exposing (style)
 
 type alias History =
-  { sequences : List (List CachedChord)
-  , current : List CachedChord
+  { sequences : List (List Chord)
+  , current : List Chord
   }
 
-add : CachedChord -> History -> History
-add cache history =
+add : Chord -> History -> History
+add chord history =
   case history.current of
     [] ->
-      { history | current = [ cache ] }
-    lastCache :: _ ->
-      if cache.chord == lastCache.chord then
+      { history | current = [ chord ] }
+    lastChord :: _ ->
+      if chord == lastChord then
         history
       else
-        { history | current = cache :: history.current }
+        { history | current = chord :: history.current }
 
 finishSequence : History -> History
 finishSequence history =
@@ -30,8 +32,8 @@ finishSequence history =
   else
     { history | current = [] }
 
-view : Int -> Int -> List (List CachedChord) -> Html msg
-view key lowestNote sequences =
+view : Int -> List (List Chord) -> Html msg
+view key sequences =
   span
     [ style
         [ ( "display", "inline-block" )
@@ -47,25 +49,25 @@ view key lowestNote sequences =
             , ( "font-size", "13pt" )
             ]
         ]
-        (List.map (viewSequence key lowestNote) sequences)
+        (List.map (viewSequence key) sequences)
     ]
 
-viewSequence : Int -> Int -> List CachedChord -> Html msg
-viewSequence key lowestNote sequence =
+viewSequence : Int -> List Chord -> Html msg
+viewSequence key sequence =
   div []
     ( List.intersperse
         (text " ")
-        (List.map (viewChord key lowestNote) (List.reverse sequence))
+        (List.map (viewChord key) (List.reverse sequence))
     )
 
-viewChord : Int -> Int -> CachedChord -> Html msg
-viewChord key lowestNote cache =
+viewChord : Int -> Chord -> Html msg
+viewChord key chord =
   mark
     [ style
-        [ ( "background", CachedChord.bg key cache )
-        , ( "color", CachedChord.fg cache )
+        [ ( "background", Colour.bg key chord )
+        , ( "color", Colour.fg chord )
         , ( "border-radius", "3px" )
         ]
     ]
-    [ text (CachedChord.codeName lowestNote cache)
+    [ text (Name.code chord)
     ]
