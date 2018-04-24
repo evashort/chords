@@ -12,7 +12,6 @@ import Player exposing (Player, PlayStatus)
 import Replacement exposing (Replacement)
 import Song
 import Substring exposing (Substring)
-import Suggestion exposing (Suggestion)
 import Swatch
 import UndoCatcher exposing (UndoCatcher)
 
@@ -116,8 +115,7 @@ type Msg
   | SetKey String
   | TextChanged String
   | UrlChanged Location
-  | LensesChanged LensChange
-  | Replace Suggestion
+  | BuffetMsg Buffet.Msg
   | Undo
   | Redo
 
@@ -362,7 +360,7 @@ update msg model =
         else
           ( model, Cmd.none )
 
-    LensesChanged lensChange ->
+    BuffetMsg (Buffet.LensesChanged lensChange) ->
       ( let chordBox = model.chordBox in
           { model
           | chordBox =
@@ -374,7 +372,7 @@ update msg model =
       , Cmd.none
       )
 
-    Replace suggestion ->
+    BuffetMsg (Buffet.Replace suggestion) ->
       ( case suggestion.ranges of
           [] ->
             model
@@ -566,7 +564,7 @@ view model =
             ]
         , Html.Lazy.lazy viewChordBox model.chordBox
         , Html.map
-            interpretBuffetMessage
+            BuffetMsg
             (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
         ]
     , Html.Lazy.lazy2
@@ -1020,14 +1018,6 @@ viewChordBox chordBox =
             ]
         )
     )
-
-interpretBuffetMessage : Buffet.Msg -> Msg
-interpretBuffetMessage buffetMessage =
-  case buffetMessage of
-    Buffet.LensesChanged lensChange ->
-      LensesChanged lensChange
-    Buffet.Replace suggestion ->
-      Replace suggestion
 
 viewCircleOfFifths : Int -> Player -> Html Msg
 viewCircleOfFifths key player =
