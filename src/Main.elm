@@ -4,15 +4,13 @@ import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
 import CircleOfFifths
-import Colour
-import CustomEvents exposing (onLeftDown, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
 import MainParser
-import Name
 import Player exposing (Player, PlayStatus)
 import Replacement exposing (Replacement)
+import Song
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Swatch
@@ -108,8 +106,7 @@ type Msg
   = NoOp
   | NeedsTime (Float -> Msg)
   | CurrentTime Float
-  | PlayChord ( IdChord, Float )
-  | StopChord Float
+  | IdChordMsg (IdChord.Msg, Float)
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | SetBpm String
@@ -148,7 +145,7 @@ update msg model =
       , Cmd.none
       )
 
-    PlayChord ( idChord, now ) ->
+    IdChordMsg ( IdChord.Play idChord, now ) ->
       let
         ( player, sequenceFinished ) =
           Maybe.withDefault
@@ -182,7 +179,7 @@ update msg model =
         , AudioChange.perform changes
         )
 
-    StopChord now ->
+    IdChordMsg ( IdChord.Stop, now ) ->
       let
         ( player, changes ) =
           Player.stopPlaying now model.player
@@ -573,7 +570,7 @@ view model =
             (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
         ]
     , Html.Lazy.lazy2
-        viewChordArea model.player model.chordBox.parse
+        viewSong model.player model.chordBox.parse
     , Html.Lazy.lazy2
         viewCircleOfFifths
         (MainParser.getKey model.chordBox.parse)
@@ -1032,143 +1029,22 @@ interpretBuffetMessage buffetMessage =
     Buffet.Replace suggestion ->
       Replace suggestion
 
-viewChordArea : Player -> MainParser.Model -> Html Msg
-viewChordArea player parse =
-  div
-    [ style
-        [ ( "font-size", "18pt" )
-        , ( "margin-right", "5px" )
-        , ( "margin-bottom", "5px" )
-        ]
-    ]
-    ( List.map
-        ( viewLine
-            (MainParser.getKey parse)
-            (Player.playStatus player)
-        )
-        (MainParser.meaning parse)
-    )
-
-viewLine : Int -> PlayStatus -> List (Maybe IdChord) -> Html Msg
-viewLine key playStatus line =
-  div
-    [ style
-        [ ( "display", "flex" ) ]
-    ]
-    (List.map (viewMeaning key playStatus) line)
-
-viewMeaning : Int -> PlayStatus -> Maybe IdChord -> Html Msg
-viewMeaning key playStatus meaning =
-  case meaning of
-    Just idChord ->
-      viewChord key playStatus idChord
-    Nothing ->
-      viewSpace
-
-viewChord : Int -> PlayStatus -> IdChord -> Html Msg
-viewChord key playStatus { id, chord } =
-  let
-    selected =
-      playStatus.active == id || playStatus.next == id
-  in let
-    stopButton = playStatus.active == id && playStatus.stoppable
-  in let
-    play =
-      if stopButton then NeedsTime StopChord
-      else NeedsTime (PlayChord << (,) (IdChord id chord))
-  in
-    span
-      [ style
-          [ ( "border-style"
-            , if playStatus.next == id then
-                "dashed"
-              else
-                "solid"
-            )
-          , ( "flex", "none" )
-          , ( "border-width", "5px" )
-          , ( "margin-right", "-5px" )
-          , ( "margin-bottom", "-5px" )
-          , ( "border-color"
-            , if selected then
-                "#3399ff"
-              else
-                "transparent"
-            )
-          , ( "border-radius", "10px" )
-          ]
-      ]
-      [ button
-          [ onLeftDown play
-          , onKeyDown
-              [ ( 13, play )
-              , ( 32, play )
-              ]
-          , Attributes.id (toString id)
-          , style
-              [ ( "background", Colour.bg key chord )
-              , ( "color", Colour.fg chord )
-              , ( "font", "inherit" )
-              , ( "width", "75px" )
-              , ( "height", "75px" )
-              , ( "padding", "0px 3px" )
-              , ( "border"
-                , String.concat
-                    [ "1px solid rgba(0, 0, 0, "
-                    , Colour.borderOpacity chord
-                    , ")"
-                    ]
-                )
-              , ( "border-radius", "5px" )
-              , ( "box-shadow"
-                , String.concat
-                    [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
-                    , Colour.shineOpacity chord
-                    , ")"
-                    ]
-                )
-              , ( "cursor", "pointer" )
-              , ( "white-space", "nowrap" )
-              ]
-          ]
-          ( if stopButton then
-              [ Html.span
-                  [ style
-                     [ ( "background", Colour.fg chord )
-                     , ( "width", "20px" )
-                     , ( "height", "20px" )
-                     , ( "display", "inline-block" )
-                     , ( "vertical-align", "middle" )
-                     ]
-                  ]
-                  []
-              ]
-            else
-              Name.view chord
-          )
-      ]
-
-viewSpace : Html msg
-viewSpace =
-  span
-    [ style
-        [ ( "width", "80px" )
-        , ( "height", "80px" )
-        , ( "flex", "none" )
-        ]
-    ]
-    []
-
 viewCircleOfFifths : Int -> Player -> Html Msg
 viewCircleOfFifths key player =
   Html.map
-    msgFromCircleOfFifths
+    (needsTimeAndTag IdChordMsg)
     (CircleOfFifths.view key (Player.playStatus player))
 
-msgFromCircleOfFifths : CircleOfFifths.Msg -> Msg
-msgFromCircleOfFifths msg =
-  case msg of
-    CircleOfFifths.PlayChord chord ->
-      NeedsTime (PlayChord << (,) chord)
-    CircleOfFifths.StopChord ->
-      NeedsTime StopChord
+viewSong : Player -> MainParser.Model -> Html Msg
+viewSong player parse =
+  Html.map
+    (needsTimeAndTag IdChordMsg)
+    ( Song.view
+        (MainParser.getKey parse)
+        (Player.playStatus player)
+        (MainParser.song parse)
+    )
+
+needsTimeAndTag : ((a, Float) -> Msg) -> a -> Msg
+needsTimeAndTag tag x =
+  NeedsTime (tag << (,) x)

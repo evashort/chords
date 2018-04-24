@@ -1,5 +1,5 @@
 module MainParser exposing
-  ( Model, init, update, view, meaning, suggestions, getKey, setKey
+  ( Model, init, update, view, song, suggestions, getKey, setKey
   , getLowestNote, setLowestNote, transpose
   )
 
@@ -54,9 +54,9 @@ view model =
       , List.concatMap (ParsedFlag.view key lowestNote) model.flags
       ]
 
-meaning : Model -> List (List (Maybe IdChord))
-meaning model =
-  Paragraph.meaning model.paragraph
+song : Model -> List (List (Maybe IdChord))
+song model =
+  Paragraph.song model.paragraph
 
 suggestions : Model -> List Suggestion
 suggestions model =

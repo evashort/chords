@@ -1,5 +1,5 @@
 module Paragraph exposing
-  (Paragraph, init, update, view, meaning, suggestions, transpose)
+  (Paragraph, init, update, view, song, suggestions, transpose)
 
 import Highlight exposing (Highlight)
 import IdChord exposing (IdChord)
@@ -43,8 +43,8 @@ view : Int -> Paragraph -> List Highlight
 view key paragraph =
   List.filterMap (Word.view key) paragraph.words
 
-meaning : Paragraph -> List (List (Maybe IdChord))
-meaning paragraph =
+song : Paragraph -> List (List (Maybe IdChord))
+song paragraph =
   List.filter
     (not << List.isEmpty)
     ( List.map

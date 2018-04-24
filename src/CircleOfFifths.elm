@@ -1,4 +1,4 @@
-module CircleOfFifths exposing (chordCount, view, Msg(..))
+module CircleOfFifths exposing (chordCount, view)
 
 import Chord exposing (Chord)
 import Colour
@@ -27,11 +27,7 @@ idByRoot firstId chord =
   , chord = chord
   }
 
-type Msg
-  = PlayChord IdChord
-  | StopChord
-
-view : Int -> PlayStatus -> Html Msg
+view : Int -> PlayStatus -> Html IdChord.Msg
 view key playStatus =
   let
     rInner = 100
@@ -157,7 +153,8 @@ areaAverage x y =
   sqrt (0.5 * (x * x + y * y))
 
 viewChord :
-  Int -> PlayStatus -> Float -> Float -> Int -> IdChord -> List (Svg Msg)
+  Int -> PlayStatus -> Float -> Float -> Int -> IdChord ->
+    List (Svg IdChord.Msg)
 viewChord key playStatus rInner rOuter i { id, chord } =
   List.filterMap
     identity
@@ -180,8 +177,8 @@ viewChord key playStatus rInner rOuter i { id, chord } =
         stopButton = playStatus.active == id && playStatus.stoppable
       in let
         play =
-          if stopButton then StopChord
-          else PlayChord (IdChord id chord)
+          if stopButton then IdChord.Stop
+          else IdChord.Play (IdChord id chord)
       in
         Just
           ( path
