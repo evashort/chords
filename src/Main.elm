@@ -2,6 +2,7 @@ module Main exposing (..)
 
 import AudioChange
 import AudioTime
+import Bracket
 import Buffet exposing (Buffet, LensChange)
 import CircleOfFifths
 import Highlight exposing (Highlight)
@@ -14,6 +15,7 @@ import Song
 import Substring exposing (Substring)
 import Swatch
 import UndoCatcher exposing (UndoCatcher)
+import Unit exposing (px, em, ch, percent)
 
 import AnimationFrame
 import Array exposing (Array)
@@ -527,16 +529,14 @@ view model =
             ]
         , Html.Lazy.lazy
             viewLowestNote model.lnOffset
-        , Html.map never
-            ( let
-                oldLowestNote =
-                  MainParser.getLowestNote model.chordBox.parse
-              in let
-                lowestNote = oldLowestNote + model.lnOffset
-              in
-                Html.Lazy.lazy2
-                  viewOctaveBrackets oldLowestNote lowestNote
-            )
+        , let
+            oldLowestNote =
+              MainParser.getLowestNote model.chordBox.parse
+          in let
+            lowestNote = oldLowestNote + model.lnOffset
+          in
+            Html.Lazy.lazy2
+              viewBrackets oldLowestNote lowestNote
         , let
             oldLowestNote =
               MainParser.getLowestNote model.chordBox.parse
@@ -705,227 +705,16 @@ viewKey key =
         ]
     ]
 
-viewOctaveBrackets : Int -> Int -> Html Never
-viewOctaveBrackets oldLowestNote lowestNote =
-  let
-    gapEnd = 6 - (oldLowestNote + 6) % 12
-  in let
-    gapStart = gapEnd - 1
-  in let
-    boldStart = lowestNote - oldLowestNote
-  in let
-    boldEnd = boldStart + 11
-  in
-    (interpretBrackets << List.concat)
-      [ if gapStart == 5 then
-          if boldEnd <= gapStart then
-            [ bracketSpace
-            , thickBracket True 11 True
-            ]
-          else if boldStart < gapStart then
-            [ bracketSpace
-            , thinBracket True (boldStart + 6) False
-            , thickBracket False (gapStart - boldStart) True
-            ]
-          else if boldStart == gapStart then
-            [ bracketSpace
-            , tadpole True 11
-            ]
-          else
-            [ bracketSpace
-            , thinBracket True 11 True
-            ]
-        else if boldStart < gapStart then
-          [ thinBracket False (boldStart + 6) False
-          , thickBracket False (gapStart - boldStart) True
-          ]
-        else if boldStart == gapStart then
-          [ tadpole False (gapStart + 6) ]
-        else
-          [ thinBracket False (gapStart + 6) True ]
-      , [ bracketSpace ]
-      , if gapEnd == -5 then
-          if boldEnd < 6 then
-            [ thickBracket True (boldEnd - gapEnd) False
-            , thinBracket False (6 - boldEnd) True
-            , bracketSpace
-            ]
-          else if boldStart <= gapEnd then
-            [ thickBracket True 11 True
-            , bracketSpace
-            ]
-          else if boldStart < 6 then
-            [ thinBracket True (boldStart - gapEnd) False
-            , thickBracket False (6 - boldStart) True
-            , bracketSpace
-            ]
-          else
-            [ tadpole True 11
-            , bracketSpace
-            ]
-        else if boldEnd < gapEnd then
-          [ thinBracket True (6 - gapEnd) False ]
-        else if boldEnd == gapEnd then
-          [ badpole (6 - gapEnd) False ]
-        else if boldEnd <= 6 then
-          [ thickBracket True (boldEnd - gapEnd) False
-          , thinBracket False (6 - boldEnd) False
-          ]
-        else if boldStart <= gapEnd then
-          [ thickBracket True (6 - gapEnd) False ]
-        else
-          [ thinBracket True (boldStart - gapEnd) False
-          , thickBracket False (6 - boldStart) False
-          ]
-      ]
-
-type alias Bracket =
-  { areas : String
-  , columns : String
-  , nodes : List (Html Never)
-  }
-
-bracketSpace : Int -> Int -> Bracket
-bracketSpace len i =
-  { areas = "a" ++ toString i
-  , columns =
-      if i == 0 || i == len - 1 then "calc(1ch - 1.5px)"
-      else "1fr"
-  , nodes = []
-  }
-
-thinBracket : Bool -> Int -> Bool -> Int -> Int -> Bracket
-thinBracket = bracketHelp "1px solid" "1px"
-
-thickBracket : Bool -> Int -> Bool -> Int -> Int -> Bracket
-thickBracket = bracketHelp "3px solid" "0"
-
-bracketHelp :
-  String -> String -> Bool -> Int -> Bool -> Int -> Int -> Bracket
-bracketHelp border margin start n end len i =
-  { areas = "a" ++ toString i ++ " a" ++ toString i
-  , columns =
-      String.join
-        " "
-        [ let
-            px =
-              (if start then 1.5 else 0) +
-                (if end then 1.5 else 0) + 3 * toFloat n
-          in
-            if i == 0 || i == len - 1 then
-              "calc(1ch + " ++ toString px ++ "px)"
-            else
-              toString px ++ "px"
-        , toString n ++ "fr"
-        ]
-  , nodes =
-      [ span
-          [ style
-              [ ( "grid-area", "a" ++ toString i )
-              , ( "margin-left", if start then margin else "0" )
-              , ( "border-left", if start then border else "none" )
-              , ( "border-top", border )
-              , ( "border-right", if end then border else "none" )
-              , ( "margin-right", if end then margin else "0" )
-              ]
-          ]
-          []
-      ]
-  }
-
-tadpole : Bool -> Int -> Int -> Int -> Bracket
-tadpole start n len i =
-  { areas = "a" ++ toString i ++ " a" ++ toString i
-  , columns =
-      String.join
-        " "
-        [ let
-            px = (if start then 1.5 else 0) + 1.5 + 3 * toFloat n
-          in
-            if i == 0 || i == len - 1 then
-              "calc(1ch + " ++ toString px ++ "px)"
-            else
-              toString px ++ "px"
-        , toString n ++ "fr"
-        ]
-  , nodes =
-      [ span
-          [ style
-              [ ( "grid-area", "a" ++ toString i )
-              , ( "margin-left", if start then "1px" else "0" )
-              , ( "border-left"
-                , if start then "1px solid" else "none"
-                )
-              , ( "border-top", "1px solid" )
-              , ( "border-right", "3px solid" )
-              ]
-          ]
-          []
-      ]
-  }
-
-badpole : Int -> Bool -> Int -> Int -> Bracket
-badpole n end len i =
-  { areas = "a" ++ toString i ++ " a" ++ toString i
-  , columns =
-      String.join
-        " "
-        [ let
-            px = (if end then 1.5 else 0) + 1.5 + 3 * toFloat n
-          in
-            if i == 0 || i == len - 1 then
-              "calc(1ch + " ++ toString px ++ "px)"
-            else
-              toString px ++ "px"
-        , toString n ++ "fr"
-        ]
-  , nodes =
-      [ span
-          [ style
-              [ ( "grid-area", "a" ++ toString i )
-              , ( "border-left", "3px solid" )
-              , ( "border-top", "1px solid" )
-              , ( "margin-right", if end then "1px" else "0" )
-              , ( "border-right"
-                , if end then "1px solid" else "none"
-                )
-              ]
-          ]
-          []
-      ]
-  }
-
-interpretBrackets : List (Int -> Int -> Bracket) -> Html Never
-interpretBrackets bracketFunctions =
-  let
-    brackets =
-      List.indexedMap
-        (flip (flip identity (List.length bracketFunctions)))
-        bracketFunctions
-  in
-    span
-      [ style
-          [ ( "grid-area", "ln2" )
-          , ( "display", "grid" )
-          , ( "grid-template-areas"
-            , String.concat
-                [ "\""
-                , String.join " " (List.map .areas brackets)
-                , "\""
-                ]
-            )
-          , ( "grid-template-columns"
-            , String.join " " (List.map .columns brackets)
-            )
-          , ( "position", "absolute" )
-          , ( "top", "-0.6em" )
-          , ( "bottom", "calc(50% + 11px)" )
-          , ( "left", "calc(6.5px - 1ch)" )
-          , ( "right", "calc(6.5px - 1ch)" )
-          , ( "pointer-events", "none" )
-          ]
-      ]
-      (List.concatMap .nodes brackets)
+viewBrackets : Int -> Int -> Html msg
+viewBrackets oldLowestNote lowestNote =
+  Bracket.view
+    "ln2"
+    (em (-0.6))
+    (Unit.sum [ percent 50, px 11 ])
+    (px 6.5)
+    (ch 1)
+    oldLowestNote
+    lowestNote
 
 viewLowestNote : Int -> Html Msg
 viewLowestNote offset =
