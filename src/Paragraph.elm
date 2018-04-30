@@ -6,34 +6,39 @@ import IdChord exposing (IdChord)
 import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+import Train exposing (Train)
 import Word exposing (Word)
 import Zipper
 
+import Regex exposing (Regex, HowMany(..))
+import Set exposing (Set)
+
 type alias Paragraph =
   { nextId : Int
-  , words : List Word
+  , words : Train Word
   }
 
 init : Int -> List Substring -> Paragraph
-init firstId substrings =
-  { nextId = firstId + List.length substrings
-  , words =
-      List.indexedMap (Word.init << (+) firstId) substrings
-  }
+init firstId lines =
+  let substrings = Train.fromCars (parse lines) in
+    { nextId = firstId + Train.length substrings
+    , words =
+        Train.indexedMap (Word.init << (+) firstId) substrings
+    }
 
 update : List Substring -> Paragraph -> Paragraph
-update substrings paragraph =
+update substrings { nextId, words } =
   let
     doubleZipped =
-      Zipper.doubleZip Word.update substrings paragraph.words
+      Zipper.doubleZip Word.update substrings words
   in
     { nextId =
-        paragraph.nextId + List.length doubleZipped.upper
+        nextId + Train.length doubleZipped.upper
     , words =
         List.concat
           [ doubleZipped.left
-          , List.indexedMap
-              (Word.init << (+) paragraph.nextId)
+          , Train.indexedMap
+              (Word.init << (+) nextId)
               doubleZipped.upper
           , doubleZipped.right
           ]
@@ -47,33 +52,52 @@ song : Paragraph -> List (List (Maybe IdChord))
 song paragraph =
   List.filter
     (not << List.isEmpty)
-    ( List.map
-        (List.filterMap Word.meaning)
-        (splitList Word.isNewline paragraph.words)
-    )
-
-splitList : (a -> Bool) -> List a -> List (List a)
-splitList pred xs =
-  let ( l, ls ) = splitListHelp pred xs in
-    l :: ls
-
-splitListHelp : (a -> Bool) -> List a -> ( List a, List (List a) )
-splitListHelp pred xs =
-  case xs of
-    x :: rest ->
-      let ( l, ls ) = splitListHelp pred rest in
-        if pred x then
-          ( [], l :: ls )
-        else
-          ( x :: l, ls )
-    [] ->
-      ( [], [] )
+    (Train.cars (Train.filterMap Word.meaning))
 
 suggestions : Int -> Paragraph -> List Suggestion
 suggestions key paragraph =
   Suggestion.groupByReplacement
-    (List.filterMap (Word.suggestion key) paragraph.words)
+    ( List.filterMap
+        (Word.suggestion key)
+        (Train.flatten paragraph.words)
+    )
 
 transpose : Int -> Paragraph -> List Replacement
 transpose offset paragraph =
-  List.filterMap (Word.transpose offset) paragraph.words
+  List.filterMap
+    (Word.transpose offset)
+    (Train.flatten paragraph.words)
+
+parse : List Substring -> List (List Substring)
+parse lines =
+  let
+    relevantLines =
+      List.reverse (takeWhile relevant (List.reverse lines))
+  in
+    List.map (Substring.find All wordRegex) relevantLines
+
+wordRegex : Regex
+wordRegex = Regex.regex "[^ ]+"
+
+relevant : Substring -> Bool
+relevant line =
+  case Substring.find (AtMost 1) wordRegex line of
+    [] ->
+      False -- should not happen
+    word ->
+      not (Set.member word.s badWords)
+
+badWords : Set String
+badWords =
+  Set.fromList [ "key:", "octave:" ]
+
+takeWhile : (a -> Bool) -> List a -> List a
+takeWhile condition xs =
+  case xs of
+    [] ->
+      []
+    x :: rest ->
+      if condition x then
+        x :: takeWhile condition rest
+      else
+        []

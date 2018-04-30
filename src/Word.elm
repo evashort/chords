@@ -1,5 +1,5 @@
 module Word exposing
-  (Word, init, update, view, meaning, isNewline, suggestion, transpose)
+  (Word, init, update, view, meaning, suggestion, transpose)
 
 import Chord exposing (Chord)
 import Colour
@@ -36,12 +36,18 @@ init id substring =
             }
   }
 
-update : Substring -> Word -> Maybe Word
-update substring word =
-  if substring.s == word.substring.s then
-    Just { word | substring = substring }
-  else
-    Nothing
+update : Maybe Substring -> Maybe Word -> Maybe (Maybe Word)
+update mSubstring mWord =
+  case ( mSubstring, mWord ) of
+    ( Nothing, Nothing ) ->
+      Just Nothing
+    ( Just substring, Just word ) ->
+      if substring.s == word.substring.s then
+        Just (Just { word | substring = substring })
+      else
+        Nothing
+    _ ->
+      Nothing
 
 view : Int -> Word -> Maybe Highlight
 view key word =
@@ -74,10 +80,6 @@ meaning word =
         Just (Just (IdChord word.id cache.chord))
       else
         Nothing
-
-isNewline : Word -> Bool
-isNewline word =
-  word.substring.s == "\n"
 
 suggestion : Int -> Word -> Maybe ( List Swatch, Substring )
 suggestion key word =

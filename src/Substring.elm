@@ -1,5 +1,7 @@
 module Substring exposing
-  (Substring, stop, range, left, right, dropLeft, dropRight, after, find)
+  ( Substring, stop, range, left, right, dropLeft, dropRight, after, find
+  , regexSplit
+  )
 
 import Regex exposing (Regex, HowMany(..), Match)
 
@@ -46,3 +48,23 @@ find howMany regex { i, s } =
 fromMatch : Int -> Match -> Substring
 fromMatch i match =
   { i = i + match.index, s = match.match }
+
+regexSplit : HowMany -> Regex -> Substring -> List Substring
+regexSplit howMany regex substring =
+  let
+    matches =
+      Regex.find howMany regex substring.s ++
+        [ emptyMatch (String.length substring.s) ]
+  in
+    List.map2 (betweenMatches substring) (emptyMatch 0 :: matches) matches
+
+emptyMatch : Int -> Match
+emptyMatch index =
+  { match = "", submatches = [], index = index, number = 0 }
+
+betweenMatches : Substring -> Match -> Match -> Substring
+betweenMatches { i, s } x y =
+  let xStop = x.index + String.length x.match in
+    { i = i + xStop
+    , s = String.slice xStop y.index s
+    }
