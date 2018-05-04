@@ -34,14 +34,14 @@ view gridArea top bottom sliderPadding bracketPadding center lowestNote =
             , String.join " " (List.map columns widths)
             )
           , ( "position", "absolute" )
-          , ( "top", Unit.string top )
-          , ( "bottom", Unit.string bottom )
+          , ( "top", Unit.code top )
+          , ( "bottom", Unit.code bottom )
           , ( "left"
-            , (Unit.string << Unit.sum)
+            , (Unit.code << Unit.sum)
                 [ sliderPadding, Unit.negative bracketPadding ]
             )
           , ( "right"
-            , (Unit.string << Unit.sum)
+            , (Unit.code << Unit.sum)
                 [ sliderPadding, Unit.negative bracketPadding ]
             )
           , ( "pointer-events", "none" )
@@ -88,13 +88,13 @@ areas i unit =
 columns : Unit -> String
 columns unit =
   if unit.fr == 0 then
-    Unit.string unit
+    Unit.code unit
   else
     let rest = { unit | fr = 0 } in
       if rest == zero then
-        Unit.string unit
+        Unit.code unit
       else
-        Unit.string rest ++ " " ++ toString unit.fr ++ "fr"
+        Unit.code rest ++ " " ++ toString unit.fr ++ "fr"
 
 nodes : Int -> Int -> Int -> (Int, Int) -> List (Html msg)
 nodes center lowestNote i ( start, end ) =

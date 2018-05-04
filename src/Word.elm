@@ -1,5 +1,5 @@
 module Word exposing
-  (Word, init, update, view, meaning, suggestion, transpose)
+  (Word, init, update, highlight, meaning, suggestion, transpose)
 
 import Chord exposing (Chord)
 import Colour
@@ -49,8 +49,8 @@ update mSubstring mWord =
     _ ->
       Nothing
 
-view : Int -> Word -> Maybe Highlight
-view key word =
+highlight : Int -> Word -> Maybe Highlight
+highlight key word =
   case word.cache of
     Nothing ->
       if word.substring.s == "_" then
@@ -81,7 +81,7 @@ meaning word =
       else
         Nothing
 
-suggestion : Int -> Word -> Maybe ( List Swatch, Substring )
+suggestion : Int -> Word -> Maybe (List Swatch, Substring)
 suggestion key word =
   case word.cache of
     Nothing ->

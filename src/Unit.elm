@@ -1,5 +1,5 @@
 module Unit exposing
-  (Unit, negative, sum, string, px, ch, em, percent, fr, zero)
+  (Unit, negative, sum, code, px, ch, em, percent, fr, zero)
 
 type alias Unit =
   { px : Float
@@ -27,8 +27,8 @@ sum units =
   , fr = List.sum (List.map .fr units)
   }
 
-string : Unit -> String
-string unit =
+code : Unit -> String
+code unit =
   case sparse unit of
     [] ->
       "0"

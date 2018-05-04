@@ -9,8 +9,8 @@ highlights : List Substring -> List Highlight
 highlights lines =
   List.concatMap highlight lines
 
-highlight : Substring -> List Highlight
-highlight line =
+lineHighlights : Substring -> List Highlight
+lineHighlights line =
   List.map
     (Highlight "#ffffff" "#ff0000")
     (Substring.find (AtMost 1) indentRegex line)

@@ -1,5 +1,5 @@
 module Paragraph exposing
-  (Paragraph, init, update, view, song, suggestions, transpose)
+  (Paragraph, init, update, highlights, song, suggestions, transpose)
 
 import Highlight exposing (Highlight)
 import IdChord exposing (IdChord)
@@ -44,9 +44,9 @@ update substrings { nextId, words } =
           ]
     }
 
-view : Int -> Paragraph -> List Highlight
-view key paragraph =
-  List.filterMap (Word.view key) paragraph.words
+highlights : Int -> Paragraph -> List Highlight
+highlights key paragraph =
+  List.filterMap (Word.highlight key) paragraph.words
 
 song : Paragraph -> List (List (Maybe IdChord))
 song paragraph =
@@ -79,13 +79,16 @@ parse lines =
 wordRegex : Regex
 wordRegex = Regex.regex "[^ ]+"
 
+firstWord : Regex
+firstWord = Regex.regex "^[^ ]*"
+
 relevant : Substring -> Bool
 relevant line =
-  case Substring.find (AtMost 1) wordRegex line of
+  case Regex.find (AtMost 1) firstWord line.s of
     [] ->
-      False -- should not happen
-    word ->
-      not (Set.member word.s badWords)
+      False
+    match :: _ ->
+      not (Set.member match.match badWords)
 
 badWords : Set String
 badWords =
