@@ -20,17 +20,17 @@ type alias Paragraph =
 
 init : Int -> List Substring -> Paragraph
 init firstId lines =
-  let substrings = Train.fromCars (parse lines) in
+  let substrings = split lines in
     { nextId = firstId + Train.length substrings
     , words =
         Train.indexedMap (Word.init << (+) firstId) substrings
     }
 
 update : List Substring -> Paragraph -> Paragraph
-update substrings { nextId, words } =
+update lines { nextId, words } =
   let
     doubleZipped =
-      Zipper.doubleZip Word.update substrings words
+      Zipper.doubleZip Word.update (split lines) words
   in
     { nextId =
         nextId + Train.length doubleZipped.upper
@@ -43,6 +43,10 @@ update substrings { nextId, words } =
           , doubleZipped.right
           ]
     }
+
+split : List Substring -> Train Substring
+split lines =
+  Train.fromCars (List.map (Substring.find All wordRegex) lines)
 
 highlights : Int -> Paragraph -> List Highlight
 highlights key paragraph =
@@ -67,40 +71,3 @@ transpose offset paragraph =
   List.filterMap
     (Word.transpose offset)
     (Train.flatten paragraph.words)
-
-parse : List Substring -> List (List Substring)
-parse lines =
-  let
-    relevantLines =
-      List.reverse (takeWhile relevant (List.reverse lines))
-  in
-    List.map (Substring.find All wordRegex) relevantLines
-
-wordRegex : Regex
-wordRegex = Regex.regex "[^ ]+"
-
-firstWord : Regex
-firstWord = Regex.regex "^[^ ]*"
-
-relevant : Substring -> Bool
-relevant line =
-  case Regex.find (AtMost 1) firstWord line.s of
-    [] ->
-      False
-    match :: _ ->
-      not (Set.member match.match badWords)
-
-badWords : Set String
-badWords =
-  Set.fromList [ "key:", "octave:" ]
-
-takeWhile : (a -> Bool) -> List a -> List a
-takeWhile condition xs =
-  case xs of
-    [] ->
-      []
-    x :: rest ->
-      if condition x then
-        x :: takeWhile condition rest
-      else
-        []

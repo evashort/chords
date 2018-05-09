@@ -7,46 +7,50 @@ import Regex exposing (Regex, HowMany(..))
 
 highlights : Substring -> List Highlight
 highlights whole =
-  case Substring.find (AtMost 1) atStartRegex whole of
+  case Substring.find (AtMost 1) initialCommentRegex whole of
     [] ->
       List.map
         (highlight << Substring.dropLeft 1)
         (Substring.find All commentRegex whole)
-    firstLine :: _ ->
+    initialComment :: _ ->
       let
         rest =
-          Substring.dropLeft (String.length firstLine.s) whole
+          Substring.dropLeft (String.length initialComment.s) whole
       in
-        highlight firstLine ::
+        highlight initialComment ::
           List.map
             (highlight << Substring.dropLeft 1)
             (Substring.find All commentRegex rest)
 
-highlight : Substring -> Highlight
-highlight = Highlight "#008000" "#ffffff"
-
-atStartRegex : Regex
-atStartRegex = Regex.regex "^#.*"
+initialCommentRegex : Regex
+initialCommentRegex = Regex.regex "^#.*"
 
 commentRegex : Regex
 commentRegex = Regex.regex "[ \\n]#.*"
 
-codeRegex : Regex
-codeRegex = Regex.regex ".*[^ \\n]"
+highlight : Substring -> Highlight
+highlight = Highlight "#008000" "#ffffff"
 
 remove : Substring -> List Substring
 remove whole =
-  let
-    rest =
-      case Regex.find (AtMost 1) atStartRegex whole.s of
-        [] ->
-          whole
-        match :: _ ->
-          Substring.dropLeft (String.length match.match) whole
-  in let
-    betweenComments =
-      Substring.regexSplit commentRegex rest
-  in
-    List.concatMap
-      (Substring.find All codeRegex)
-      betweenComments
+  List.map
+    removeFromLine
+    (Substring.regexSplit lineBreak whole)
+  ++ [ Substring (String.length whole.s + 1) "" ] -- Needed by Flag.insert
+
+removeFromLine : Substring -> Substring
+removeFromLine line =
+  if String.startsWith "#" line.s then
+    { line | s = "" }
+  else
+    case Regex.find (AtMost 1) commentStart line.s of
+      match :: _ ->
+        Substring.left match.index line
+      _ ->
+        line
+
+lineBreak : Regex
+lineBreak = Regex.regex " *\\n"
+
+commentStart : Regex
+commentStart = Regex.regex " +#"

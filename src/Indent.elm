@@ -24,4 +24,4 @@ remove lines =
 
 unindented : Substring -> Bool
 unindented line =
-  not (String.startsWith " " line)
+  not (String.startsWith " " line.s)
