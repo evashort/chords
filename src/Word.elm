@@ -26,7 +26,7 @@ init id substring =
   { id = id
   , substring = substring
   , cache =
-      case Chord.fromString substring.s of
+      case Chord.fromCode substring.s of
         Nothing ->
           Nothing
         Just chord ->

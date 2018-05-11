@@ -2,12 +2,13 @@ module Rulebook exposing (Rulebook, init, highlights, suggestions)
 
 import Flag exposing (Fixer, Rule)
 import Highlight exposing (Highlight)
+import Submatches exposing (submatches)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Swatch exposing (Swatch)
 
 import Dict exposing (Dict)
-import Regex exposing (Regex, HowMany(..))
+import Regex exposing (Regex)
 
 type alias Rulebook = Dict String Fixer
 
@@ -158,7 +159,3 @@ valueSwatch = Swatch "#c00000" "#ffffff"
 
 textSwatch : String -> Swatch
 textSwatch value = Swatch "#000000" "#ffffff"
-
-submatches : Regex -> String -> List (Maybe String)
-submatches regex s =
-  List.concatMap .submatches (Regex.find (AtMost 1) regex s)

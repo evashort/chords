@@ -1,6 +1,7 @@
 module Name exposing (code, view)
 
 import Chord exposing (Chord)
+import Pitch
 
 import Dict exposing (Dict)
 import Html exposing (Html, text, sup)
@@ -10,19 +11,8 @@ code chord =
   let
     scheme =
       Maybe.withDefault unknown (Dict.get chord.flavor schemes)
-  in let
-    letterIndex = (chord.root * 7 + 6 - scheme.sharpCount) // 12
-  in let
-    letterPitch = (letterIndex * 12 + 5) // 7
   in
-    String.concat
-      [ String.slice letterIndex (letterIndex + 1) "CDEFGAB"
-      , case chord.root - letterPitch of
-          -1 -> "b"
-          1 -> "#"
-          _ -> ""
-      , scheme.code
-      ]
+    Pitch.code scheme.sharpCount chord.root ++ scheme.code
 
 view : Chord -> List (Html msg)
 view chord =
@@ -30,19 +20,8 @@ view chord =
     scheme =
       Maybe.withDefault unknown (Dict.get chord.flavor schemes)
   in let
-    letterIndex = (chord.root * 7 + 6 - scheme.sharpCount) // 12
-  in let
-    letterPitch = (letterIndex * 12 + 5) // 7
-  in let
     normal =
-      String.concat
-        [ String.slice letterIndex (letterIndex + 1) "CDEFGAB"
-        , case chord.root - letterPitch of
-            -1 -> "♭"
-            1 -> "♯"
-            _ -> ""
-        , scheme.normal
-        ]
+      Pitch.view scheme.sharpCount chord.root ++ scheme.normal
   in
     if scheme.superscript == "" then
       [ text normal ]

@@ -1,14 +1,15 @@
-module Flag exposing (Flag, Fixer, Rule, rule, parse, remove, insert)
+module Flag exposing (Flag, Fixer, Rule, rule, parse, insert, remove)
 
 import Replacement exposing (Replacement)
+import Submatches exposing (submatches)
 import Substring exposing (Substring)
 
-import Regex exposing (Regex, HowMany(..))
+import Regex exposing (Regex)
 import Set exposing (Set)
 
 type alias Flag a =
-  { name : String
-  , fromString : String -> Maybe a
+  { key : String
+  , fromCode : String -> Maybe a
   , default : a
   , code : a -> String
   }
@@ -19,14 +20,14 @@ type alias Rule = (String, Fixer)
 
 rule : Flag -> Rule
 rule flag =
-  ( flag.name, Maybe.map flag.code << flag.fromString )
+  ( flag.key, Maybe.map flag.code << flag.fromCode )
 
 parse : Flag a -> List Substring -> a
 parse flag lines =
   Maybe.withDefault
     flag.default
     ( oneOfMap
-        (Maybe.andThen (parseValue flag) << getValueString flag.name)
+        (Maybe.andThen (parseValue flag) << getValueString flag.key)
         (List.reverse lines)
     )
 
@@ -36,13 +37,9 @@ getValueString key =
   let regex = "^" ++ Regex.escape key ++ ": ([^ ].*)" in
     List.head << submatches regex
 
-submatches : Regex -> String -> List (Maybe String)
-submatches regex s =
-  List.concatMap .submatches (Regex.find (AtMost 1) regex s)
-
 parseValue : Flag a -> String -> Maybe a
 parseValue flag valueString =
-  case flag.fromString valueString of
+  case flag.fromCode valueString of
     Nothing ->
       Nothing
     Just value ->
@@ -60,36 +57,6 @@ oneOfMap f xs =
         Nothing -> oneOfMap f rest
         y -> y
 
-remove : List Substring -> List Substring
-remove lines =
-  List.reverse (takeWhile keyless (List.reverse lines))
-
-takeWhile : (a -> Bool) -> List a -> List a
-takeWhile condition xs =
-  case xs of
-    [] ->
-      []
-    x :: rest ->
-      if condition x then
-        x :: takeWhile condition rest
-      else
-        []
-
-keyless : Substring -> Bool
-keyless line =
-  case submatches keyRegex line of
-    [ Just key, Nothing ] ->
-      not (Set.member key keys)
-    _  ->
-      True
-
-keyRegex : Regex
-keyRegex = Regex.regex "^([^:]+):([^ ])?"
-
-keys : Set String
-keys =
-  Set.fromList [ "octave", "scale" ]
-
 insert : Flag a -> a -> List Substring -> Maybe Replacement
 insert flag newValue lines =
   let reverseLines = List.reverse lines in
@@ -98,7 +65,7 @@ insert flag newValue lines =
       else
         insertHelp
     )
-      { getOld = getValueString flag.name
+      { getOld = getValueString flag.key
       , new = flag.code newValue
       , flag = flag
       , allLines = reverseLines
@@ -159,14 +126,14 @@ deleteLine lines line =
           Nothing
       else
         deleteLineHelp line.i lastLine.i rest
-    _ -> -- should never happen
-      Nothing
+    x ->
+      Debug.crash ("Flag.deleteLine: Fewer than two lines: " ++ toString x)
 
 deleteLineHelp : Int -> Int -> List Substring -> Maybe Replacement
 deleteLineHelp target nextLineStart lines =
   case lines of
-    [] -> -- should never happen
-      Nothing
+    [] ->
+      Debug.crash ("Flag.deleteLine: Target not found: " ++ toString target)
     line :: rest ->
       if line.i == target then
         if nextLineStart == Substring.stop line + 1 then
@@ -180,7 +147,7 @@ insertHelp : Args -> List Substring -> Maybe Replacement
 insertHelp args lines =
   case lines of
     [] ->
-      addLine args.flag.name args.new args.allLines
+      addLine args.flag.key args.new args.allLines
     line :: rest ->
       case args.getOld line of
         Nothing ->
@@ -199,23 +166,24 @@ insertHelp args lines =
 
 addLine : String -> String -> List Substring -> Replacement
 addLine key value lines =
-  [] -> -- should never happen
-    Replacement (Substring 0 "") ""
-  [ firstLine ] ->
-    Replacement
-      (Substring firstLine.i "")
-      (key ++ ": " ++ value ++ "\n")
-  nextLine :: line :: rest ->
-    case getKey line of
-      Nothing ->
-        addLine key value rest
-      Just currentKey ->
-        if key >= currentKey then
-          Replacement
-            (Substring (nextLine.i - 1) "")
-            ("\n" ++ key ++ ": " ++ value)
-        else
+  case lines of
+    [] ->
+      Debug.crash "Flag.addLine: Lines list empty"
+    [ firstLine ] ->
+      Replacement
+        (Substring firstLine.i "")
+        (key ++ ": " ++ value ++ "\n")
+    nextLine :: line :: rest ->
+      case getKey line of
+        Nothing ->
           addLine key value rest
+        Just currentKey ->
+          if key >= currentKey then
+            Replacement
+              (Substring (nextLine.i - 1) "")
+              ("\n" ++ key ++ ": " ++ value)
+          else
+            addLine key value rest
 
 getKey : Substring -> Maybe String
 getKey line =
@@ -227,3 +195,33 @@ getKey line =
         Nothing
     _  ->
       Nothing
+
+remove : List Substring -> List Substring
+remove lines =
+  List.reverse (takeWhile keyless (List.reverse lines))
+
+takeWhile : (a -> Bool) -> List a -> List a
+takeWhile condition xs =
+  case xs of
+    [] ->
+      []
+    x :: rest ->
+      if condition x then
+        x :: takeWhile condition rest
+      else
+        []
+
+keyless : Substring -> Bool
+keyless line =
+  case submatches keyRegex line of
+    [ Just key, Nothing ] ->
+      not (Set.member key keys)
+    _  ->
+      True
+
+keyRegex : Regex
+keyRegex = Regex.regex "^([^:]+):([^ ])?"
+
+keys : Set String
+keys =
+  Set.fromList [ "octave", "scale" ]

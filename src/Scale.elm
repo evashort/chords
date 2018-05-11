@@ -1,67 +1,56 @@
-module Scale exposing (Scale, parse, pair)
+module Scale exposing (Scale, rule, parse, insert)
 
 import Flag exposing (Flag, Rule)
+import Pitch
+import Replacement exposing (Replacement)
+import Submatches exposing (submatches)
 import Substring exposing (Substring)
 
 import Dict exposing (Dict)
+import Regex exposing (Regex)
 
 type alias Scale =
-  { root : Int
-  , minor : Bool
+  { minor : Bool
+  , root : Int
   }
-
-parse : List Substring -> Scale
-parse = Flag.parse flag
 
 rule : Rule
 rule = Flag.rule flag
 
+parse : List Substring -> Scale
+parse = Flag.parse flag
+
+insert : Scale -> List Substring -> Maybe Replacement
+insert = Flag.insert flag
+
 flag : Flag
 flag =
-  { name = "scale"
-  , fromString = fromString
+  { key = "scale"
+  , fromCode = fromCode
   , code = code
   , default =
-      { root = 0
-      , minor = False
+      { minor = False
+      , root = 0
       }
   }
 
-fromString : String -> Maybe Scale
-fromString s =
-  let
-    whiteRoot =
-      case String.toUpper (String.left 1 s) of
-        "C" -> 0
-        "D" -> 2
-        "E" -> 4
-        "F" -> 5
-        "G" -> 7
-        "A" -> 9
-        "B" -> 11
-        _ -> -1
-  in
-    if whiteRoot == -1 then
+fromCode : String -> Maybe Scale
+fromCode code =
+  case submatches regex code of
+    [ Just rootCode, Just flavorCode ] ->
+      case Dict.get flavors flavorCode of
+        Nothing ->
+          Nothing
+        Just minor ->
+          Just
+            { minor = minor
+            , root = Pitch.fromCode rootCode
+            }
+    _ ->
       Nothing
-    else
-      let
-        accidentalOffset =
-          case String.slice 1 2 s of
-            "b" -> -1
-            "#" -> 1
-            _ -> 0
-      in let
-        flavorName =
-          String.dropLeft (if accidentalOffset == 0 then 1 else 2) s
-      in
-        case Dict.get flavors flavorName of
-          Nothing ->
-            Nothing
-          Just minor ->
-            Just
-              { root = (whiteRoot + accidentalOffset) % 12
-              , minor = minor
-              }
+
+regex : Regex
+regex = "^([A-Ga-g][b#♭♯]?)(.*)"
 
 flavors : Dict String Bool
 flavors =
@@ -72,18 +61,7 @@ flavors =
 
 code : Scale -> String
 code scale =
-  let
-    sharpCount = if scale.minor then 3 else 0
-  in let
-    letterIndex = (scale.root * 7 + 6 - sharpCount) // 12
-  in let
-    letterPitch = (letterIndex * 12 + 5) // 7
-  in
-    String.concat
-      [ String.slice letterIndex (letterIndex + 1) "CDEFGAB"
-      , case scale.root - letterPitch of
-          -1 -> "b"
-          1 -> "#"
-          _ -> ""
-      , if scale.minor then "m" else ""
-      ]
+  if scale.minor then
+    Pitch.code 3 scale.root ++ "m"
+  else
+    Pitch.code 0 scale.root

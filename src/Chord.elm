@@ -1,47 +1,32 @@
-module Chord exposing (Chord, fromString)
+module Chord exposing (Chord, fromCode)
+
+import Submatches exposing (submatches)
 
 import Dict exposing (Dict)
+import Regex exposing (Regex)
 
 type alias Chord =
   { flavor : List Int
   , root : Int
   }
 
-fromString : String -> Maybe Chord
-fromString s =
-  let
-    whiteRoot =
-      case String.toUpper (String.left 1 s) of
-        "C" -> 0
-        "D" -> 2
-        "E" -> 4
-        "F" -> 5
-        "G" -> 7
-        "A" -> 9
-        "B" -> 11
-        _ -> -1
-  in
-    if whiteRoot == -1 then
+fromCode : String -> Maybe Chord
+fromCode code =
+  case submatches regex code of
+    [ Just rootCode, Just flavorCode ] ->
+      case Dict.get flavors flavorCode of
+        Nothing ->
+          Nothing
+        Just flavor ->
+          Just
+            { flavor = flavor
+            , root = Pitch.fromCode rootCode
+            }
+    _ ->
       Nothing
-    else
-      let
-        accidentalOffset =
-          case String.slice 1 2 s of
-            "b" -> -1
-            "#" -> 1
-            _ -> 0
-      in let
-        flavorName =
-          String.dropLeft (if accidentalOffset == 0 then 1 else 2) s
-      in
-        case Dict.get flavorName flavors of
-          Nothing ->
-            Nothing
-          Just flavor ->
-            Just
-              { flavor = flavor
-              , root = (whiteRoot + accidentalOffset) % 12
-              }
+
+regex : Regex
+regex = "^([A-Ga-g][b#♭♯]?)(.*)"
 
 flavors : Dict String (List Int)
 flavors =
