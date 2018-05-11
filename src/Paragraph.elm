@@ -1,5 +1,5 @@
 module Paragraph exposing
-  (Paragraph, init, update, highlights, song, suggestions, transpose)
+  (Paragraph, init, update, highlights, song, suggestions, mapChords)
 
 import Highlight exposing (Highlight)
 import IdChord exposing (IdChord)
@@ -66,8 +66,8 @@ suggestions key paragraph =
         (Train.flatten paragraph.words)
     )
 
-transpose : Int -> Paragraph -> List Replacement
-transpose offset paragraph =
+mapChords : (Chord -> Chord) -> Paragraph -> List Replacement
+mapChords f paragraph =
   List.filterMap
-    (Word.transpose offset)
+    (Word.mapChord f)
     (Train.flatten paragraph.words)

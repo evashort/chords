@@ -1,4 +1,4 @@
-module Chord exposing (Chord, fromCode)
+module Chord exposing (Chord, fromCode, transpose)
 
 import Submatches exposing (submatches)
 
@@ -46,3 +46,7 @@ flavors =
     , ( "o7", [ 3, 6, 9 ] )
     , ( "mM7", [ 3, 7, 11 ] )
     ]
+
+transpose : Int -> Chord -> Chord
+transpose offset chord =
+  { chord | root = (root + offset) % 12 }

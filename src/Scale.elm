@@ -1,10 +1,8 @@
-module Scale exposing (Scale, rule, parse, insert)
+module Scale exposing (Scale, flag, transpose)
 
-import Flag exposing (Flag, Rule)
+import Flag exposing (Flag)
 import Pitch
-import Replacement exposing (Replacement)
 import Submatches exposing (submatches)
-import Substring exposing (Substring)
 
 import Dict exposing (Dict)
 import Regex exposing (Regex)
@@ -13,15 +11,6 @@ type alias Scale =
   { minor : Bool
   , root : Int
   }
-
-rule : Rule
-rule = Flag.rule flag
-
-parse : List Substring -> Scale
-parse = Flag.parse flag
-
-insert : Scale -> List Substring -> Maybe Replacement
-insert = Flag.insert flag
 
 flag : Flag
 flag =
@@ -65,3 +54,7 @@ code scale =
     Pitch.code 3 scale.root ++ "m"
   else
     Pitch.code 0 scale.root
+
+transpose : Int -> Scale -> Scale
+transpose offset scale =
+  { scale | root = (root + offset) % 12 }

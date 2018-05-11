@@ -1,21 +1,10 @@
-module LowestNote exposing (rule, parse, insert)
+module LowestNote exposing (flag)
 
-import Flag exposing (Flag, Rule)
+import Flag exposing (Flag)
 import Pitch
-import Replacement exposing (Replacement)
 import Submatches exposing (submatches)
-import Substring exposing (Substring)
 
 import Regex exposing (Regex)
-
-rule : Rule
-rule = Flag.rule flag
-
-parse : List Substring -> Int
-parse = Flag.parse flag
-
-insert : Int -> List Substring -> Maybe Replacement
-insert = Flag.insert flag
 
 flag : Flag
 flag =

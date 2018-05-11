@@ -1,6 +1,6 @@
 module Rulebook exposing (Rulebook, init, highlights, suggestions)
 
-import Flag exposing (Fixer, Rule)
+import Rule exposing (Fixer, Rule)
 import Highlight exposing (Highlight)
 import Submatches exposing (submatches)
 import Substring exposing (Substring)

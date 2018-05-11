@@ -1,5 +1,5 @@
 module Word exposing
-  (Word, init, update, highlight, meaning, suggestion, transpose)
+  (Word, init, update, highlight, meaning, suggestion, mapChord)
 
 import Chord exposing (Chord)
 import Colour
@@ -99,8 +99,8 @@ suggestion key word =
           , word.substring
           )
 
-transpose : Int -> Word -> Maybe Replacement
-transpose offset word =
+mapChord : (Chord -> Chord) -> Word -> Maybe Replacement
+mapChord f word =
   case word.cache of
     Nothing ->
       Nothing
@@ -108,11 +108,7 @@ transpose offset word =
       if word.substring.s == cache.codeName then
         Just
           { old = word.substring
-          , new =
-              Name.code
-                { flavor = cache.chord.flavor
-                , root = (cache.chord.root + offset) % 12
-                }
+          , new = Name.code (f cache.chord)
           }
       else
         Nothing

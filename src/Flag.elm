@@ -1,4 +1,4 @@
-module Flag exposing (Flag, Fixer, Rule, rule, parse, insert, remove)
+module Flag exposing (Flag, parse, insert, remove)
 
 import Replacement exposing (Replacement)
 import Submatches exposing (submatches)
@@ -13,14 +13,6 @@ type alias Flag a =
   , default : a
   , code : a -> String
   }
-
-type alias Fixer = String -> Maybe String
-
-type alias Rule = (String, Fixer)
-
-rule : Flag -> Rule
-rule flag =
-  ( flag.key, Maybe.map flag.code << flag.fromCode )
 
 parse : Flag a -> List Substring -> a
 parse flag lines =
