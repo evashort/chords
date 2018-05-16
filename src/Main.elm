@@ -26,7 +26,7 @@ import Html exposing
   , select, option
   )
 import Html.Attributes as Attributes exposing
-  (href, style, spellcheck, class, classList, type_, value, selected)
+  (href, style, class, classList, type_, value, selected)
 import Html.Events exposing (onClick, onInput)
 import Html.Lazy
 import Navigation exposing (Location)

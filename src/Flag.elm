@@ -172,14 +172,14 @@ addLine key value lines =
     nextLine :: line :: rest ->
       case getKey line of
         Nothing ->
-          addLine key value rest
+          addLine key value (line :: rest)
         Just currentKey ->
           if key >= currentKey then
             Replacement
               (Substring (nextLine.i - 1) "")
               ("\n" ++ key ++ ": " ++ value)
           else
-            addLine key value rest
+            addLine key value (line :: rest)
 
 getKey : Substring -> Maybe String
 getKey line =

@@ -4,7 +4,8 @@ module UndoCatcher exposing
   )
 
 import Html exposing (Html, div, textarea)
-import Html.Attributes exposing (style, id, value, property, attribute)
+import Html.Attributes exposing
+  (style, id, value, property, attribute, spellcheck)
 import Html.Events exposing (onInput)
 import Html.Keyed as Keyed
 import Json.Encode
@@ -193,6 +194,7 @@ viewFrame catcher =
               [] -> Json.Encode.null
               edit :: _ -> (Json.Encode.string edit.before.text)
           )
+      , spellcheck False
       , style
           [ ( "position", "absolute" )
           , ( "top", "0" )
@@ -217,6 +219,7 @@ viewHiddenFrame inputScript i frame =
       [ value frame.text
       , attribute "oninput" inputScript
       , property "lockedValue" (Json.Encode.string frame.text)
+      , spellcheck False
       , style
           [ ( "visibility", "hidden" )
           , ( "position", "absolute" )

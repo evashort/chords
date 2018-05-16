@@ -140,7 +140,7 @@
             let lockedValue = undo ? catcher.undoValue : catcher.redoValue;
             if (catcher.value == lockedValue) {
               catcher.lockedValue = lockedValue;
-              let port = undo ? app.ports.undoPort : app.ports.redoPort;
+              let port = undo ? app.ports.undo : app.ports.redo;
               catcher.timeout = setTimeout(
                 function() {
                   if (catcher.lockedValue != null) {
