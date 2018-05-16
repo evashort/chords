@@ -1,4 +1,4 @@
-module Scale exposing (Scale, flag, transpose)
+module Scale exposing (Scale, flag)
 
 import Flag exposing (Flag)
 import Pitch
@@ -54,7 +54,3 @@ code scale =
     Pitch.code 3 scale.root ++ "m"
   else
     Pitch.code 0 scale.root
-
-transpose : Int -> Scale -> Scale
-transpose offset scale =
-  { scale | root = (root + offset) % 12 }

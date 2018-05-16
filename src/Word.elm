@@ -99,16 +99,13 @@ suggestion key word =
           , word.substring
           )
 
-mapChord : (Chord -> Chord) -> Word -> Maybe Replacement
-mapChord f word =
-  case word.cache of
+mapChord : (Chord -> Chord) -> Substring -> Maybe Replacement
+mapChord f substring =
+  case Chord.fromCode substring.s of
     Nothing ->
       Nothing
-    Just cache ->
-      if word.substring.s == cache.codeName then
-        Just
-          { old = word.substring
-          , new = Name.code (f cache.chord)
-          }
+    Just chord ->
+      if Name.code chord == substring.s then
+        Just { old = substring, new = Name.code (f chord) }
       else
         Nothing

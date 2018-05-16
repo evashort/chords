@@ -1,6 +1,6 @@
-port module UndoCatcher exposing
-  ( undoPort, redoPort, UndoCatcher, fromString, update, undo, redo
-  , replace, replaceAll, switch, switchAll, view
+module UndoCatcher exposing
+  ( UndoCatcher, fromString, update, undo, hardUndo, redo
+  , replace, switch, view
   )
 
 import Html exposing (Html, div, textarea)
@@ -11,10 +11,6 @@ import Json.Encode
 
 import Replacement exposing (Replacement)
 import Substring
-
-port undoPort : (() -> msg) -> Sub msg
-
-port redoPort : (() -> msg) -> Sub msg
 
 type alias UndoCatcher =
   { frame : Frame
@@ -64,6 +60,19 @@ undo catcher =
       , futureEdits = edit :: catcher.futureEdits
       }
 
+hardUndo : UndoCatcher -> UndoCatcher
+hardUndo catcher =
+  case catcher.edits of
+    [] ->
+      catcher
+    edit :: edits ->
+      { catcher
+      | frame = edit.before
+      , edits = edits
+      , editCount = catcher.editCount - 1
+      , futureEdits = []
+      }
+
 redo : UndoCatcher -> UndoCatcher
 redo catcher =
   case catcher.futureEdits of
@@ -101,32 +110,6 @@ replace replacement catcher =
     , futureEdits = []
     }
 
-replaceAll : List Replacement -> UndoCatcher -> UndoCatcher
-replaceAll replacements catcher =
-  let
-    text = Replacement.applyAll replacements catcher.frame.text
-  in let
-    after =
-      { text = text
-      , start = String.length text
-      , stop = String.length text
-      }
-  in
-    { catcher
-    | frame = after
-    , edits =
-        { before =
-            { text = catcher.frame.text
-            , start = 0
-            , stop = String.length catcher.frame.text
-            }
-        , after = after
-        } ::
-          catcher.edits
-    , editCount = catcher.editCount + 1
-    , futureEdits = []
-    }
-
 switch : Replacement -> UndoCatcher -> UndoCatcher
 switch replacement catcher =
   case catcher.edits of
@@ -147,35 +130,6 @@ switch replacement catcher =
                 { text = oldEdit.before.text
                 , start = replacement.old.i
                 , stop = Substring.stop replacement.old
-                }
-            , after = after
-            } ::
-              rest
-        , futureEdits = []
-        }
-
-switchAll : List Replacement -> UndoCatcher -> UndoCatcher
-switchAll replacements catcher =
-  case catcher.edits of
-    [] ->
-      catcher
-    oldEdit :: rest ->
-      let
-        text = Replacement.applyAll replacements oldEdit.before.text
-      in let
-        after =
-          { text = text
-          , start = String.length text
-          , stop = String.length text
-          }
-      in
-        { catcher
-        | frame = after
-        , edits =
-            { before =
-                { text = oldEdit.before.text
-                , start = 0
-                , stop = String.length oldEdit.before.text
                 }
             , after = after
             } ::

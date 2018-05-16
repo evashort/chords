@@ -66,8 +66,8 @@ suggestions key paragraph =
         (Train.flatten paragraph.words)
     )
 
-mapChords : (Chord -> Chord) -> Paragraph -> List Replacement
-mapChords f paragraph =
+mapChords : (Chord -> Chord) -> List Substring -> List Replacement
+mapChords f lines =
   List.filterMap
     (Word.mapChord f)
-    (Train.flatten paragraph.words)
+    (List.concatMap (Substring.find All wordRegex) lines)

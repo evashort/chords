@@ -1,10 +1,11 @@
-module Parse exposing (Parse, init, update, setLowestNote, transpose)
+module Parse exposing (Parse, init, update, song, setLowestNote, setScale)
 
 import Chord
 import Comment
 import Flag
 import Flags
 import Highlight exposing (Highlight)
+import IdChord exposing (IdChord)
 import Indent
 import LowestNote
 import Paragraph exposing (Paragraph)
@@ -15,12 +16,11 @@ import Suggestion exposing (Suggestion)
 
 type alias Parse =
   { code : String
-  , unindented : List Substring
   , paragraph : Paragraph
   , highlights : List Highlight
   , suggestions : List Suggestion
-  , scale : Scale
   , lowestNote : Int
+  , scale : Scale
   }
 
 init : Int -> String -> Parse
@@ -39,16 +39,17 @@ initHelp getParagraph code =
     unindented = Indent.remove lines
   in let
     paragraph = getParagraph (Flag.remove unindented)
+  in let
+    scale = Flag.parse Scale.flag unindented
   in
     { code = code
-    , unindented = unindented
     , paragraph = paragraph
     , highlights =
         List.concat
           [ Comment.highlights (Substring 0 code)
           , Indent.highlights lines
           , Flags.highlights unindented
-          , Paragraph.highlights paragraph
+          , Paragraph.highlights scale.root paragraph
           ]
     , suggestions =
         Suggestion.sort
@@ -57,47 +58,62 @@ initHelp getParagraph code =
               , Paragraph.suggestions paragraph
               ]
           )
-    , scale = Flag.parse Scale.flag unindented
     , lowestNote = Flag.parse LowestNote.flag unindented
+    , scale = scale
     }
 
-setLowestNote : Int -> Parse -> Maybe Replacement
-setLowestNote lowestNote parse =
-  Flag.insert LowestNote.flag lowestNote parse.unindented
+song : Parse -> List (List (Maybe IdChord))
+song parse =
+  Paragraph.song parse.paragraph
 
-transpose : Int -> Parse -> Replacement
-transpose offset parse =
+setLowestNote : Int -> String -> Maybe Replacement
+setLowestNote lowestNote code =
   let
-    flagReplacements =
-      case
-        List.filterMap
-          identity
-          [ Flag.insert
-              LowestNote.flag
-              (parse.lowestNote + offset)
-              parse.unindented
-          , Flag.insert
-              Scale.flag
-              (Scale.transpose offset parse.scale)
-              parse.unindented
-          ]
-      of
-        [ x, y ] ->
-          if y.old.i < x.old.i then
-            [ y, x ]
-          else
-            [ x, y ]
-        z ->
-          z
-  in let
-    chordReplacements =
-      Paragraph.mapChords
-        (Chord.transpose offset)
-        parse.paragraph
+    unindented =
+      Indent.remove (Comment.remove (Substring 0 code))
   in
-    { old = Substring 0 parse.code
-    , new =
-        Replacement.applyAll
-          (flagReplacements ++ chordReplacements)
-          parse.code
-    }
+    Flag.insert LowestNote.flag lowestNote parse.unindented
+
+setScale : Scale -> String -> Maybe Replacement
+setScale scale code =
+  let
+    unindented =
+      Indent.remove (Comment.remove (Substring 0 code))
+  in
+    case Flag.insert Scale.flag scale unindented of
+      Nothing ->
+        Nothing
+      Just scaleReplacement ->
+        let
+          oldScale = Flag.parse Scale.flag unindented
+        in let
+          offset = (scale.root - oldScale.root + 5) % 12 - 5
+        in let
+          lowestNote =
+            Flag.parse LowestNote.flag unindented + offset
+        in
+          case
+            Flag.insert LowestNote.flag lowestNote parse.unindented
+          of
+            Nothing ->
+              Just scaleReplacement
+            Just lowestNoteReplacement ->
+              let
+                flagReplacements =
+                  if scaleReplacement.i < lowestNoteReplacement.i then
+                    [ scaleReplacement, lowestNoteReplacement ]
+                  else
+                    [ lowestNoteReplacement, scaleReplacement ]
+              in let
+                chordReplacements =
+                  Paragraph.mapChords
+                    (Chord.transpose offset)
+                    (Flag.remove unindented)
+              in
+                Just
+                  { old = Substring 0 code
+                  , new =
+                      Replacement.applyAll
+                        (flagReplacements ++ chordReplacements)
+                        code
+                  }
