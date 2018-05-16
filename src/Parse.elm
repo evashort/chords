@@ -55,7 +55,7 @@ initHelp getParagraph code =
         Suggestion.sort
           ( List.concat
               [ Flags.suggestions unindented
-              , Paragraph.suggestions paragraph
+              , Paragraph.suggestions scale.root paragraph
               ]
           )
     , lowestNote = Flag.parse LowestNote.flag unindented
@@ -72,7 +72,7 @@ setLowestNote lowestNote code =
     unindented =
       Indent.remove (Comment.remove (Substring 0 code))
   in
-    Flag.insert LowestNote.flag lowestNote parse.unindented
+    Flag.insert LowestNote.flag lowestNote unindented
 
 setScale : Scale -> String -> Maybe Replacement
 setScale scale code =
@@ -93,14 +93,14 @@ setScale scale code =
             Flag.parse LowestNote.flag unindented + offset
         in
           case
-            Flag.insert LowestNote.flag lowestNote parse.unindented
+            Flag.insert LowestNote.flag lowestNote unindented
           of
             Nothing ->
               Just scaleReplacement
             Just lowestNoteReplacement ->
               let
                 flagReplacements =
-                  if scaleReplacement.i < lowestNoteReplacement.i then
+                  if scaleReplacement.old.i < lowestNoteReplacement.old.i then
                     [ scaleReplacement, lowestNoteReplacement ]
                   else
                     [ lowestNoteReplacement, scaleReplacement ]

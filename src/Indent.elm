@@ -7,7 +7,7 @@ import Regex exposing (Regex, HowMany(..))
 
 highlights : List Substring -> List Highlight
 highlights lines =
-  List.concatMap highlight lines
+  List.concatMap lineHighlights lines
 
 lineHighlights : Substring -> List Highlight
 lineHighlights line =

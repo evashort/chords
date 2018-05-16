@@ -5,6 +5,7 @@ import LowestNote
 import Rule
 import Rulebook exposing (Rulebook)
 import Scale
+import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
 book : Rulebook

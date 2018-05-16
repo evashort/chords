@@ -20,7 +20,6 @@ import Swatch
 import Unit exposing (px, em, ch, percent)
 
 import AnimationFrame
-import Array exposing (Array)
 import Dom
 import Html exposing
   ( Html, Attribute, a, button, div, pre, span, text, textarea, input
@@ -87,7 +86,6 @@ init location =
           , parse = parse
           , buffet = Buffet.fromSuggestions parse.suggestions
           }
-      , undoHistory = []
       }
     , Cmd.none
     )
@@ -216,9 +214,9 @@ update msg model =
           Ok octave2 ->
             let
               oldCode =
-                Digest.beforeAction "octave" chordBox.digest
+                Digest.beforeAction "octave" model.chordBox.digest
             in let
-              oldLowestNote = model.chordbox.parse.lowestNote
+              oldLowestNote = model.chordBox.parse.lowestNote
             in let
               oldOctave2 = getOctave (oldLowestNote + 6)
             in let
@@ -250,7 +248,7 @@ update msg model =
     SetOldLowestNote ->
       ( let
           oldCode =
-            Digest.beforeAction "lowestNote" chordBox.digest
+            Digest.beforeAction "lowestNote" model.chordBox.digest
         in let
           lowestNote =
             model.chordBox.parse.lowestNote + model.lnOffset
@@ -272,7 +270,7 @@ update msg model =
           Ok key ->
             let
               oldCode =
-                Digest.beforeAction "key" chordBox.digest
+                Digest.beforeAction "key" model.chordBox.digest
             in let
               scale =
                 if model.chordBox.parse.scale.minor then
@@ -314,10 +312,10 @@ update msg model =
             | home = True
             , chordBox =
                 mapDigest
-                  ( Digest.replace
+                  ( Digest.hardReplace
                       { old = Substring 0 model.chordBox.parse.code
                       , new = newText
-                      )
+                      }
                   )
                   model.chordBox
             }
@@ -375,9 +373,9 @@ mapDigest f chordBox =
   let
     digest = f chordBox.digest
   in let
-    parse = Parse.update digest.frame.text chordBox.parse
+    parse = Parse.update digest.catcher.frame.text chordBox.parse
   in
-    { catcher = catcher
+    { digest = digest
     , parse = parse
     , buffet =
         Buffet.changeSuggestions
@@ -454,7 +452,6 @@ view model =
             [ type_ "number"
             , (value << toString << getOctave)
                 (model.chordBox.parse.lowestNote + 6)
-            ]
             , Attributes.min "-1"
             , Attributes.max "5"
             , onInput SetOctave2
@@ -755,7 +752,7 @@ viewCircleOfFifths scale player =
       (needsTimeAndTag IdChordMsg)
       (CircleOfFifths.view key (Player.playStatus player))
 
-viewSong : Player -> MainParser.Model -> Html Msg
+viewSong : Player -> Parse -> Html Msg
 viewSong player parse =
   Html.map
     (needsTimeAndTag IdChordMsg)

@@ -1,4 +1,4 @@
-port module Ports exposing (undoPort, redoPort)
+port module Ports exposing (undo, redo)
 
 port undo : (() -> msg) -> Sub msg
 

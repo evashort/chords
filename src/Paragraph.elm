@@ -1,6 +1,7 @@
 module Paragraph exposing
   (Paragraph, init, update, highlights, song, suggestions, mapChords)
 
+import Chord exposing (Chord)
 import Highlight exposing (Highlight)
 import IdChord exposing (IdChord)
 import Replacement exposing (Replacement)
@@ -11,7 +12,6 @@ import Word exposing (Word)
 import Zipper
 
 import Regex exposing (Regex, HowMany(..))
-import Set exposing (Set)
 
 type alias Paragraph =
   { nextId : Int
@@ -48,15 +48,20 @@ split : List Substring -> Train Substring
 split lines =
   Train.fromCars (List.map (Substring.find All wordRegex) lines)
 
+wordRegex : Regex
+wordRegex = Regex.regex "[^ ]+"
+
 highlights : Int -> Paragraph -> List Highlight
 highlights key paragraph =
-  List.filterMap (Word.highlight key) paragraph.words
+  List.filterMap
+    (Word.highlight key)
+    (Train.flatten paragraph.words)
 
 song : Paragraph -> List (List (Maybe IdChord))
 song paragraph =
   List.filter
     (not << List.isEmpty)
-    (Train.cars (Train.filterMap Word.meaning))
+    (Train.cars (Train.filterMap Word.meaning paragraph.words))
 
 suggestions : Int -> Paragraph -> List Suggestion
 suggestions key paragraph =

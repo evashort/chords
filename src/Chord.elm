@@ -1,5 +1,6 @@
 module Chord exposing (Chord, fromCode, transpose)
 
+import Pitch
 import Submatches exposing (submatches)
 
 import Dict exposing (Dict)
@@ -14,7 +15,7 @@ fromCode : String -> Maybe Chord
 fromCode code =
   case submatches regex code of
     [ Just rootCode, Just flavorCode ] ->
-      case Dict.get flavors flavorCode of
+      case Dict.get flavorCode flavors of
         Nothing ->
           Nothing
         Just flavor ->
@@ -26,7 +27,7 @@ fromCode code =
       Nothing
 
 regex : Regex
-regex = "^([A-Ga-g][b#♭♯]?)(.*)"
+regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"
 
 flavors : Dict String (List Int)
 flavors =
@@ -49,4 +50,4 @@ flavors =
 
 transpose : Int -> Chord -> Chord
 transpose offset chord =
-  { chord | root = (root + offset) % 12 }
+  { chord | root = (chord.root + offset) % 12 }

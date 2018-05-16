@@ -42,7 +42,7 @@ code sharpCount pitch =
     accidental =
       case pitch - letterPitch of
         0 -> ""
-        -1 -> "b"
+        (-1) -> "b"
         1 -> "#"
         _ ->
           Debug.crash ("Pitch.code: Pitch caused error: " ++ toString pitch)
@@ -61,7 +61,7 @@ view sharpCount pitch =
     accidental =
       case pitch - letterPitch of
         0 -> ""
-        -1 -> "♭"
+        (-1) -> "♭"
         1 -> "♯"
         _ ->
           Debug.crash ("Pitch.view: Pitch caused error: " ++ toString pitch)

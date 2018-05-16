@@ -12,7 +12,7 @@ type alias Scale =
   , root : Int
   }
 
-flag : Flag
+flag : Flag Scale
 flag =
   { key = "scale"
   , fromCode = fromCode
@@ -27,7 +27,7 @@ fromCode : String -> Maybe Scale
 fromCode code =
   case submatches regex code of
     [ Just rootCode, Just flavorCode ] ->
-      case Dict.get flavors flavorCode of
+      case Dict.get flavorCode flavors of
         Nothing ->
           Nothing
         Just minor ->
@@ -39,7 +39,7 @@ fromCode code =
       Nothing
 
 regex : Regex
-regex = "^([A-Ga-g][b#♭♯]?)(.*)"
+regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"
 
 flavors : Dict String Bool
 flavors =

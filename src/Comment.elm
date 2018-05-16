@@ -35,7 +35,7 @@ remove : Substring -> List Substring
 remove whole =
   List.map
     removeFromLine
-    (Substring.regexSplit lineBreak whole)
+    (Substring.regexSplit All lineBreak whole)
   ++ [ Substring (String.length whole.s + 1) "" ] -- Needed by Flag.insert
 
 removeFromLine : Substring -> Substring

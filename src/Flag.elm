@@ -23,11 +23,15 @@ parse flag lines =
         (List.reverse lines)
     )
 
-getValueString : String -> Line -> Maybe String
+getValueString : String -> Substring -> Maybe String
 getValueString key =
   -- implicit line argument causes regex to be cached for multiple lines
-  let regex = "^" ++ Regex.escape key ++ ": ([^ ].*)" in
-    List.head << submatches regex
+  let
+    regex =
+      Regex.regex ("^" ++ Regex.escape key ++ ": ([^ ].*)")
+  in
+    Maybe.withDefault Nothing <<
+      List.head << submatches regex << .s
 
 parseValue : Flag a -> String -> Maybe a
 parseValue flag valueString =
@@ -64,14 +68,14 @@ insert flag newValue lines =
       }
       reverseLines
 
-type alias Args =
+type alias Args a =
   { getOld : Substring -> Maybe String
   , new : String
-  , flag : Flag
+  , flag : Flag a
   , allLines : List Substring
   }
 
-insertDefaultHelp : Args -> List Substring -> Maybe Replacement
+insertDefaultHelp : Args a -> List Substring -> Maybe Replacement
 insertDefaultHelp args lines =
   case lines of
     [] ->
@@ -135,11 +139,11 @@ deleteLineHelp target nextLineStart lines =
       else
         deleteLineHelp target line.i rest
 
-insertHelp : Args -> List Substring -> Maybe Replacement
+insertHelp : Args a -> List Substring -> Maybe Replacement
 insertHelp args lines =
   case lines of
     [] ->
-      addLine args.flag.key args.new args.allLines
+      Just (addLine args.flag.key args.new args.allLines)
     line :: rest ->
       case args.getOld line of
         Nothing ->
@@ -179,7 +183,7 @@ addLine key value lines =
 
 getKey : Substring -> Maybe String
 getKey line =
-  case submatches keyRegex line of
+  case submatches keyRegex line.s of
     [ Just key, Nothing ] ->
       if Set.member key keys then
         Just key
@@ -205,7 +209,7 @@ takeWhile condition xs =
 
 keyless : Substring -> Bool
 keyless line =
-  case submatches keyRegex line of
+  case submatches keyRegex line.s of
     [ Just key, Nothing ] ->
       not (Set.member key keys)
     _  ->

@@ -50,7 +50,7 @@ lineHighlights book values line =
               else
                 ( [ keyHighlight key line ], values )
             Just effectiveValue ->
-              if effectiveValue == Just value then
+              if effectiveValue == value then
                 ( [ keyHighlight key line, valueHighlight value line ]
                 , values
                 )
@@ -87,7 +87,7 @@ lineSuggestion : Rulebook -> Substring -> Maybe (List Swatch, Substring)
 lineSuggestion book line =
   case submatches suggestionRegex line.s of
     [ Just key, Just afterKey, Just beforeValue, Just value ] ->
-      let lowerKey = String.lower key in
+      let lowerKey = String.toLower key in
         case Dict.get lowerKey book of
           Nothing ->
             Nothing
@@ -158,4 +158,4 @@ valueSwatch : String -> Swatch
 valueSwatch = Swatch "#c00000" "#ffffff"
 
 textSwatch : String -> Swatch
-textSwatch value = Swatch "#000000" "#ffffff"
+textSwatch = Swatch "#000000" "#ffffff"

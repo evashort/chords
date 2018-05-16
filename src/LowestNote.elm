@@ -6,7 +6,7 @@ import Submatches exposing (submatches)
 
 import Regex exposing (Regex)
 
-flag : Flag
+flag : Flag Int
 flag =
   { key = "octave"
   , fromCode = fromCode
@@ -18,7 +18,7 @@ fromCode : String -> Maybe Int
 fromCode code =
   case submatches regex code of
     [ Just pitchCode, Just octaveCode ] ->
-      case String.parseInt octaveCode of
+      case String.toInt octaveCode of
         Err _ ->
           Nothing
         Ok octave ->
@@ -27,7 +27,7 @@ fromCode code =
       Nothing
 
 regex : Regex
-regex = "^([A-Ga-g][b#♭♯]?)(.*)"
+regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"
 
 code : Int -> String
 code lowestNote =
@@ -36,4 +36,4 @@ code lowestNote =
   in let
     octave = (lowestNote - pitch) // 12 - 2
   in
-    Pitch.code pitch ++ toString octave
+    Pitch.code 0 pitch ++ toString octave

@@ -3,6 +3,7 @@ module Digest exposing
   , beforeAction, replace
   )
 
+import Replacement exposing (Replacement)
 import UndoCatcher exposing (UndoCatcher)
 
 import Html exposing (Html)
@@ -47,7 +48,7 @@ redo digest =
   }
 
 hardReplace : Replacement -> Digest -> Digest
-hardReplace replacement =
+hardReplace replacement digest =
   { catcher = UndoCatcher.replace replacement digest.catcher
   , history = []
   , future = []
@@ -95,7 +96,7 @@ replace action mr digest =
         , future = []
         }
 
-latestActionIs : String -> List State -> List State
+latestActionIs : String -> List State -> Bool
 latestActionIs action states =
   case states of
     [] ->
