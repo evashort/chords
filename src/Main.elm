@@ -51,7 +51,7 @@ type alias Model =
   , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
-  , lnOffset : Int
+  , lowestNote : Int
   , home : Bool
   , parse : Parse
   , buffet : Buffet
@@ -80,7 +80,7 @@ init location =
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
-      , lnOffset = 0
+      , lowestNote = parse.lowestNote
       , home = True
       , parse = parse
       , buffet = Buffet.fromSuggestions parse.suggestions
@@ -155,18 +155,16 @@ update msg model =
                 model.history
             )
       in let
-        lowestNote = model.parse.lowestNote + model.lnOffset
-      in let
         ( newPlayer, changes ) =
           case model.playStyle of
             ArpeggioStyle ->
               Player.playArpeggio
-                (60 / toFloat model.bpm) lowestNote idChord now player
+                (60 / toFloat model.bpm) model.lowestNote idChord now player
             StrumStyle ->
               Player.playStrum
-                model.strumInterval lowestNote idChord now player
+                model.strumInterval model.lowestNote idChord now player
             PadStyle ->
-              Player.playPad lowestNote idChord now player
+              Player.playPad model.lowestNote idChord now player
       in
         ( { model | player = newPlayer, history = newHistory }
         , AudioChange.perform changes
@@ -224,21 +222,19 @@ update msg model =
     SetLowestNote offsetString ->
       ( case String.toInt offsetString of
           Ok offset ->
-            { model | lnOffset = offset }
+            { model
+            | lowestNote = model.parse.lowestNote + offset
+            }
           Err _ ->
             model
       , Cmd.none
       )
 
     SetOldLowestNote ->
-      let
-        lowestNote =
-          model.parse.lowestNote + model.lnOffset
-      in
-        doAction
-          "lowestNote"
-          (Parse.setLowestNote lowestNote)
-          { model | lnOffset = 0 }
+      doAction
+        "lowestNote"
+        (Parse.setLowestNote model.lowestNote)
+        model
 
     SetKey keyString ->
       case String.toInt keyString of
@@ -462,19 +458,17 @@ view model =
             ]
             [ Html.text "Lowest note\xA0"
             ]
-        , Html.Lazy.lazy viewLowestNote model.lnOffset
-        , let
-            oldLowestNote = model.parse.lowestNote
-          in let
-            lowestNote = oldLowestNote + model.lnOffset
-          in
-            Html.Lazy.lazy2 viewBrackets oldLowestNote lowestNote
-        , let
-            oldLowestNote = model.parse.lowestNote
-          in let
-            lowestNote = oldLowestNote + model.lnOffset
-          in
-            Html.Lazy.lazy2 viewLowestNoteText oldLowestNote lowestNote
+        , Html.Lazy.lazy
+            viewLowestNote
+            (model.lowestNote - model.parse.lowestNote)
+        , Html.Lazy.lazy2
+            viewBrackets
+            model.parse.lowestNote
+            model.lowestNote
+        , Html.Lazy.lazy2
+            viewLowestNoteText
+            model.parse.lowestNote
+            model.lowestNote
         , div
             [ id "theater"
             , style
