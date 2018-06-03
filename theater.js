@@ -20,6 +20,7 @@ function createScene(index, frame) {
   scene.style.font = "inherit";
   scene.style.background = "transparent";
   scene.style.visibility = "visible";
+  scene.dataset.gramm_editor = "false";
   scene.spellcheck = false;
   scene.value = frame.text;
   scene.firstFrame = frame;
