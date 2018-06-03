@@ -5,7 +5,6 @@ import AudioTime
 import Bracket
 import Buffet exposing (Buffet, LensChange)
 import CircleOfFifths
-import Digest exposing (Digest)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
@@ -13,20 +12,21 @@ import Parse exposing (Parse)
 import Pitch
 import Player exposing (Player, PlayStatus)
 import Ports
+import Replacement exposing (Replacement)
 import Scale exposing (Scale)
 import Song
 import Substring exposing (Substring)
 import Swatch
+import Theater
 import Unit exposing (px, em, ch, percent)
 
 import AnimationFrame
-import Dom
 import Html exposing
   ( Html, Attribute, a, button, div, pre, span, text, textarea, input
   , select, option
   )
 import Html.Attributes as Attributes exposing
-  (href, style, class, classList, type_, value, selected)
+  (href, style, class, classList, id, type_, value, selected)
 import Html.Events exposing (onClick, onInput)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -53,7 +53,9 @@ type alias Model =
   , bpm : Int
   , lnOffset : Int
   , home : Bool
-  , chordBox : ChordBox
+  , parse : Parse
+  , buffet : Buffet
+  , memory : Maybe Backup
   }
 
 type PlayStyle
@@ -61,10 +63,9 @@ type PlayStyle
   | StrumStyle
   | PadStyle
 
-type alias ChordBox =
-  { digest : Digest
-  , parse : Parse
-  , buffet : Buffet
+type alias Backup =
+  { code : String
+  , action : String
   }
 
 init : Location -> ( Model, Cmd Msg )
@@ -81,13 +82,15 @@ init location =
       , bpm = 85
       , lnOffset = 0
       , home = True
-      , chordBox =
-          { digest = Digest.fromString text
-          , parse = parse
-          , buffet = Buffet.fromSuggestions parse.suggestions
-          }
+      , parse = parse
+      , buffet = Buffet.fromSuggestions parse.suggestions
+      , memory = Nothing
       }
-    , Cmd.none
+    , Theater.init
+        { text = text
+        , selectionStart = String.length text
+        , selectionEnd = String.length text
+        }
     )
 
 textFromLocation : Location -> String
@@ -101,8 +104,7 @@ defaultText =
 -- UPDATE
 
 type Msg
-  = NoOp
-  | NeedsTime (Float -> Msg)
+  = NeedsTime (Float -> Msg)
   | CurrentTime Float
   | IdChordMsg (IdChord.Msg, Float)
   | SetPlayStyle PlayStyle
@@ -115,15 +117,10 @@ type Msg
   | TextChanged String
   | UrlChanged Location
   | BuffetMsg Buffet.Msg
-  | Undo
-  | Redo
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
-    NoOp ->
-      ( model, Cmd.none )
-
     NeedsTime partialMsg ->
       ( model, Task.perform partialMsg AudioTime.now )
 
@@ -158,7 +155,7 @@ update msg model =
                 model.history
             )
       in let
-        lowestNote = model.chordBox.parse.lowestNote + model.lnOffset
+        lowestNote = model.parse.lowestNote + model.lnOffset
       in let
         ( newPlayer, changes ) =
           case model.playStyle of
@@ -210,31 +207,19 @@ update msg model =
       )
 
     SetOctave2 octave2String ->
-      ( case String.toInt octave2String of
-          Ok octave2 ->
-            let
-              oldCode =
-                Digest.beforeAction "octave" model.chordBox.digest
-            in let
-              oldLowestNote = model.chordBox.parse.lowestNote
-            in let
-              oldOctave2 = getOctave (oldLowestNote + 6)
-            in let
-              lowestNote =
-                oldLowestNote + 12 * (octave2 - oldOctave2)
-            in let
-              mr = Parse.setLowestNote lowestNote oldCode
-            in
-              { model
-              | chordBox =
-                  mapDigest
-                    (Digest.replace "octave" mr)
-                    model.chordBox
-              }
-          Err _ ->
-            model
-      , Cmd.none
-      )
+      case String.toInt octave2String of
+        Ok octave2 ->
+          let
+            oldLowestNote = model.parse.lowestNote
+          in let
+            oldOctave2 = getOctave (oldLowestNote + 6)
+          in let
+            lowestNote =
+              oldLowestNote + 12 * (octave2 - oldOctave2)
+          in
+            doAction "octave" (Parse.setLowestNote lowestNote) model
+        Err _ ->
+          ( model, Cmd.none )
 
     SetLowestNote offsetString ->
       ( case String.toInt offsetString of
@@ -246,157 +231,177 @@ update msg model =
       )
 
     SetOldLowestNote ->
-      ( let
-          oldCode =
-            Digest.beforeAction "lowestNote" model.chordBox.digest
-        in let
-          lowestNote =
-            model.chordBox.parse.lowestNote + model.lnOffset
-        in let
-          mr = Parse.setLowestNote lowestNote oldCode
-        in
-          { model
-          | lnOffset = 0
-          , chordBox =
-              mapDigest
-                (Digest.replace "lowestNote" mr)
-                model.chordBox
-          }
-      , Cmd.none
-      )
+      let
+        lowestNote =
+          model.parse.lowestNote + model.lnOffset
+      in
+        doAction
+          "lowestNote"
+          (Parse.setLowestNote lowestNote)
+          { model | lnOffset = 0 }
 
     SetKey keyString ->
-      ( case String.toInt keyString of
-          Ok key ->
-            let
-              oldCode =
-                Digest.beforeAction "key" model.chordBox.digest
-            in let
-              scale =
-                if model.chordBox.parse.scale.minor then
-                  { minor = True, root = (key - 3) % 12 }
-                else
-                  { minor = False, root = key }
-            in let
-              mr = Parse.setScale scale oldCode
-            in
-              { model
-              | chordBox =
-                  mapDigest
-                    (Digest.replace "key" mr)
-                    model.chordBox
-              }
-          Err _ ->
-            model
-      , Cmd.none
-      )
+      case String.toInt keyString of
+        Ok key ->
+          let
+            scale =
+              if model.parse.scale.minor then
+                { minor = True, root = (key - 3) % 12 }
+              else
+                { minor = False, root = key }
+          in
+            doAction "key" (Parse.setScale scale) model
+        Err _ ->
+          ( model, Cmd.none )
 
-    TextChanged newText ->
-      ( { model
-        | home = False
-        , chordBox =
-            mapDigest (Digest.update newText) model.chordBox
-        }
+    TextChanged code ->
+      ( let parse = Parse.update code model.parse in
+          { model
+          | home = False
+          , parse = parse
+          , buffet =
+              Buffet.changeSuggestions parse.suggestions model.buffet
+          , memory = Nothing
+          }
       , if model.home then
-          Navigation.newUrl
-            ("#text=" ++ Url.percentEncode newText)
+          Navigation.newUrl ("#text=" ++ Url.percentEncode code)
         else
-          Navigation.modifyUrl
-            ("#text=" ++ Url.percentEncode newText)
+          Navigation.modifyUrl ("#text=" ++ Url.percentEncode code)
       )
 
     UrlChanged location ->
-      let newText = textFromLocation location in
-        if newText /= model.chordBox.parse.code then
-          ( { model
-            | home = True
-            , chordBox =
-                mapDigest
-                  ( Digest.hardReplace
-                      { old = Substring 0 model.chordBox.parse.code
-                      , new = newText
-                      }
-                  )
-                  model.chordBox
-            }
-          , Task.attempt (always NoOp) (Dom.focus "catcher")
+      let code = textFromLocation location in
+        if code /= model.parse.code then
+          ( let parse = Parse.update code model.parse in
+              { model
+              | home = True
+              , parse = parse
+              , buffet =
+                  Buffet.changeSuggestions parse.suggestions model.buffet
+              , memory = Nothing
+              }
+          , Theater.replace
+              { old = Substring 0 model.parse.code
+              , new = code
+              }
           )
         else
           ( model, Cmd.none )
 
     BuffetMsg (Buffet.LensesChanged lensChange) ->
-      ( let chordBox = model.chordBox in
-          { model
-          | chordBox =
-              { chordBox
-              | buffet =
-                  Buffet.changeLenses lensChange chordBox.buffet
-              }
-          }
+      ( { model
+        | buffet = Buffet.changeLenses lensChange model.buffet
+        }
       , Cmd.none
       )
 
     BuffetMsg (Buffet.Replace suggestion) ->
-      ( case suggestion.ranges of
-          [] ->
-            model
-          range :: _ ->
-            { model
-            | chordBox =
-                mapDigest
-                  ( Digest.hardReplace
-                      { old = range
-                      , new = Swatch.concat suggestion.swatches
-                      }
-                  )
-                  model.chordBox
-            }
-      , Task.attempt (always NoOp) (Dom.focus "catcher")
-      )
+      case suggestion.ranges of
+        [] ->
+          ( model, Cmd.none )
+        range :: _ ->
+          let
+            replacement =
+              { old = range
+              , new = Swatch.concat suggestion.swatches
+              }
+          in let
+            code = Replacement.apply replacement model.parse.code
+          in
+            ( let parse = Parse.update code model.parse in
+                { model
+                | parse = parse
+                , buffet =
+                    Buffet.changeSuggestions parse.suggestions model.buffet
+                , memory = Nothing
+                }
+            , Cmd.batch
+                [ Theater.replace replacement
+                , if model.home then
+                    Navigation.newUrl ("#text=" ++ Url.percentEncode code)
+                  else
+                    Navigation.modifyUrl ("#text=" ++ Url.percentEncode code)
+                ]
+            )
 
-    Undo ->
-      ( { model
-        | chordBox = mapDigest Digest.undo model.chordBox
-        }
-      , Task.attempt (always NoOp) (Dom.focus "catcher")
-      )
-
-    Redo ->
-      ( { model
-        | chordBox = mapDigest Digest.redo model.chordBox
-        }
-      , Task.attempt (always NoOp) (Dom.focus "catcher")
-      )
-
-mapDigest : (Digest -> Digest) -> ChordBox -> ChordBox
-mapDigest f chordBox =
+doAction :
+  String -> (String -> Maybe Replacement) -> Model -> ( Model, Cmd msg )
+doAction action f model =
   let
-    digest = f chordBox.digest
-  in let
-    parse = Parse.update digest.catcher.frame.text chordBox.parse
+    oldCode =
+      case model.memory of
+        Nothing ->
+          model.parse.code
+        Just backup ->
+          if backup.action == action then
+            backup.code
+          else
+            model.parse.code
   in
-    { digest = digest
-    , parse = parse
-    , buffet =
-        Buffet.changeSuggestions
-          parse.suggestions
-          chordBox.buffet
-    }
+    case f oldCode of
+      Nothing ->
+        case model.memory of
+          Nothing ->
+            ( model, Cmd.none )
+          Just backup ->
+            if backup.action == action then
+              ( let parse = Parse.update oldCode model.parse in
+                  { model
+                  | home = False
+                  , parse = parse
+                  , buffet =
+                      Buffet.changeSuggestions parse.suggestions model.buffet
+                  , memory = Nothing
+                  }
+              , Cmd.batch
+                  [ Theater.hardUndo
+                  , if model.home then
+                      Navigation.newUrl
+                        ("#text=" ++ Url.percentEncode oldCode)
+                    else
+                      Navigation.modifyUrl
+                        ("#text=" ++ Url.percentEncode oldCode)
+                  ]
+              )
+            else
+              ( { model | memory = Nothing }, Cmd.none )
+      Just replacement ->
+        let code = Replacement.apply replacement oldCode in
+          ( let parse = Parse.update code model.parse in
+              { model
+              | home = False
+              , parse = parse
+              , buffet =
+                  Buffet.changeSuggestions parse.suggestions model.buffet
+              , memory = Just { action = action, code = oldCode }
+              }
+          , Cmd.batch
+              [ case model.memory of
+                  Nothing ->
+                    Theater.replace replacement
+                  Just backup ->
+                    if backup.action == action then
+                      Theater.undoAndReplace replacement
+                    else
+                      Theater.replace replacement
+              , if model.home then
+                  Navigation.newUrl ("#text=" ++ Url.percentEncode code)
+                else
+                  Navigation.modifyUrl ("#text=" ++ Url.percentEncode code)
+              ]
+          )
 
 -- SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  let
-    rest =
-      [ Ports.undo (always Undo), Ports.redo (always Redo) ]
-  in
-    if Player.willChange model.player then
-      Sub.batch
-        (AnimationFrame.times (always (NeedsTime CurrentTime)) :: rest)
-    else
-      Sub.batch rest
-
+  if Player.willChange model.player then
+    Sub.batch
+      [ Ports.text TextChanged
+      , AnimationFrame.times (always (NeedsTime CurrentTime))
+      ]
+  else
+    Ports.text TextChanged
 
 -- VIEW
 
@@ -433,7 +438,7 @@ view model =
         ]
         [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
         , Html.Lazy.lazy viewBpm model.bpm
-        , Html.Lazy.lazy viewKey model.chordBox.parse.scale
+        , Html.Lazy.lazy viewKey model.parse.scale
         , span
             [ style
                 [ ( "grid-area", "o1" )
@@ -445,13 +450,13 @@ view model =
             , span
                 []
                 [ (Html.text << toString << getOctave)
-                    (model.chordBox.parse.lowestNote - 6)
+                    (model.parse.lowestNote - 6)
                 ]
             ]
         , input
             [ type_ "number"
             , (value << toString << getOctave)
-                (model.chordBox.parse.lowestNote + 6)
+                (model.parse.lowestNote + 6)
             , Attributes.min "-1"
             , Attributes.max "5"
             , onInput SetOctave2
@@ -470,19 +475,20 @@ view model =
             ]
         , Html.Lazy.lazy viewLowestNote model.lnOffset
         , let
-            oldLowestNote = model.chordBox.parse.lowestNote
+            oldLowestNote = model.parse.lowestNote
           in let
             lowestNote = oldLowestNote + model.lnOffset
           in
             Html.Lazy.lazy2 viewBrackets oldLowestNote lowestNote
         , let
-            oldLowestNote = model.chordBox.parse.lowestNote
+            oldLowestNote = model.parse.lowestNote
           in let
             lowestNote = oldLowestNote + model.lnOffset
           in
             Html.Lazy.lazy2 viewLowestNoteText oldLowestNote lowestNote
         , div
-            [ style
+            [ id "theater"
+            , style
                 [ ( "grid-area", "txt" )
                 , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
                 , ( "font-size", "200%" )
@@ -494,22 +500,17 @@ view model =
                 , ( "bottom", "0" )
                 ]
             ]
-            [ Html.map
-                TextChanged
-                (Html.Lazy.lazy Digest.view model.chordBox.digest)
-            ]
-        , Html.Lazy.lazy viewChordBox model.chordBox
+            [ ]
+        , Html.Lazy.lazy2 viewChordBox model.parse model.buffet
         , Html.map
             BuffetMsg
-            (Html.Lazy.lazy Buffet.view model.chordBox.buffet)
+            (Html.Lazy.lazy Buffet.view model.buffet)
         ]
-    , Html.Lazy.lazy2
-        viewSong model.player model.chordBox.parse
-    , Html.Lazy.lazy2
-        viewCircleOfFifths model.chordBox.parse.scale model.player
+    , Html.Lazy.lazy2 viewSong model.player model.parse
+    , Html.Lazy.lazy2 viewCircleOfFifths model.parse.scale model.player
     , Html.Lazy.lazy2
         History.view
-        model.chordBox.parse.scale.root
+        model.parse.scale.root
         model.history.sequences
     , div []
         [ a
@@ -709,8 +710,8 @@ viewLowestNoteText oldLowestNote lowestNote =
           ]
       )
 
-viewChordBox : ChordBox -> Html Msg
-viewChordBox chordBox =
+viewChordBox : Parse -> Buffet -> Html Msg
+viewChordBox parse buffet =
   pre
     [ style
         [ ( "grid-area", "txt" )
@@ -728,12 +729,12 @@ viewChordBox chordBox =
     ( List.map
         Swatch.view
         ( Highlight.mergeLayers
-            [ Buffet.highlights chordBox.buffet
-            , chordBox.parse.highlights
+            [ Buffet.highlights buffet
+            , parse.highlights
             , [ Highlight
                   "#000000"
                   "#ffffff"
-                  (Substring 0 (chordBox.parse.code ++ "\n"))
+                  (Substring 0 (parse.code ++ "\n"))
               ]
             ]
         )

@@ -1,5 +1,11 @@
-port module Ports exposing (undo, redo)
+port module Ports exposing
+  (initTheater, replace, undoAndReplace, hardUndo, text)
 
-port undo : (() -> msg) -> Sub msg
+import Json.Encode as Encode
 
-port redo : (() -> msg) -> Sub msg
+port initTheater : Encode.Value -> Cmd msg
+port replace : Encode.Value -> Cmd msg
+port undoAndReplace : Encode.Value -> Cmd msg
+port hardUndo : () -> Cmd msg
+
+port text : (String -> msg) -> Sub msg
