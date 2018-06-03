@@ -263,10 +263,7 @@ update msg model =
               Buffet.changeSuggestions parse.suggestions model.buffet
           , memory = Nothing
           }
-      , if model.home then
-          Navigation.newUrl ("#text=" ++ Url.percentEncode code)
-        else
-          Navigation.modifyUrl ("#text=" ++ Url.percentEncode code)
+      , updateUrl model.home code
       )
 
     UrlChanged location ->
@@ -316,12 +313,7 @@ update msg model =
                 , memory = Nothing
                 }
             , Cmd.batch
-                [ Theater.replace replacement
-                , if model.home then
-                    Navigation.newUrl ("#text=" ++ Url.percentEncode code)
-                  else
-                    Navigation.modifyUrl ("#text=" ++ Url.percentEncode code)
-                ]
+                [ Theater.replace replacement, updateUrl model.home code ]
             )
 
 doAction :
@@ -354,14 +346,7 @@ doAction action f model =
                   , memory = Nothing
                   }
               , Cmd.batch
-                  [ Theater.hardUndo
-                  , if model.home then
-                      Navigation.newUrl
-                        ("#text=" ++ Url.percentEncode oldCode)
-                    else
-                      Navigation.modifyUrl
-                        ("#text=" ++ Url.percentEncode oldCode)
-                  ]
+                  [ Theater.hardUndo, updateUrl model.home oldCode ]
               )
             else
               ( { model | memory = Nothing }, Cmd.none )
@@ -384,12 +369,16 @@ doAction action f model =
                       Theater.undoAndReplace replacement
                     else
                       Theater.replace replacement
-              , if model.home then
-                  Navigation.newUrl ("#text=" ++ Url.percentEncode code)
-                else
-                  Navigation.modifyUrl ("#text=" ++ Url.percentEncode code)
+              , updateUrl model.home code
               ]
           )
+
+updateUrl : Bool -> String -> Cmd msg
+updateUrl new text =
+  if new then
+    Navigation.newUrl ("#text=" ++ Url.percentEncode text)
+  else
+    Navigation.modifyUrl ("#text=" ++ Url.percentEncode text)
 
 -- SUBSCRIPTIONS
 
