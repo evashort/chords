@@ -40,7 +40,7 @@ view key playStatus =
       List.map
         ( idByRoot 0 <<
             Chord [ 4, 7 ] <<
-            (\i -> (9 + key + 7 * i) % 12)
+            (\i -> (key + 7 * i) % 12)
         )
         (List.range 0 11)
   in let
@@ -48,7 +48,7 @@ view key playStatus =
       List.map
         ( idByRoot 12 <<
             Chord [ 3, 7 ] <<
-            (\i -> (key + 7 * i) % 12)
+            (\i -> (9 + key + 7 * i) % 12)
         )
         (List.range 0 11)
   in let
