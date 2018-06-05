@@ -4,6 +4,7 @@ var present = null;
 var future = [];
 var timeout = 0;
 var timeoutIsRedo = false;
+var startFocused = false;
 
 function createScene(index, frame) {
   let scene = document.createElement("textarea");
@@ -43,9 +44,22 @@ function initTheater(frame) {
   theater = document.getElementById("theater");
   present = createScene(0, frame);
   theater.appendChild(present);
+  if (startFocused) {
+    present.focus();
+  }
+}
+
+function focusTheater() {
+  if (present == null) {
+    startFocused = true;
+  } else {
+    present.focus();
+  }
 }
 
 function replace(replacement) {
+  let focused = document.activeElement === present;
+
   for (let i = 0; i < future.length; i++) {
     theater.removeChild(future[i]);
   }
@@ -74,10 +88,14 @@ function replace(replacement) {
   // part of the DOM yet
   present.selectionStart = frame.selectionStart;
   present.selectionEnd = frame.selectionEnd;
-  present.focus()
+  if (focused) {
+    present.focus();
+  }
 }
 
 function undoAndReplace(replacement) {
+  let focused = document.activeElement === present;
+
   for (let i = 0; i < future.length; i++) {
     theater.removeChild(future[i]);
   }
@@ -104,10 +122,14 @@ function undoAndReplace(replacement) {
   theater.appendChild(present);
   present.selectionStart = frame.selectionStart;
   present.selectionEnd = frame.selectionEnd;
-  present.focus()
+  if (focused) {
+    present.focus();
+  }
 }
 
 function hardUndo() {
+  let focused = document.activeElement === present;
+
   for (let i = 0; i < future.length; i++) {
     theater.removeChild(future[i]);
   }
@@ -117,13 +139,17 @@ function hardUndo() {
   present = past.pop();
   present.lastFrame = null;
   showScene(present);
-  present.focus()
+  if (focused) {
+    present.focus();
+  }
 }
 
 function undo() {
   if (past.length == 0) {
     return;
   }
+
+  let focused = document.activeElement === present;
 
   hideScene(present);
   future.push(present);
@@ -132,13 +158,17 @@ function undo() {
   showScene(present);
   present.selectionStart = present.lastFrame.selectionStart
   present.selectionEnd = present.lastFrame.selectionEnd
-  present.focus()
+  if (focused) {
+    present.focus();
+  }
 }
 
 function redo() {
   if (future.length == 0) {
     return;
   }
+
+  let focused = document.activeElement === present;
 
   hideScene(present);
   past.push(present);
@@ -147,7 +177,9 @@ function redo() {
   showScene(present);
   present.selectionStart = present.firstFrame.selectionStart
   present.selectionEnd = present.firstFrame.selectionEnd
-  present.focus()
+  if (focused) {
+    present.focus();
+  }
 }
 
 function timeoutWrapper(f) {

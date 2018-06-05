@@ -1,7 +1,5 @@
 module Buffet exposing
-  ( Buffet, Msg(..), LensChange, fromSuggestions, changeSuggestions
-  , changeLenses, highlights, view
-  )
+  (Buffet, Msg(..), LensChange, init, update, changeLenses, highlights, view)
 
 import Highlight exposing (Highlight)
 import Suggestion exposing (Suggestion)
@@ -28,14 +26,14 @@ type LensChange
   = AddLens Lens
   | RemoveLens Bool
 
-fromSuggestions : List Suggestion -> Buffet
-fromSuggestions suggestions =
+init : List Suggestion -> Buffet
+init suggestions =
   { suggestions = suggestions
   , lenses = []
   }
 
-changeSuggestions : List Suggestion -> Buffet -> Buffet
-changeSuggestions suggestions buffet =
+update : List Suggestion -> Buffet -> Buffet
+update suggestions buffet =
   let
     sameReplacement =
       countSharedReplacements suggestions buffet.suggestions

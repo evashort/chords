@@ -84,14 +84,17 @@ init location =
       , lowestNoteOffset = 0
       , home = True
       , parse = parse
-      , buffet = Buffet.fromSuggestions parse.suggestions
+      , buffet = Buffet.init parse.suggestions
       , memory = Nothing
       }
-    , Theater.init
-        { text = text
-        , selectionStart = String.length text
-        , selectionEnd = String.length text
-        }
+    , Cmd.batch
+        [ Theater.init
+            { text = text
+            , selectionStart = String.length text
+            , selectionEnd = String.length text
+            }
+        , Theater.focus
+        ]
     )
 
 textFromLocation : Location -> String
@@ -248,7 +251,7 @@ update msg model =
           | home = False
           , parse = parse
           , buffet =
-              Buffet.changeSuggestions parse.suggestions model.buffet
+              Buffet.update parse.suggestions model.buffet
           , memory = Nothing
           }
       , updateUrl model.home code
@@ -262,13 +265,16 @@ update msg model =
               | home = True
               , parse = parse
               , buffet =
-                  Buffet.changeSuggestions parse.suggestions model.buffet
+                  Buffet.update parse.suggestions model.buffet
               , memory = Nothing
               }
-          , Theater.replace
-              { old = Substring 0 model.parse.code
-              , new = code
-              }
+          , Cmd.batch
+              [ Theater.replace
+                  { old = Substring 0 model.parse.code
+                  , new = code
+                  }
+              , Theater.focus
+              ]
           )
         else
           ( model, Cmd.none )
@@ -297,11 +303,14 @@ update msg model =
                 { model
                 | parse = parse
                 , buffet =
-                    Buffet.changeSuggestions parse.suggestions model.buffet
+                    Buffet.update parse.suggestions model.buffet
                 , memory = Nothing
                 }
             , Cmd.batch
-                [ Theater.replace replacement, updateUrl model.home code ]
+                [ Theater.replace replacement
+                , Theater.focus
+                , updateUrl model.home code
+                ]
             )
 
 doAction :
@@ -330,7 +339,7 @@ doAction action f model =
                   | home = False
                   , parse = parse
                   , buffet =
-                      Buffet.changeSuggestions parse.suggestions model.buffet
+                      Buffet.update parse.suggestions model.buffet
                   , memory = Nothing
                   }
               , Cmd.batch
@@ -345,7 +354,7 @@ doAction action f model =
               | home = False
               , parse = parse
               , buffet =
-                  Buffet.changeSuggestions parse.suggestions model.buffet
+                  Buffet.update parse.suggestions model.buffet
               , memory = Just { action = action, code = oldCode }
               }
           , Cmd.batch

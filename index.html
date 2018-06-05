@@ -124,6 +124,7 @@
       var app = Elm.Main.fullscreen();
       app.ports.changeAudio.subscribe(changeAudio);
       app.ports.initTheater.subscribe(initTheater);
+      app.ports.focusTheater.subscribe(focusTheater);
       app.ports.replace.subscribe(replace);
       app.ports.undoAndReplace.subscribe(undoAndReplace);
       app.ports.hardUndo.subscribe(hardUndo);

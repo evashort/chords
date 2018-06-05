@@ -1,4 +1,5 @@
-port module Theater exposing (Frame, init, replace, undoAndReplace, hardUndo)
+port module Theater exposing
+  (Frame, init, focus, replace, undoAndReplace, hardUndo)
 
 import Ports
 import Replacement exposing (Replacement)
@@ -21,6 +22,10 @@ init frame =
         , ( "selectionEnd", Encode.int frame.selectionEnd )
         ]
     )
+
+focus : Cmd msg
+focus =
+  Ports.focusTheater ()
 
 replace : Replacement -> Cmd msg
 replace = Ports.replace << encodeReplacement
