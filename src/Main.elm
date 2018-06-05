@@ -432,12 +432,17 @@ view model =
             viewPlayStyle
             model.playStyle
             model.strumInterval
-        , Html.Lazy.lazy
+        , Html.Lazy.lazy2
             viewBpm
+            (hasBackup "bpm" model)
             (Maybe.withDefault model.parse.bpm model.bpm)
-        , Html.Lazy.lazy viewKey model.parse.scale
-        , Html.Lazy.lazy
+        , Html.Lazy.lazy2
+            viewKey
+            (hasBackup "key" model)
+            model.parse.scale
+        , Html.Lazy.lazy2
             viewLowestNote
+            (hasBackup "lowestNote" model)
             (Maybe.withDefault model.parse.lowestNote model.lowestNote)
         , div
             [ id "theater"
@@ -473,6 +478,14 @@ view model =
             [ text "GitHub" ]
         ]
     ]
+
+hasBackup : String -> Model -> Bool
+hasBackup action model =
+  case model.memory of
+    Nothing ->
+      False
+    Just backup ->
+      backup.action == action
 
 viewPlayStyle : PlayStyle -> Float -> Html Msg
 viewPlayStyle playStyle strumInterval =
@@ -535,11 +548,12 @@ viewPlayStyle playStyle strumInterval =
         ]
     )
 
-viewBpm : Float -> Html Msg
-viewBpm bpm =
+viewBpm : Bool -> Float -> Html Msg
+viewBpm hasBackup bpm =
   span
     [ style
         [ ( "grid-area", "bpm" )
+        , yellowIf hasBackup
         , ( "display", "flex" )
         , ( "align-items", "center" )
         ]
@@ -564,8 +578,8 @@ viewBpm bpm =
         [ Html.text ("\xA0" ++ toString bpm ++ " BPM") ]
     ]
 
-viewKey : Scale -> Html Msg
-viewKey scale =
+viewKey : Bool -> Scale -> Html Msg
+viewKey hasBackup scale =
   let
     key =
       if scale.minor then
@@ -576,6 +590,7 @@ viewKey scale =
     span
       [ style
           [ ( "grid-area", "key" )
+          , yellowIf hasBackup
           ]
       ]
       [ Html.text "Key signature "
@@ -597,11 +612,12 @@ viewKey scale =
           ]
       ]
 
-viewLowestNote : Int -> Html Msg
-viewLowestNote lowestNote =
+viewLowestNote : Bool -> Int -> Html Msg
+viewLowestNote hasBackup lowestNote =
   span
     [ style
         [ ( "grid-area", "lowestNote" )
+        , yellowIf hasBackup
         , ( "display", "flex" )
         , ( "align-items", "center" )
         ]
@@ -629,6 +645,10 @@ viewLowestNote lowestNote =
     , span []
         [ Html.text ("\xA0(MIDI note " ++ toString lowestNote ++ ")") ]
     ]
+
+yellowIf : Bool -> (String, String)
+yellowIf condition =
+  ( "background", if condition then "#fafac0" else "inherit" )
 
 viewHighlights : Parse -> Buffet -> Html Msg
 viewHighlights parse buffet =
