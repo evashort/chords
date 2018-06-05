@@ -618,8 +618,14 @@ viewLowestNote lowestNote =
             ]
         ]
         []
-    , span []
+    , span
+        [ style
+            [ ( "min-width", "4ch" )
+            ]
+        ]
         [ Html.text ("\xA0" ++ LowestNote.view lowestNote) ]
+    , span []
+        [ Html.text ("\xA0(MIDI note " ++ toString lowestNote ++ ")") ]
     ]
 
 viewHighlights : Parse -> Buffet -> Html Msg
