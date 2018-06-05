@@ -2,7 +2,6 @@ module Main exposing (..)
 
 import AudioChange
 import AudioTime
-import Bracket
 import Buffet exposing (Buffet, LensChange)
 import CircleOfFifths
 import CustomEvents exposing (onChange)
@@ -19,7 +18,6 @@ import Song
 import Substring exposing (Substring)
 import Swatch
 import Theater
-import Unit exposing (px, em, ch, percent)
 
 import AnimationFrame
 import Html exposing
@@ -404,13 +402,12 @@ view model =
             [ ( "position", "relative" )
             , ( "display", "grid" )
             , ( "grid", """
-"ps   ps   ps "
-"bpm  bpm  bpm"
-"key  key  key"
-"ln1  ln2  ln3"
-"txt  txt  txt"
-"buf  buf  buf"
-/auto auto 1fr
+"playStyle"
+"bpm"
+"key"
+"lowestNote"
+"theater"
+"buffet"
 """
               )
             , ( "align-items", "center" )
@@ -422,24 +419,16 @@ view model =
         [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
         , Html.Lazy.lazy viewBpm model.bpm
         , Html.Lazy.lazy viewKey model.parse.scale
-        , span
-            [ style
-                [ ( "grid-area", "ln1" )
-                ]
-            ]
-            [ Html.text "Lowest note\xA0"
-            ]
         , Html.Lazy.lazy
             viewLowestNote
-            (model.parse.lowestNote + model.lowestNoteOffset)
-        , Html.Lazy.lazy
-            viewLowestNoteText
             (model.parse.lowestNote + model.lowestNoteOffset)
         , div
             [ id "theater"
             , style
-                [ ( "grid-area", "txt" )
-                , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+                [ ( "grid-area", "theater" )
+                , ( "font-family"
+                  , "\"Lucida Console\", Monaco, monospace"
+                  )
                 , ( "font-size", "200%" )
                 , ( "line-height", "initial" )
                 , ( "position", "absolute" )
@@ -450,7 +439,7 @@ view model =
                 ]
             ]
             [ ]
-        , Html.Lazy.lazy2 viewChordBox model.parse model.buffet
+        , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
         , Html.map
             BuffetMsg
             (Html.Lazy.lazy Buffet.view model.buffet)
@@ -472,7 +461,7 @@ viewPlayStyle : PlayStyle -> Float -> Html Msg
 viewPlayStyle playStyle strumInterval =
   span
     [ style
-        [ ( "grid-area", "ps" )
+        [ ( "grid-area", "playStyle" )
         , ( "display", "flex" )
         , ( "align-items", "center" )
         ]
@@ -509,8 +498,7 @@ viewPlayStyle playStyle strumInterval =
                 , Attributes.step "20"
                 , value (toString (1000 * strumInterval))
                 , style
-                    [ ( "width", "auto" )
-                    , ( "min-width", "7em" )
+                    [ ( "width", "5em" )
                     ]
                 ]
                 []
@@ -550,8 +538,7 @@ viewBpm bpm =
         , Attributes.max "140"
         , Attributes.step "5"
         , style
-            [ ( "width", "auto" )
-            , ( "min-width", "7em" )
+            [ ( "width", "9.5em" )
             ]
         ]
         []
@@ -592,53 +579,38 @@ viewKey scale =
           ]
       ]
 
-viewBrackets : Int -> Int -> Html msg
-viewBrackets oldLowestNote lowestNote =
-  Bracket.view
-    "ln2"
-    (em (-0.6))
-    (Unit.sum [ percent 50, px 11 ])
-    (px 6.5)
-    (ch 1)
-    oldLowestNote
-    lowestNote
-
 viewLowestNote : Int -> Html Msg
-viewLowestNote offset =
-  input
-    [ type_ "range"
-    , onInput PreviewLowestNote
-    , onChange SetLowestNote
-    , Attributes.min "35"
-    , Attributes.max "53"
-    , value (toString offset)
-    , style
-        [ ( "grid-area", "ln2" )
-        , ( "width", "auto" )
-        , ( "min-width", "10em" )
+viewLowestNote lowestNote =
+  span
+    [ style
+        [ ( "grid-area", "lowestNote" )
+        , ( "display", "flex" )
+        , ( "align-items", "center" )
         ]
     ]
-    []
-
-viewLowestNoteText : Int -> Html Msg
-viewLowestNoteText lowestNote =
-  span
-    [ style [ ( "grid-area", "ln3" ) ]
-    ]
-    [ span
-        [ style
-            [ ( "display", "inline-block" )
-            , ( "width", "5ch" )
+    [ span []
+        [ Html.text "Lowest note\xA0" ]
+    , input
+        [ type_ "range"
+        , onInput PreviewLowestNote
+        , onChange SetLowestNote
+        , value (toString lowestNote)
+        , Attributes.min "35"
+        , Attributes.max "53"
+        , style
+            [ ( "width", "10em" )
             ]
         ]
-        [ Html.text (LowestNote.view lowestNote) ]
+        []
+    , span []
+        [ Html.text ("\xA0" ++ LowestNote.view lowestNote) ]
     ]
 
-viewChordBox : Parse -> Buffet -> Html Msg
-viewChordBox parse buffet =
+viewHighlights : Parse -> Buffet -> Html Msg
+viewHighlights parse buffet =
   pre
     [ style
-        [ ( "grid-area", "txt" )
+        [ ( "grid-area", "theater" )
         , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
         , ( "font-size", "200%" )
         , ( "line-height", "initial" )

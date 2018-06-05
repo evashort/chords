@@ -94,7 +94,7 @@ view : Buffet -> Html Msg
 view buffet =
   div
     [ style
-        [ ( "grid-area", "buf" )
+        [ ( "grid-area", "buffet" )
         ]
     ]
     (List.indexedMap viewSuggestion buffet.suggestions)
