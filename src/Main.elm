@@ -403,7 +403,7 @@ view : Model -> Html Msg
 view model =
   div
     [ style
-        [ ( "font-family", "Arial, Helvetica, sans-serif" )
+        [ ( "font-family", "arial, sans-serif" )
         , ( "font-size", "85%" )
         ]
     ]
