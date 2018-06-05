@@ -7,12 +7,12 @@ import Comment
 import Flag
 import Flags
 import Highlight exposing (Highlight)
-import IdChord exposing (IdChord)
 import Indent
 import LowestNote
 import Paragraph exposing (Paragraph)
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
+import Song exposing (Song)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 
@@ -66,7 +66,7 @@ initHelp getParagraph code =
     , scale = scale
     }
 
-song : Parse -> List (List (Maybe IdChord))
+song : Parse -> Song
 song parse =
   Paragraph.song parse.paragraph
 

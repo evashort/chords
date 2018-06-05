@@ -3,9 +3,8 @@ module CircleOfFifths exposing (chordCount, view)
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
-import IdChord exposing (IdChord)
 import Name
-import Player exposing (PlayStatus)
+import PlayStatus exposing (PlayStatus, IdChord)
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
@@ -27,7 +26,7 @@ idByRoot firstId chord =
   , chord = chord
   }
 
-view : Int -> PlayStatus -> Html IdChord.Msg
+view : Int -> PlayStatus -> Html PlayStatus.Msg
 view key playStatus =
   let
     rInner = 100
@@ -154,7 +153,7 @@ areaAverage x y =
 
 viewChord :
   Int -> PlayStatus -> Float -> Float -> Int -> IdChord ->
-    List (Svg IdChord.Msg)
+    List (Svg PlayStatus.Msg)
 viewChord key playStatus rInner rOuter i { id, chord } =
   List.filterMap
     identity
@@ -177,8 +176,8 @@ viewChord key playStatus rInner rOuter i { id, chord } =
         stopButton = playStatus.active == id && playStatus.stoppable
       in let
         play =
-          if stopButton then IdChord.Stop
-          else IdChord.Play (IdChord id chord)
+          if stopButton then PlayStatus.Stop
+          else PlayStatus.Play (IdChord id chord)
       in
         Just
           ( path

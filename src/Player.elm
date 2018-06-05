@@ -1,11 +1,9 @@
 module Player exposing
-  ( Player, setTime, willChange, PlayStatus, playStatus, stopPlaying
-  , playPad, playStrum, playArpeggio
-  )
+  (Player, setTime, willChange, status, stop, pad, strum, arp)
 
 import Arp
 import AudioChange exposing (AudioChange(..))
-import IdChord exposing (IdChord)
+import PlayStatus exposing (PlayStatus, IdChord)
 import Note
 
 type alias Player =
@@ -68,14 +66,8 @@ willChange player =
     [] -> player.openings /= []
     segment :: _ -> segment.stop < infinity
 
-type alias PlayStatus =
-  { active : Int
-  , next : Int
-  , stoppable : Bool
-  }
-
-playStatus : Player -> PlayStatus
-playStatus player =
+status : Player -> PlayStatus
+status player =
   case player.schedule of
     [] ->
       { active = -1, next = -1, stoppable = False }
@@ -90,14 +82,14 @@ playStatus player =
       , stoppable = segment.stop == infinity
       }
 
-stopPlaying : Float -> Player -> ( Player, List AudioChange )
-stopPlaying now player =
+stop : Float -> Player -> ( Player, List AudioChange )
+stop now player =
   ( { openings = [], schedule = [] }
   , [ MuteAllNotes { t = now, before = False } ]
   )
 
-playPad : Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
-playPad lowestNote { id, chord } now player =
+pad : Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
+pad lowestNote { id, chord } now player =
   ( { player
     | openings = []
     , schedule = [ { id = id, stop = infinity } ]
@@ -114,9 +106,9 @@ playPad lowestNote { id, chord } now player =
       ]
   )
 
-playStrum :
+strum :
   Float -> Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
-playStrum strumInterval lowestNote { id, chord } now player =
+strum strumInterval lowestNote { id, chord } now player =
   ( { player
     | openings = []
     , schedule = [ { id = id, stop = now + 2.25 } ]
@@ -135,9 +127,9 @@ playStrum strumInterval lowestNote { id, chord } now player =
       ]
   )
 
-playArpeggio :
+arp :
   Float -> Int -> IdChord -> Float -> Player -> ( Player, List AudioChange )
-playArpeggio beatInterval lowestNote { id, chord } now player =
+arp beatInterval lowestNote { id, chord } now player =
   let
     truncatedOpenings = dropOpeningsAfter now player.openings
   in let

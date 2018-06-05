@@ -7,10 +7,10 @@ import CircleOfFifths
 import CustomEvents exposing (onChange)
 import Highlight exposing (Highlight)
 import History exposing (History)
-import IdChord exposing (IdChord)
 import LowestNote
 import Parse exposing (Parse)
-import Player exposing (Player, PlayStatus)
+import Player exposing (Player)
+import PlayStatus exposing (PlayStatus, IdChord)
 import Ports
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
@@ -106,9 +106,11 @@ defaultText =
 -- UPDATE
 
 type Msg
-  = NeedsTime (Float -> Msg)
+  = RequestTime
   | CurrentTime Float
-  | IdChordMsg (IdChord.Msg, Float)
+  | PlayStatusMsg PlayStatus.Msg
+  | Play (IdChord, Float)
+  | Stop Float
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | PreviewBpm String
@@ -123,8 +125,8 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
-    NeedsTime partialMsg ->
-      ( model, Task.perform partialMsg AudioTime.now )
+    RequestTime ->
+      ( model, Task.perform CurrentTime AudioTime.now )
 
     CurrentTime now ->
       ( case Player.setTime now model.player of
@@ -141,7 +143,13 @@ update msg model =
       , Cmd.none
       )
 
-    IdChordMsg ( IdChord.Play idChord, now ) ->
+    PlayStatusMsg (PlayStatus.Play idChord) ->
+      ( model, Task.perform (Play << (,) idChord) AudioTime.now )
+
+    PlayStatusMsg PlayStatus.Stop ->
+      ( model, Task.perform Stop AudioTime.now )
+
+    Play ( idChord, now ) ->
       let
         ( player, sequenceFinished ) =
           Maybe.withDefault
@@ -162,22 +170,22 @@ update msg model =
         ( newPlayer, changes ) =
           case model.playStyle of
             ArpeggioStyle ->
-              Player.playArpeggio
+              Player.arp
                 (60 / model.parse.bpm) lowestNote idChord now player
             StrumStyle ->
-              Player.playStrum
+              Player.strum
                 model.strumInterval lowestNote idChord now player
             PadStyle ->
-              Player.playPad lowestNote idChord now player
+              Player.pad lowestNote idChord now player
       in
         ( { model | player = newPlayer, history = newHistory }
         , AudioChange.perform changes
         )
 
-    IdChordMsg ( IdChord.Stop, now ) ->
+    Stop now ->
       let
         ( player, changes ) =
-          Player.stopPlaying now model.player
+          Player.stop now model.player
       in
         ( { model
           | player = player
@@ -392,7 +400,7 @@ subscriptions model =
   if Player.willChange model.player then
     Sub.batch
       [ Ports.text TextChanged
-      , AnimationFrame.times (always (NeedsTime CurrentTime))
+      , AnimationFrame.times (always RequestTime)
       ]
   else
     Ports.text TextChanged
@@ -462,9 +470,7 @@ view model =
             ]
             [ ]
         , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
-        , Html.map
-            BuffetMsg
-            (Html.Lazy.lazy Buffet.view model.buffet)
+        , Html.Lazy.lazy viewBuffet model.buffet
         ]
     , Html.Lazy.lazy2 viewSong model.player model.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.parse.scale model.player
@@ -680,6 +686,20 @@ viewHighlights parse buffet =
         )
     )
 
+viewBuffet : Buffet -> Html Msg
+viewBuffet buffet =
+  Html.map BuffetMsg (Buffet.view buffet)
+
+viewSong : Player -> Parse -> Html Msg
+viewSong player parse =
+  Html.map
+    PlayStatusMsg
+    ( Song.view
+        parse.scale.root
+        (Player.status player)
+        (Parse.song parse)
+    )
+
 viewCircleOfFifths : Scale -> Player -> Html Msg
 viewCircleOfFifths scale player =
   let
@@ -690,19 +710,5 @@ viewCircleOfFifths scale player =
         scale.root
   in
     Html.map
-      (needsTimeAndTag IdChordMsg)
-      (CircleOfFifths.view key (Player.playStatus player))
-
-viewSong : Player -> Parse -> Html Msg
-viewSong player parse =
-  Html.map
-    (needsTimeAndTag IdChordMsg)
-    ( Song.view
-        parse.scale.root
-        (Player.playStatus player)
-        (Parse.song parse)
-    )
-
-needsTimeAndTag : ((a, Float) -> Msg) -> a -> Msg
-needsTimeAndTag tag x =
-  NeedsTime (tag << (,) x)
+      PlayStatusMsg
+      (CircleOfFifths.view key (Player.status player))

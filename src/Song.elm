@@ -1,15 +1,16 @@
-module Song exposing (view)
+module Song exposing (Song, view)
 
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
-import IdChord exposing (IdChord)
 import Name
-import Player exposing (PlayStatus)
+import PlayStatus exposing (PlayStatus, IdChord)
 
 import Html exposing (Html, button, div, span)
 import Html.Attributes as Attributes exposing (style)
 
-view : Int -> PlayStatus -> List (List (Maybe IdChord)) -> Html IdChord.Msg
+type alias Song = List (List (Maybe IdChord))
+
+view : Int -> PlayStatus -> List (List (Maybe IdChord)) -> Html PlayStatus.Msg
 view key playStatus song =
   div
     [ style
@@ -20,7 +21,7 @@ view key playStatus song =
     ]
     (List.map (viewLine key playStatus) song)
 
-viewLine : Int -> PlayStatus -> List (Maybe IdChord) -> Html IdChord.Msg
+viewLine : Int -> PlayStatus -> List (Maybe IdChord) -> Html PlayStatus.Msg
 viewLine key playStatus line =
   div
     [ style
@@ -28,7 +29,7 @@ viewLine key playStatus line =
     ]
     (List.map (viewCell key playStatus) line)
 
-viewCell : Int -> PlayStatus -> Maybe IdChord -> Html IdChord.Msg
+viewCell : Int -> PlayStatus -> Maybe IdChord -> Html PlayStatus.Msg
 viewCell key playStatus cell =
   case cell of
     Just idChord ->
@@ -36,7 +37,7 @@ viewCell key playStatus cell =
     Nothing ->
       viewSpace
 
-viewChord : Int -> PlayStatus -> IdChord -> Html IdChord.Msg
+viewChord : Int -> PlayStatus -> IdChord -> Html PlayStatus.Msg
 viewChord key playStatus { id, chord } =
   let
     selected =
@@ -45,8 +46,10 @@ viewChord key playStatus { id, chord } =
     stopButton = playStatus.active == id && playStatus.stoppable
   in let
     play =
-      if stopButton then IdChord.Stop
-      else IdChord.Play (IdChord id chord)
+      if stopButton then
+        PlayStatus.Stop
+      else
+        PlayStatus.Play (IdChord id chord)
   in
     span
       [ style

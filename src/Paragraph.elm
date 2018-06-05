@@ -3,8 +3,8 @@ module Paragraph exposing
 
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
-import IdChord exposing (IdChord)
 import Replacement exposing (Replacement)
+import Song exposing (Song)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
 import Train exposing (Train)
@@ -57,7 +57,7 @@ highlights key paragraph =
     (Word.highlight key)
     (Train.flatten paragraph.words)
 
-song : Paragraph -> List (List (Maybe IdChord))
+song : Paragraph -> Song
 song paragraph =
   List.filter
     (not << List.isEmpty)

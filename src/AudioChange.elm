@@ -1,8 +1,9 @@
-port module AudioChange exposing (AudioChange(..), ChangeTime, perform)
+module AudioChange exposing (AudioChange(..), ChangeTime, perform)
 
 import Note exposing (Note)
+import Ports
 
-import Json.Encode
+import Json.Encode as Encode
 
 type AudioChange
   = AddNote Note
@@ -18,43 +19,41 @@ type alias ChangeTime =
   }
 
 perform : List AudioChange -> Cmd msg
-perform = changeAudio << List.map toJson
+perform = Ports.changeAudio << List.map toJson
 
-port changeAudio : List Json.Encode.Value -> Cmd msg
-
-toJson : AudioChange -> Json.Encode.Value
+toJson : AudioChange -> Encode.Value
 toJson change =
   case change of
     AddNote { t, f } ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "note" )
-        , ( "t", Json.Encode.float t )
-        , ( "f", Json.Encode.float f )
+      Encode.object
+        [ ( "type", Encode.string "note" )
+        , ( "t", Encode.float t )
+        , ( "f", Encode.float f )
         ]
     MuteAllNotes { t, before } ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "mute" )
-        , ( "t", Json.Encode.float t )
-        , ( "before", Json.Encode.bool before )
+      Encode.object
+        [ ( "type", Encode.string "mute" )
+        , ( "t", Encode.float t )
+        , ( "before", Encode.bool before )
         ]
     CancelFutureNotes { t, before } ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "cancel" )
-        , ( "t", Json.Encode.float t )
-        , ( "before", Json.Encode.bool before )
+      Encode.object
+        [ ( "type", Encode.string "cancel" )
+        , ( "t", Encode.float t )
+        , ( "before", Encode.bool before )
         ]
     SetAttack attack ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "attack" )
-        , ( "attack", Json.Encode.float attack )
+      Encode.object
+        [ ( "type", Encode.string "attack" )
+        , ( "attack", Encode.float attack )
         ]
     SetPeak peak ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "peak" )
-        , ( "peak", Json.Encode.float peak )
+      Encode.object
+        [ ( "type", Encode.string "peak" )
+        , ( "peak", Encode.float peak )
         ]
     SetDecay decay ->
-      Json.Encode.object
-        [ ( "type", Json.Encode.string "decay" )
-        , ( "decay", Json.Encode.float decay )
+      Encode.object
+        [ ( "type", Encode.string "decay" )
+        , ( "decay", Encode.float decay )
         ]
