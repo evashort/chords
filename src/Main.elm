@@ -5,11 +5,12 @@ import AudioTime
 import Bracket
 import Buffet exposing (Buffet, LensChange)
 import CircleOfFifths
+import CustomEvents exposing (onChange)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
+import LowestNote
 import Parse exposing (Parse)
-import Pitch
 import Player exposing (Player, PlayStatus)
 import Ports
 import Replacement exposing (Replacement)
@@ -51,7 +52,7 @@ type alias Model =
   , playStyle : PlayStyle
   , strumInterval : Float
   , bpm : Int
-  , lowestNote : Int
+  , lowestNoteOffset : Int
   , home : Bool
   , parse : Parse
   , buffet : Buffet
@@ -80,7 +81,7 @@ init location =
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , bpm = 85
-      , lowestNote = parse.lowestNote
+      , lowestNoteOffset = 0
       , home = True
       , parse = parse
       , buffet = Buffet.fromSuggestions parse.suggestions
@@ -110,9 +111,8 @@ type Msg
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
   | SetBpm String
-  | SetOctave2 String
+  | PreviewLowestNote String
   | SetLowestNote String
-  | SetOldLowestNote
   | SetKey String
   | TextChanged String
   | UrlChanged Location
@@ -155,16 +155,18 @@ update msg model =
                 model.history
             )
       in let
+        lowestNote = model.parse.lowestNote
+      in let
         ( newPlayer, changes ) =
           case model.playStyle of
             ArpeggioStyle ->
               Player.playArpeggio
-                (60 / toFloat model.bpm) model.lowestNote idChord now player
+                (60 / toFloat model.bpm) lowestNote idChord now player
             StrumStyle ->
               Player.playStrum
-                model.strumInterval model.lowestNote idChord now player
+                model.strumInterval lowestNote idChord now player
             PadStyle ->
-              Player.playPad model.lowestNote idChord now player
+              Player.playPad lowestNote idChord now player
       in
         ( { model | player = newPlayer, history = newHistory }
         , AudioChange.perform changes
@@ -204,37 +206,27 @@ update msg model =
       , Cmd.none
       )
 
-    SetOctave2 octave2String ->
-      case String.toInt octave2String of
-        Ok octave2 ->
-          let
-            oldLowestNote = model.parse.lowestNote
-          in let
-            oldOctave2 = getOctave (oldLowestNote + 6)
-          in let
-            lowestNote =
-              oldLowestNote + 12 * (octave2 - oldOctave2)
-          in
-            doAction "octave" (Parse.setLowestNote lowestNote) model
-        Err _ ->
-          ( model, Cmd.none )
-
-    SetLowestNote offsetString ->
-      ( case String.toInt offsetString of
-          Ok offset ->
+    PreviewLowestNote lowestNoteString ->
+      ( case String.toInt lowestNoteString of
+          Ok lowestNote ->
             { model
-            | lowestNote = model.parse.lowestNote + offset
+            | lowestNoteOffset =
+                lowestNote - model.parse.lowestNote
             }
           Err _ ->
             model
       , Cmd.none
       )
 
-    SetOldLowestNote ->
-      doAction
-        "lowestNote"
-        (Parse.setLowestNote model.lowestNote)
-        model
+    SetLowestNote lowestNoteString ->
+      case String.toInt lowestNoteString of
+        Ok lowestNote ->
+          doAction
+            "lowestNote"
+            (Parse.setLowestNote lowestNote)
+            { model | lowestNoteOffset = 0 }
+        Err _ ->
+          ( model, Cmd.none )
 
     SetKey keyString ->
       case String.toInt keyString of
@@ -403,16 +395,13 @@ view model =
             [ ( "position", "relative" )
             , ( "display", "grid" )
             , ( "grid", """
-"ps   ps   ps   ps   ps  "
-"bpm  bpm  bpm  bpm  bpm "
-"key  key  key  key  key "
-"o1   o1   .    o2   o2  "
-"ln1  ln2  ln2  ln2  ln3 "
-"txt  txt  txt  txt  txt "
-"buf  buf  buf  buf  buf "
-/auto calc(6.5px + 0.5ch)
-           auto calc(8.5px + 0.5ch)
-                     1fr
+"ps   ps   ps "
+"bpm  bpm  bpm"
+"key  key  key"
+"ln1  ln2  ln3"
+"txt  txt  txt"
+"buf  buf  buf"
+/auto auto 1fr
 """
               )
             , ( "align-items", "center" )
@@ -426,33 +415,6 @@ view model =
         , Html.Lazy.lazy viewKey model.parse.scale
         , span
             [ style
-                [ ( "grid-area", "o1" )
-                , ( "display", "flex" )
-                , ( "justify-content", "space-between" )
-                ]
-            ]
-            [ Html.text "Octave\xA0"
-            , span
-                []
-                [ (Html.text << toString << getOctave)
-                    (model.parse.lowestNote - 6)
-                ]
-            ]
-        , input
-            [ type_ "number"
-            , (value << toString << getOctave)
-                (model.parse.lowestNote + 6)
-            , Attributes.min "-1"
-            , Attributes.max "5"
-            , onInput SetOctave2
-            , style
-                [ ( "grid-area", "o2" )
-                , ( "width", "3em" )
-                ]
-            ]
-            []
-        , span
-            [ style
                 [ ( "grid-area", "ln1" )
                 ]
             ]
@@ -460,15 +422,10 @@ view model =
             ]
         , Html.Lazy.lazy
             viewLowestNote
-            (model.lowestNote - model.parse.lowestNote)
-        , Html.Lazy.lazy2
-            viewBrackets
-            model.parse.lowestNote
-            model.lowestNote
-        , Html.Lazy.lazy2
+            (model.parse.lowestNote + model.lowestNoteOffset)
+        , Html.Lazy.lazy
             viewLowestNoteText
-            model.parse.lowestNote
-            model.lowestNote
+            (model.parse.lowestNote + model.lowestNoteOffset)
         , div
             [ id "theater"
             , style
@@ -501,10 +458,6 @@ view model =
             [ text "GitHub" ]
         ]
     ]
-
-getOctave : Int -> Int
-getOctave pitch =
-  (pitch - pitch % 12) // 12 - 2
 
 viewPlayStyle : PlayStyle -> Float -> Html Msg
 viewPlayStyle playStyle strumInterval =
@@ -645,53 +598,32 @@ viewLowestNote : Int -> Html Msg
 viewLowestNote offset =
   input
     [ type_ "range"
-    , onInput SetLowestNote
-    , Attributes.min "-6"
-    , Attributes.max "6"
+    , onInput PreviewLowestNote
+    , onChange SetLowestNote
+    , Attributes.min "35"
+    , Attributes.max "53"
     , value (toString offset)
     , style
         [ ( "grid-area", "ln2" )
         , ( "width", "auto" )
-        , ( "min-width", "7em" )
+        , ( "min-width", "10em" )
         ]
     ]
     []
 
-viewLowestNoteText : Int -> Int -> Html Msg
-viewLowestNoteText oldLowestNote lowestNote =
-  let
-    pitch = lowestNote % 12
-  in let
-    octave = (lowestNote - pitch) // 12 - 2
-  in
-    span
-      [ style [ ( "grid-area", "ln3" ) ]
-      ]
-      ( if lowestNote == oldLowestNote then
-          [ span
-              [ style
-                  [ ( "display", "inline-block" )
-                  , ( "width", "5ch" )
-                  ]
-              ]
-              [ Html.text (Pitch.view 0 pitch) ]
-          ]
-        else
-          [ span
-              [ style
-                  [ ( "display", "inline-block" )
-                  , ( "width", "5ch" )
-                  ]
-              ]
-              [ Html.text (Pitch.view 0 pitch) ]
-          , button
-              [ onClick SetOldLowestNote ]
-              [ Html.text "OK" ]
-          , button
-              [ onClick (SetLowestNote "0") ]
-              [ Html.text "Cancel" ]
-          ]
-      )
+viewLowestNoteText : Int -> Html Msg
+viewLowestNoteText lowestNote =
+  span
+    [ style [ ( "grid-area", "ln3" ) ]
+    ]
+    [ span
+        [ style
+            [ ( "display", "inline-block" )
+            , ( "width", "5ch" )
+            ]
+        ]
+        [ Html.text (LowestNote.view lowestNote) ]
+    ]
 
 viewChordBox : Parse -> Buffet -> Html Msg
 viewChordBox parse buffet =

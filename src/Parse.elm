@@ -87,10 +87,13 @@ setScale scale code =
         let
           oldScale = Flag.parse Scale.flag unindented
         in let
-          offset = (scale.root - oldScale.root + 5) % 12 - 5
+          offset = (scale.root - oldScale.root) % 12
+        in let
+          oldLowestNote =
+            Flag.parse LowestNote.flag unindented
         in let
           lowestNote =
-            Flag.parse LowestNote.flag unindented + offset
+            (oldLowestNote + offset - 39) % 12 + 39
         in
           case
             Flag.insert LowestNote.flag lowestNote unindented

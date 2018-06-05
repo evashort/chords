@@ -1,4 +1,4 @@
-module LowestNote exposing (flag)
+module LowestNote exposing (flag, view)
 
 import Flag exposing (Flag)
 import Pitch
@@ -17,12 +17,14 @@ flag =
 fromCode : String -> Maybe Int
 fromCode code =
   case submatches regex code of
+    [ _, Just "-" ] ->
+      Nothing
     [ Just pitchCode, Just octaveCode ] ->
       case String.toInt octaveCode of
         Err _ ->
           Nothing
         Ok octave ->
-          Just (24 + 12 * octave + Pitch.fromCode pitchCode)
+          Just (12 + 12 * octave + Pitch.fromCode pitchCode)
     _ ->
       Nothing
 
@@ -34,6 +36,15 @@ code lowestNote =
   let
     pitch = lowestNote % 12
   in let
-    octave = (lowestNote - pitch) // 12 - 2
+    octave = (lowestNote - pitch) // 12 - 1
   in
     Pitch.code 0 pitch ++ toString octave
+
+view : Int -> String
+view lowestNote =
+  let
+    pitch = lowestNote % 12
+  in let
+    octave = (lowestNote - pitch) // 12 - 1
+  in
+    Pitch.view 0 pitch ++ toString octave
