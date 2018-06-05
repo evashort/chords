@@ -220,4 +220,4 @@ keyRegex = Regex.regex "^([^:]+):([^ ])?"
 
 keys : Set String
 keys =
-  Set.fromList [ "octave", "scale" ]
+  Set.fromList [ "bpm", "octave", "scale" ]

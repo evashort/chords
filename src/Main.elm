@@ -49,8 +49,8 @@ type alias Model =
   , history : History
   , playStyle : PlayStyle
   , strumInterval : Float
-  , bpm : Int
-  , lowestNoteOffset : Int
+  , bpm : Maybe Float
+  , lowestNote : Maybe Int
   , home : Bool
   , parse : Parse
   , buffet : Buffet
@@ -78,8 +78,8 @@ init location =
       , history = { sequences = [], current = [] }
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
-      , bpm = 85
-      , lowestNoteOffset = 0
+      , bpm = Nothing
+      , lowestNote = Nothing
       , home = True
       , parse = parse
       , buffet = Buffet.init parse.suggestions
@@ -111,6 +111,7 @@ type Msg
   | IdChordMsg (IdChord.Msg, Float)
   | SetPlayStyle PlayStyle
   | SetStrumInterval String
+  | PreviewBpm String
   | SetBpm String
   | PreviewLowestNote String
   | SetLowestNote String
@@ -162,7 +163,7 @@ update msg model =
           case model.playStyle of
             ArpeggioStyle ->
               Player.playArpeggio
-                (60 / toFloat model.bpm) lowestNote idChord now player
+                (60 / model.parse.bpm) lowestNote idChord now player
             StrumStyle ->
               Player.playStrum
                 model.strumInterval lowestNote idChord now player
@@ -200,20 +201,29 @@ update msg model =
       , Cmd.none
       )
 
-    SetBpm bpmString ->
-      ( case String.toInt bpmString of
-          Ok bpm -> { model | bpm = bpm }
-          Err _ -> model
+    PreviewBpm bpmString ->
+      ( case String.toFloat bpmString of
+          Ok bpm ->
+            { model | bpm = Just bpm }
+          Err _ ->
+            model
       , Cmd.none
       )
+
+    SetBpm bpmString ->
+      case String.toFloat bpmString of
+        Ok bpm ->
+          doAction
+            "bpm"
+            (Parse.setBpm bpm)
+            { model | bpm = Nothing }
+        Err _ ->
+          ( model, Cmd.none )
 
     PreviewLowestNote lowestNoteString ->
       ( case String.toInt lowestNoteString of
           Ok lowestNote ->
-            { model
-            | lowestNoteOffset =
-                lowestNote - model.parse.lowestNote
-            }
+            { model | lowestNote = Just lowestNote }
           Err _ ->
             model
       , Cmd.none
@@ -225,7 +235,7 @@ update msg model =
           doAction
             "lowestNote"
             (Parse.setLowestNote lowestNote)
-            { model | lowestNoteOffset = 0 }
+            { model | lowestNote = Nothing }
         Err _ ->
           ( model, Cmd.none )
 
@@ -416,12 +426,17 @@ view model =
             , ( "white-space", "nowrap" )
             ]
         ]
-        [ Html.Lazy.lazy2 viewPlayStyle model.playStyle model.strumInterval
-        , Html.Lazy.lazy viewBpm model.bpm
+        [ Html.Lazy.lazy2
+            viewPlayStyle
+            model.playStyle
+            model.strumInterval
+        , Html.Lazy.lazy
+            viewBpm
+            (Maybe.withDefault model.parse.bpm model.bpm)
         , Html.Lazy.lazy viewKey model.parse.scale
         , Html.Lazy.lazy
             viewLowestNote
-            (model.parse.lowestNote + model.lowestNoteOffset)
+            (Maybe.withDefault model.parse.lowestNote model.lowestNote)
         , div
             [ id "theater"
             , style
@@ -518,7 +533,7 @@ viewPlayStyle playStyle strumInterval =
         ]
     )
 
-viewBpm : Int -> Html Msg
+viewBpm : Float -> Html Msg
 viewBpm bpm =
   span
     [ style
@@ -531,7 +546,8 @@ viewBpm bpm =
         [ Html.text "Tempo\xA0" ]
     , input
         [ type_ "range"
-        , onInput SetBpm
+        , onInput PreviewBpm
+        , onChange SetBpm
         , value (toString bpm)
         , Attributes.size 3
         , Attributes.min "60"

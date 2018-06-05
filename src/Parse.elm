@@ -1,5 +1,7 @@
-module Parse exposing (Parse, init, update, song, setLowestNote, setScale)
+module Parse exposing
+  (Parse, init, update, song, setBpm, setLowestNote, setScale)
 
+import Bpm
 import Chord
 import Comment
 import Flag
@@ -19,6 +21,7 @@ type alias Parse =
   , paragraph : Paragraph
   , highlights : List Highlight
   , suggestions : List Suggestion
+  , bpm : Float
   , lowestNote : Int
   , scale : Scale
   }
@@ -58,6 +61,7 @@ initHelp getParagraph code =
               , Paragraph.suggestions scale.root paragraph
               ]
           )
+    , bpm = Flag.parse Bpm.flag unindented
     , lowestNote = Flag.parse LowestNote.flag unindented
     , scale = scale
     }
@@ -65,6 +69,14 @@ initHelp getParagraph code =
 song : Parse -> List (List (Maybe IdChord))
 song parse =
   Paragraph.song parse.paragraph
+
+setBpm : Float -> String -> Maybe Replacement
+setBpm bpm code =
+  let
+    unindented =
+      Indent.remove (Comment.remove (Substring 0 code))
+  in
+    Flag.insert Bpm.flag bpm unindented
 
 setLowestNote : Int -> String -> Maybe Replacement
 setLowestNote lowestNote code =

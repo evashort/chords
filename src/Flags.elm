@@ -1,5 +1,6 @@
 module Flags exposing (highlights, suggestions)
 
+import Bpm
 import Highlight exposing (Highlight)
 import LowestNote
 import Rule
@@ -11,7 +12,8 @@ import Suggestion exposing (Suggestion)
 book : Rulebook
 book =
   Rulebook.init
-    [ Rule.fromFlag LowestNote.flag
+    [ Rule.fromFlag Bpm.flag
+    , Rule.fromFlag LowestNote.flag
     , Rule.fromFlag Scale.flag
     ]
 
