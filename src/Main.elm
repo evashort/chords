@@ -25,7 +25,7 @@ import Html exposing
   , select, option
   )
 import Html.Attributes as Attributes exposing
-  (href, style, class, classList, id, type_, value, selected)
+  (href, style, class, classList, id, type_, value, selected, disabled)
 import Html.Events exposing (onClick, onInput)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -51,7 +51,7 @@ type alias Model =
   , strumInterval : Float
   , bpm : Maybe Float
   , lowestNote : Maybe Int
-  , home : Bool
+  , saved : Bool
   , parse : Parse
   , buffet : Buffet
   , memory : Maybe Backup
@@ -70,7 +70,9 @@ type alias Backup =
 init : Location -> ( Model, Cmd Msg )
 init location =
   let
-    text = textFromLocation location
+    maybeText = Url.hashParamValue "text" location
+  in let
+    text = Maybe.withDefault defaultText maybeText
   in let
     parse = Parse.init CircleOfFifths.chordCount text
   in
@@ -80,7 +82,7 @@ init location =
       , strumInterval = 0.06
       , bpm = Nothing
       , lowestNote = Nothing
-      , home = True
+      , saved = maybeText /= Nothing
       , parse = parse
       , buffet = Buffet.init parse.suggestions
       , memory = Nothing
@@ -94,10 +96,6 @@ init location =
         , Theater.focus
         ]
     )
-
-textFromLocation : Location -> String
-textFromLocation location =
-  Maybe.withDefault defaultText (Url.hashParamValue "text" location)
 
 defaultText : String
 defaultText =
@@ -120,6 +118,7 @@ type Msg
   | SetKey String
   | TextChanged String
   | UrlChanged Location
+  | Save
   | BuffetMsg Buffet.Msg
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -264,36 +263,45 @@ update msg model =
     TextChanged code ->
       ( let parse = Parse.update code model.parse in
           { model
-          | home = False
+          | saved = False
           , parse = parse
           , buffet =
               Buffet.update parse.suggestions model.buffet
           , memory = Nothing
           }
-      , updateUrl model.home code
+      , clearUrl model.saved
       )
 
     UrlChanged location ->
-      let code = textFromLocation location in
-        if code /= model.parse.code then
-          ( let parse = Parse.update code model.parse in
-              { model
-              | home = True
-              , parse = parse
-              , buffet =
-                  Buffet.update parse.suggestions model.buffet
-              , memory = Nothing
-              }
-          , Cmd.batch
-              [ Theater.replace
-                  { old = Substring 0 model.parse.code
-                  , new = code
-                  }
-              , Theater.focus
-              ]
-          )
-        else
+      case Url.hashParamValue "text" location of
+        Nothing ->
           ( model, Cmd.none )
+        Just code ->
+          if code == model.parse.code then
+            ( { model | saved = True }, Cmd.none )
+          else
+            ( let parse = Parse.update code model.parse in
+                { model
+                | saved = True
+                , parse = parse
+                , buffet =
+                    Buffet.update parse.suggestions model.buffet
+                , memory = Nothing
+                }
+            , Cmd.batch
+                [ Theater.replace
+                    { old = Substring 0 model.parse.code
+                    , new = code
+                    }
+                , Theater.focus
+                ]
+            )
+
+    Save ->
+      ( model
+      , Navigation.modifyUrl
+          ("#text=" ++ Url.percentEncode model.parse.code)
+      )
 
     BuffetMsg (Buffet.LensesChanged lensChange) ->
       ( { model
@@ -317,7 +325,8 @@ update msg model =
           in
             ( let parse = Parse.update code model.parse in
                 { model
-                | parse = parse
+                | saved = False
+                , parse = parse
                 , buffet =
                     Buffet.update parse.suggestions model.buffet
                 , memory = Nothing
@@ -325,7 +334,7 @@ update msg model =
             , Cmd.batch
                 [ Theater.replace replacement
                 , Theater.focus
-                , updateUrl model.home code
+                , clearUrl model.saved
                 ]
             )
 
@@ -352,14 +361,14 @@ doAction action f model =
             if backup.action == action then
               ( let parse = Parse.update oldCode model.parse in
                   { model
-                  | home = False
+                  | saved = False
                   , parse = parse
                   , buffet =
                       Buffet.update parse.suggestions model.buffet
                   , memory = Nothing
                   }
               , Cmd.batch
-                  [ Theater.hardUndo, updateUrl model.home oldCode ]
+                  [ Theater.hardUndo, clearUrl model.saved ]
               )
             else
               ( { model | memory = Nothing }, Cmd.none )
@@ -367,7 +376,7 @@ doAction action f model =
         let code = Replacement.apply replacement oldCode in
           ( let parse = Parse.update code model.parse in
               { model
-              | home = False
+              | saved = False
               , parse = parse
               , buffet =
                   Buffet.update parse.suggestions model.buffet
@@ -382,16 +391,16 @@ doAction action f model =
                       Theater.undoAndReplace replacement
                     else
                       Theater.replace replacement
-              , updateUrl model.home code
+              , clearUrl model.saved
               ]
           )
 
-updateUrl : Bool -> String -> Cmd msg
-updateUrl new text =
-  if new then
-    Navigation.newUrl ("#text=" ++ Url.percentEncode text)
+clearUrl : Bool -> Cmd msg
+clearUrl saved =
+  if saved then
+    Navigation.newUrl "#"
   else
-    Navigation.modifyUrl ("#text=" ++ Url.percentEncode text)
+    Cmd.none
 
 -- SUBSCRIPTIONS
 
@@ -420,19 +429,19 @@ view model =
     [ span
         [ style
             [ ( "position", "relative" )
-            , ( "display", "grid" )
+            , ( "display", "inline-grid" )
             , ( "grid", """
-"playStyle"
-"bpm"
-"key"
-"lowestNote"
-"theater"
-"buffet"
+"playStyle ."
+"bpm ."
+"key ."
+"lowestNote ."
+"theater save"
+"buffet ."
+/ 37.5em auto
 """
               )
             , ( "align-items", "center" )
             , ( "line-height", "2.2" )
-            , ( "width", "37.5em" )
             , ( "white-space", "nowrap" )
             ]
         ]
@@ -471,6 +480,17 @@ view model =
             [ ]
         , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
         , Html.Lazy.lazy viewBuffet model.buffet
+        , button
+            [ onClick Save
+            , disabled model.saved
+            , style
+                [ ( "grid-area", "save" )
+                , ( "align-self", "end" )
+                , ( "margin-left", "5px" )
+                ]
+            ]
+            [ Html.text "Save in URL"
+            ]
         ]
     , Html.Lazy.lazy2 viewSong model.player model.parse
     , Html.Lazy.lazy2 viewCircleOfFifths model.parse.scale model.player

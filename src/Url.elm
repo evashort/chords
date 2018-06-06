@@ -3,12 +3,26 @@ module Url exposing ( percentEncode, percentDecode, hashParamValue )
 import Native.Url
 
 import Navigation exposing (Location)
+import Regex exposing (Regex, HowMany(..))
 
 percentEncode : String -> String
-percentEncode = Native.Url.percentEncode
+percentEncode s =
+  Regex.replace
+    All
+    encodedSpace
+    (always "+")
+    (Native.Url.percentEncode s)
+
+encodedSpace : Regex
+encodedSpace = Regex.regex "%20"
 
 percentDecode : String -> Maybe String
-percentDecode = Native.Url.percentDecode
+percentDecode s =
+  Native.Url.percentDecode
+    (Regex.replace All plusSign (always "%20") s)
+
+plusSign : Regex
+plusSign = Regex.regex "\\+"
 
 hashParamValue : String -> Location -> Maybe String
 hashParamValue key location =
