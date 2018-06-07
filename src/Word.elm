@@ -61,7 +61,7 @@ highlight key word =
       if word.substring.s == cache.codeName then
         Just
           { fg = Colour.fg cache.chord
-          , bg = Colour.bg key cache.chord
+          , bg = Colour.swatchBg key cache.chord
           , substring = word.substring
           }
       else
@@ -92,7 +92,7 @@ suggestion key word =
       else
         Just
           ( [ { fg = Colour.fg cache.chord
-              , bg = Colour.bg key cache.chord
+              , bg = Colour.swatchBg key cache.chord
               , s = cache.codeName
               }
             ]

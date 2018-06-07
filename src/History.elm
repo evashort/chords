@@ -64,7 +64,7 @@ viewChord : Int -> Chord -> Html msg
 viewChord key chord =
   mark
     [ style
-        [ ( "background", Colour.bg key chord )
+        [ ( "background", Colour.swatchBg key chord )
         , ( "color", Colour.fg chord )
         , ( "border-radius", "3px" )
         ]

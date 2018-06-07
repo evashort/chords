@@ -1,4 +1,4 @@
-module Colour exposing (borderOpacity, shineOpacity, fg, bg)
+module Colour exposing (borderOpacity, shineOpacity, fg, bg, swatchBg)
 
 import Chord exposing (Chord)
 
@@ -25,6 +25,17 @@ bg key chord =
   case Dict.get chord.flavor schemes of
     Nothing ->
       gray
+    Just scheme ->
+      case (chord.root - key) % 3 of
+        0 -> scheme.c
+        1 -> scheme.g
+        _ -> scheme.f
+
+swatchBg : Int -> Chord -> String
+swatchBg key chord =
+  case Dict.get chord.flavor swatchSchemes of
+    Nothing ->
+      swatchGray
     Just scheme ->
       case (chord.root - key) % 3 of
         0 -> scheme.c
@@ -60,65 +71,65 @@ schemes =
 major : Scheme
 major =
   { fg = black
-  , f = red
-  , c = yellow
-  , g = blue
+  , f = green
+  , c = blue
+  , g = red
   }
 
 sus2 : Scheme
 sus2 =
   { fg = black
-  , f = yellow
-  , c = blue
-  , g = red
+  , f = blue
+  , c = red
+  , g = green
   }
 
 minor : Scheme
 minor =
   { fg = black
-  , f = purple
-  , c = orange
-  , g = green
+  , f = yellow
+  , c = cyan
+  , g = purple
   }
 
 major7 : Scheme
 major7 =
   { fg = black
-  , f = mix red orange
-  , c = mix yellow green
-  , g = mix blue purple
+  , f = mix green cyan
+  , c = mix blue purple
+  , g = mix red yellow
   }
 
 minor7 : Scheme
 minor7 =
   { fg = black
-  , f = mix purple red
-  , c = mix orange yellow
-  , g = mix green blue
+  , f = mix yellow green
+  , c = mix cyan blue
+  , g = mix purple red
   }
 
 dominant7 : Scheme
 dominant7 =
   { fg = white
-  , f = darkRed
-  , c = darkYellow
-  , g = darkBlue
+  , f = darkGreen
+  , c = darkBlue
+  , g = darkRed
   }
 
 minor6 : Scheme
 minor6 =
   { fg = white
-  , f = darkPurple
-  , c = darkOrange
-  , g = darkGreen
+  , f = darkYellow
+  , c = darkCyan
+  , g = darkPurple
   }
 
 diminished : Scheme
 diminished =
   { fg = white
-  , f = mix darkBlue darkPurple
-  , c = mix darkRed darkOrange
-  , g = mix darkYellow darkGreen
+  , f = mix darkRed darkYellow
+  , c = mix darkGreen darkCyan
+  , g = mix darkBlue darkPurple
   }
 
 mix : String -> String -> String
@@ -174,40 +185,73 @@ white : String
 white = "#ffffff"
 
 gray : String
-gray = "#e0e0e0"
+gray = "#cfcfcf"
 
 red : String
-red = "#facdcd"
-
-orange : String
-orange = "#ffe7c9"
+red = "#ff8c93"
 
 yellow : String
-yellow = "#f8facd"
+yellow = "#f5cb00"
 
 green : String
-green = "#d2facd"
+green = "#c9ff5c"
+
+cyan : String
+cyan = "#7dfcff"
 
 blue : String
-blue = "#c9ffff"
+blue = "#bdc2ff"
 
 purple : String
-purple = "#eccdfa"
+purple = "#ea4ff9"
 
 darkRed : String
-darkRed = "#d70000"
-
-darkOrange : String
-darkOrange = "#e48100"
+darkRed = "#830026"
 
 darkYellow : String
-darkYellow = "#bfc600"
+darkYellow = "#715c00"
 
 darkGreen : String
-darkGreen = "#15b300"
+darkGreen = "#577e00"
+
+darkCyan : String
+darkCyan = "#007d80"
 
 darkBlue : String
-darkBlue = "#0047ff"
+darkBlue = "#004baf"
 
 darkPurple : String
-darkPurple = "#9c00e4"
+darkPurple = "#6d0077"
+
+swatchOpacity : Float
+swatchOpacity = 0.7
+
+swatchSchemes : Dict (List Int) Scheme
+swatchSchemes = Dict.map (always fadeBg) schemes
+
+swatchGray : String
+swatchGray = fade swatchOpacity gray
+
+fadeBg : Scheme -> Scheme
+fadeBg scheme =
+  if scheme.fg == "#000000" then
+    { fg = "#000000"
+    , f = fade swatchOpacity scheme.f
+    , c = fade swatchOpacity scheme.c
+    , g = fade swatchOpacity scheme.g
+    }
+  else
+    scheme
+
+fade : Float -> String -> String
+fade opacity x =
+  String.concat
+    [ "#"
+    , toHexPair (fadeChannel opacity (parseHexPair 1 x))
+    , toHexPair (fadeChannel opacity (parseHexPair 3 x))
+    , toHexPair (fadeChannel opacity (parseHexPair 5 x))
+    ]
+
+fadeChannel : Float -> Int -> Int
+fadeChannel opacity channel =
+  round (toFloat channel * opacity + 255 * (1 - opacity))
