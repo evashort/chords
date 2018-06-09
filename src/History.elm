@@ -32,25 +32,17 @@ finishSequence history =
   else
     { history | current = [] }
 
-view : Int -> List (List Chord) -> Html msg
-view key sequences =
+view : String -> Int -> History -> Html msg
+view gridArea key history =
   span
     [ style
-        [ ( "display", "inline-block" )
-        , ( "vertical-align", "top" )
+        [ ( "grid-area", gridArea )
+        , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+        , ( "font-size", "18pt" )
+        , ( "line-height", "initial" )
         ]
     ]
-    [ div []
-        [ text "Recently played"
-        ]
-    , div
-        [ style
-            [ ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-            , ( "font-size", "13pt" )
-            ]
-        ]
-        (List.map (viewSequence key) sequences)
-    ]
+    (List.map (viewSequence key) history.sequences)
 
 viewSequence : Int -> List Chord -> Html msg
 viewSequence key sequence =

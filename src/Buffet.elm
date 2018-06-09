@@ -97,7 +97,12 @@ view buffet =
         [ ( "grid-area", "buffet" )
         ]
     ]
-    (List.indexedMap viewSuggestion buffet.suggestions)
+    ( if buffet.suggestions == [] then
+        []
+      else
+        Html.text "Suggested replacements (click to use)\xA0" ::
+          (List.indexedMap viewSuggestion buffet.suggestions)
+    )
 
 viewSuggestion : Int -> Suggestion -> Html Msg
 viewSuggestion i suggestion =

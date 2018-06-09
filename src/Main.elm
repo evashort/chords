@@ -12,6 +12,7 @@ import Parse exposing (Parse)
 import Player exposing (Player)
 import PlayStatus exposing (PlayStatus, IdChord)
 import Ports
+import Radio
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
 import Song
@@ -25,7 +26,7 @@ import Html exposing
   , select, option
   )
 import Html.Attributes as Attributes exposing
-  (href, style, class, classList, id, type_, value, selected, disabled)
+  (href, style, id, type_, value, selected, disabled)
 import Html.Events exposing (onClick, onInput)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -45,22 +46,27 @@ main =
 -- MODEL
 
 type alias Model =
-  { player : Player
-  , history : History
+  { bpm : Maybe Float
+  , lowestNote : Maybe Int
+  , parse : Parse
+  , memory : Maybe Backup
+  , saved : Bool
+  , buffet : Buffet
   , playStyle : PlayStyle
   , strumInterval : Float
-  , bpm : Maybe Float
-  , lowestNote : Maybe Int
-  , saved : Bool
-  , parse : Parse
-  , buffet : Buffet
-  , memory : Maybe Backup
+  , player : Player
+  , pane : Pane
+  , history : History
   }
 
 type PlayStyle
   = ArpeggioStyle
   | StrumStyle
   | PadStyle
+
+type Pane
+  = FifthsPane
+  | HistoryPane
 
 type alias Backup =
   { code : String
@@ -76,16 +82,17 @@ init location =
   in let
     parse = Parse.init CircleOfFifths.chordCount text
   in
-    ( { player = { openings = [], schedule = [] }
-      , history = { sequences = [], current = [] }
+    ( { bpm = Nothing
+      , lowestNote = Nothing
+      , parse = parse
+      , memory = Nothing
+      , saved = maybeText /= Nothing
+      , buffet = Buffet.init parse.suggestions
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
-      , bpm = Nothing
-      , lowestNote = Nothing
-      , saved = maybeText /= Nothing
-      , parse = parse
-      , buffet = Buffet.init parse.suggestions
-      , memory = Nothing
+      , player = { openings = [], schedule = [] }
+      , pane = FifthsPane
+      , history = { sequences = [], current = [] }
       }
     , Cmd.batch
         [ Theater.init
@@ -104,14 +111,7 @@ defaultText =
 -- UPDATE
 
 type Msg
-  = RequestTime
-  | CurrentTime Float
-  | PlayStatusMsg PlayStatus.Msg
-  | Play (IdChord, Float)
-  | Stop Float
-  | SetPlayStyle PlayStyle
-  | SetStrumInterval String
-  | PreviewBpm String
+  = PreviewBpm String
   | SetBpm String
   | PreviewLowestNote String
   | SetLowestNote String
@@ -120,10 +120,163 @@ type Msg
   | UrlChanged Location
   | Save
   | BuffetMsg Buffet.Msg
+  | SetPlayStyle PlayStyle
+  | SetStrumInterval String
+  | RequestTime
+  | CurrentTime Float
+  | PlayStatusMsg PlayStatus.Msg
+  | Play (IdChord, Float)
+  | Stop Float
+  | SetPane Pane
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
+    PreviewBpm bpmString ->
+      ( case String.toFloat bpmString of
+          Ok bpm ->
+            { model | bpm = Just bpm }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
+    SetBpm bpmString ->
+      case String.toFloat bpmString of
+        Ok bpm ->
+          doAction
+            "bpm"
+            (Parse.setBpm bpm)
+            { model | bpm = Nothing }
+        Err _ ->
+          ( model, Cmd.none )
+
+    PreviewLowestNote lowestNoteString ->
+      ( case String.toInt lowestNoteString of
+          Ok lowestNote ->
+            { model | lowestNote = Just lowestNote }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
+    SetLowestNote lowestNoteString ->
+      case String.toInt lowestNoteString of
+        Ok lowestNote ->
+          doAction
+            "lowestNote"
+            (Parse.setLowestNote lowestNote)
+            { model | lowestNote = Nothing }
+        Err _ ->
+          ( model, Cmd.none )
+
+    SetKey keyString ->
+      case String.toInt keyString of
+        Ok key ->
+          let
+            scale =
+              if model.parse.scale.minor then
+                { minor = True, root = (key - 3) % 12 }
+              else
+                { minor = False, root = key }
+          in
+            doAction "key" (Parse.setScale scale) model
+        Err _ ->
+          ( model, Cmd.none )
+
+    TextChanged code ->
+      ( let parse = Parse.update code model.parse in
+          { model
+          | parse = parse
+          , memory = Nothing
+          , saved = False
+          , buffet =
+              Buffet.update parse.suggestions model.buffet
+          }
+      , clearUrl model.saved
+      )
+
+    UrlChanged location ->
+      case Url.hashParamValue "text" location of
+        Nothing ->
+          ( model, Cmd.none )
+        Just code ->
+          if code == model.parse.code then
+            ( { model | saved = True }, Cmd.none )
+          else
+            ( let parse = Parse.update code model.parse in
+                { model
+                | parse = parse
+                , memory = Nothing
+                , saved = True
+                , buffet =
+                    Buffet.update parse.suggestions model.buffet
+                }
+            , Cmd.batch
+                [ Theater.replace
+                    { old = Substring 0 model.parse.code
+                    , new = code
+                    }
+                , Theater.focus
+                ]
+            )
+
+    Save ->
+      ( model
+      , Navigation.modifyUrl
+          ("#text=" ++ Url.percentEncode model.parse.code)
+      )
+
+    BuffetMsg (Buffet.LensesChanged lensChange) ->
+      ( { model
+        | buffet = Buffet.changeLenses lensChange model.buffet
+        }
+      , Cmd.none
+      )
+
+    BuffetMsg (Buffet.Replace suggestion) ->
+      case suggestion.ranges of
+        [] ->
+          ( model, Cmd.none )
+        range :: _ ->
+          let
+            replacement =
+              { old = range
+              , new = Swatch.concat suggestion.swatches
+              }
+          in let
+            code = Replacement.apply replacement model.parse.code
+          in
+            ( let parse = Parse.update code model.parse in
+                { model
+                | parse = parse
+                , memory = Nothing
+                , saved = False
+                , buffet =
+                    Buffet.update parse.suggestions model.buffet
+                }
+            , Cmd.batch
+                [ Theater.replace replacement
+                , Theater.focus
+                , clearUrl model.saved
+                ]
+            )
+
+    SetPlayStyle playStyle ->
+      ( if playStyle == model.playStyle then model
+        else { model | playStyle = playStyle }
+      , Cmd.none
+      )
+
+    SetStrumInterval strumIntervalString ->
+      ( case String.toFloat strumIntervalString of
+          Ok strumInterval ->
+            { model | strumInterval = 0.001 * strumInterval }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
     RequestTime ->
       ( model, Task.perform CurrentTime AudioTime.now )
 
@@ -193,150 +346,10 @@ update msg model =
         , AudioChange.perform changes
         )
 
-    SetPlayStyle playStyle ->
-      ( if playStyle == model.playStyle then model
-        else { model | playStyle = playStyle }
+    SetPane pane ->
+      ( { model | pane = pane }
       , Cmd.none
       )
-
-    SetStrumInterval strumIntervalString ->
-      ( case String.toFloat strumIntervalString of
-          Ok strumInterval ->
-            { model | strumInterval = 0.001 * strumInterval }
-          Err _ ->
-            model
-      , Cmd.none
-      )
-
-    PreviewBpm bpmString ->
-      ( case String.toFloat bpmString of
-          Ok bpm ->
-            { model | bpm = Just bpm }
-          Err _ ->
-            model
-      , Cmd.none
-      )
-
-    SetBpm bpmString ->
-      case String.toFloat bpmString of
-        Ok bpm ->
-          doAction
-            "bpm"
-            (Parse.setBpm bpm)
-            { model | bpm = Nothing }
-        Err _ ->
-          ( model, Cmd.none )
-
-    PreviewLowestNote lowestNoteString ->
-      ( case String.toInt lowestNoteString of
-          Ok lowestNote ->
-            { model | lowestNote = Just lowestNote }
-          Err _ ->
-            model
-      , Cmd.none
-      )
-
-    SetLowestNote lowestNoteString ->
-      case String.toInt lowestNoteString of
-        Ok lowestNote ->
-          doAction
-            "lowestNote"
-            (Parse.setLowestNote lowestNote)
-            { model | lowestNote = Nothing }
-        Err _ ->
-          ( model, Cmd.none )
-
-    SetKey keyString ->
-      case String.toInt keyString of
-        Ok key ->
-          let
-            scale =
-              if model.parse.scale.minor then
-                { minor = True, root = (key - 3) % 12 }
-              else
-                { minor = False, root = key }
-          in
-            doAction "key" (Parse.setScale scale) model
-        Err _ ->
-          ( model, Cmd.none )
-
-    TextChanged code ->
-      ( let parse = Parse.update code model.parse in
-          { model
-          | saved = False
-          , parse = parse
-          , buffet =
-              Buffet.update parse.suggestions model.buffet
-          , memory = Nothing
-          }
-      , clearUrl model.saved
-      )
-
-    UrlChanged location ->
-      case Url.hashParamValue "text" location of
-        Nothing ->
-          ( model, Cmd.none )
-        Just code ->
-          if code == model.parse.code then
-            ( { model | saved = True }, Cmd.none )
-          else
-            ( let parse = Parse.update code model.parse in
-                { model
-                | saved = True
-                , parse = parse
-                , buffet =
-                    Buffet.update parse.suggestions model.buffet
-                , memory = Nothing
-                }
-            , Cmd.batch
-                [ Theater.replace
-                    { old = Substring 0 model.parse.code
-                    , new = code
-                    }
-                , Theater.focus
-                ]
-            )
-
-    Save ->
-      ( model
-      , Navigation.modifyUrl
-          ("#text=" ++ Url.percentEncode model.parse.code)
-      )
-
-    BuffetMsg (Buffet.LensesChanged lensChange) ->
-      ( { model
-        | buffet = Buffet.changeLenses lensChange model.buffet
-        }
-      , Cmd.none
-      )
-
-    BuffetMsg (Buffet.Replace suggestion) ->
-      case suggestion.ranges of
-        [] ->
-          ( model, Cmd.none )
-        range :: _ ->
-          let
-            replacement =
-              { old = range
-              , new = Swatch.concat suggestion.swatches
-              }
-          in let
-            code = Replacement.apply replacement model.parse.code
-          in
-            ( let parse = Parse.update code model.parse in
-                { model
-                | saved = False
-                , parse = parse
-                , buffet =
-                    Buffet.update parse.suggestions model.buffet
-                , memory = Nothing
-                }
-            , Cmd.batch
-                [ Theater.replace replacement
-                , Theater.focus
-                , clearUrl model.saved
-                ]
-            )
 
 doAction :
   String -> (String -> Maybe Replacement) -> Model -> ( Model, Cmd msg )
@@ -361,11 +374,11 @@ doAction action f model =
             if backup.action == action then
               ( let parse = Parse.update oldCode model.parse in
                   { model
-                  | saved = False
-                  , parse = parse
+                  | parse = parse
+                  , memory = Nothing
+                  , saved = False
                   , buffet =
                       Buffet.update parse.suggestions model.buffet
-                  , memory = Nothing
                   }
               , Cmd.batch
                   [ Theater.hardUndo, clearUrl model.saved ]
@@ -376,11 +389,11 @@ doAction action f model =
         let code = Replacement.apply replacement oldCode in
           ( let parse = Parse.update code model.parse in
               { model
-              | saved = False
-              , parse = parse
+              | parse = parse
+              , memory = Just { action = action, code = oldCode }
+              , saved = False
               , buffet =
                   Buffet.update parse.suggestions model.buffet
-              , memory = Just { action = action, code = oldCode }
               }
           , Cmd.batch
               [ case model.memory of
@@ -429,15 +442,19 @@ view model =
     [ span
         [ style
             [ ( "position", "relative" )
-            , ( "display", "inline-grid" )
+            , ( "display", "grid" )
             , ( "grid", """
-"playStyle ."
 "bpm ."
-"key ."
 "lowestNote ."
+"key ."
 "theater save"
 "buffet ."
-/ 37.5em auto
+"tabs ."
+"playStyle playStyle"
+"song song"
+"paneSelector paneSelector"
+"pane pane"
+/ minmax(auto, 37.5em) 1fr
 """
               )
             , ( "align-items", "center" )
@@ -446,21 +463,17 @@ view model =
             ]
         ]
         [ Html.Lazy.lazy2
-            viewPlayStyle
-            model.playStyle
-            model.strumInterval
-        , Html.Lazy.lazy2
             viewBpm
             (hasBackup "bpm" model)
             (Maybe.withDefault model.parse.bpm model.bpm)
         , Html.Lazy.lazy2
-            viewKey
-            (hasBackup "key" model)
-            model.parse.scale
-        , Html.Lazy.lazy2
             viewLowestNote
             (hasBackup "lowestNote" model)
             (Maybe.withDefault model.parse.lowestNote model.lowestNote)
+        , Html.Lazy.lazy2
+            viewKey
+            (hasBackup "key" model)
+            model.parse.scale
         , div
             [ id "theater"
             , style
@@ -485,19 +498,33 @@ view model =
             , disabled model.saved
             , style
                 [ ( "grid-area", "save" )
+                , ( "justify-self", "start")
                 , ( "align-self", "end" )
                 , ( "margin-left", "5px" )
                 ]
             ]
             [ Html.text "Save in URL"
             ]
+        , Html.Lazy.lazy2
+            viewPlayStyle
+            model.playStyle
+            model.strumInterval
+        , Html.Lazy.lazy2 viewSong model.player model.parse
+        , Html.Lazy.lazy
+            viewPaneSelector
+            model.pane
+        , case model.pane of
+            FifthsPane ->
+              Html.Lazy.lazy2
+                viewCircleOfFifths
+                model.parse.scale
+                model.player
+            HistoryPane ->
+              Html.Lazy.lazy2
+                viewHistory
+                  model.parse.scale
+                  model.history
         ]
-    , Html.Lazy.lazy2 viewSong model.player model.parse
-    , Html.Lazy.lazy2 viewCircleOfFifths model.parse.scale model.player
-    , Html.Lazy.lazy2
-        History.view
-        model.parse.scale.root
-        model.history.sequences
     , div []
         [ a
             [ href "https://github.com/evanshort73/chords" ]
@@ -512,67 +539,6 @@ hasBackup action model =
       False
     Just backup ->
       backup.action == action
-
-viewPlayStyle : PlayStyle -> Float -> Html Msg
-viewPlayStyle playStyle strumInterval =
-  span
-    [ style
-        [ ( "grid-area", "playStyle" )
-        , ( "display", "flex" )
-        , ( "align-items", "center" )
-        ]
-    ]
-    ( List.concat
-        [ [ Html.text "Play chords as\xA0"
-          , span
-              [ class "radio"
-              ]
-              [ button
-                  [ onClick (SetPlayStyle ArpeggioStyle)
-                  , classList [ ( "chosen", playStyle == ArpeggioStyle ) ]
-                  ]
-                  [ Html.text "Arpeggio", span [] [], span [] [] ]
-              , button
-                  [ onClick (SetPlayStyle StrumStyle)
-                  , classList [ ( "chosen", playStyle == StrumStyle ) ]
-                  ]
-                  [ Html.text "Strum", span [] [], span [] [] ]
-              , button
-                  [ onClick (SetPlayStyle PadStyle)
-                  , classList [ ( "chosen", playStyle == PadStyle ) ]
-                  ]
-                  [ Html.text "Pad", span [] [], span [] [] ]
-              ]
-          ]
-        , if playStyle == StrumStyle then
-            [ Html.text "\xA0"
-            , input
-                [ type_ "range"
-                , onInput SetStrumInterval
-                , Attributes.min "0"
-                , Attributes.max "100"
-                , Attributes.step "20"
-                , value (toString (1000 * strumInterval))
-                , style
-                    [ ( "width", "5em" )
-                    ]
-                ]
-                []
-            , Html.text "\xA0"
-            , span
-                [ style
-                    [ ( "line-height", "1.25" )
-                    , ( "white-space", "normal" )
-                    ]
-                ]
-                [ Html.text
-                    (toString (1000 * strumInterval) ++ "ms between notes")
-                ]
-            ]
-          else
-            []
-        ]
-    )
 
 viewBpm : Bool -> Float -> Html Msg
 viewBpm hasBackup bpm =
@@ -710,15 +676,84 @@ viewBuffet : Buffet -> Html Msg
 viewBuffet buffet =
   Html.map BuffetMsg (Buffet.view buffet)
 
+viewPlayStyle : PlayStyle -> Float -> Html Msg
+viewPlayStyle playStyle strumInterval =
+  span
+    [ style
+        [ ( "grid-area", "playStyle" )
+        , ( "display", "flex" )
+        , ( "align-items", "center" )
+        ]
+    ]
+    ( List.concat
+        [ [ Html.text "Play chords as\xA0"
+          , Html.map
+              SetPlayStyle
+              ( Radio.view
+                  playStyle
+                  [ ( "Arpeggio", ArpeggioStyle )
+                  , ( "Strum", StrumStyle )
+                  , ( "Pad", PadStyle )
+                  ]
+              )
+          ]
+        , if playStyle == StrumStyle then
+            [ Html.text "\xA0"
+            , input
+                [ type_ "range"
+                , onInput SetStrumInterval
+                , Attributes.min "0"
+                , Attributes.max "100"
+                , Attributes.step "20"
+                , value (toString (1000 * strumInterval))
+                , style
+                    [ ( "width", "5em" )
+                    ]
+                ]
+                []
+            , Html.text "\xA0"
+            , span
+                [ style
+                    [ ( "line-height", "1.25" )
+                    , ( "white-space", "normal" )
+                    ]
+                ]
+                [ Html.text
+                    (toString (1000 * strumInterval) ++ "ms between notes")
+                ]
+            ]
+          else
+            []
+        ]
+    )
+
 viewSong : Player -> Parse -> Html Msg
 viewSong player parse =
   Html.map
     PlayStatusMsg
     ( Song.view
+        "song"
         parse.scale.root
         (Player.status player)
         (Parse.song parse)
     )
+
+viewPaneSelector : Pane -> Html Msg
+viewPaneSelector pane =
+  span
+    [ style
+        [ ( "grid-area", "paneSelector" )
+        ]
+    ]
+    [ Html.map
+        SetPane
+        ( Radio.view
+            pane
+            [ ( "Circle of fifths", FifthsPane )
+            , ( "Recently played", HistoryPane )
+            ]
+        )
+    ]
 
 viewCircleOfFifths : Scale -> Player -> Html Msg
 viewCircleOfFifths scale player =
@@ -731,4 +766,15 @@ viewCircleOfFifths scale player =
   in
     Html.map
       PlayStatusMsg
-      (CircleOfFifths.view key (Player.status player))
+      (CircleOfFifths.view "pane" key (Player.status player))
+
+viewHistory : Scale -> History -> Html Msg
+viewHistory scale history =
+  let
+    key =
+      if scale.minor then
+        (scale.root + 3) % 12
+      else
+        scale.root
+  in
+    History.view "pane" key history

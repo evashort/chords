@@ -22,11 +22,6 @@
       line-height: initial;
       box-sizing: border-box;
     }
-    .radio {
-      position: relative;
-      display: inline-grid;
-      grid-template-columns: auto 1px auto 1px auto;
-    }
     .radio > button {
       padding: 2px 3px;
       border: 1px solid darkgray;
@@ -34,30 +29,15 @@
       box-shadow: inset 0.2em 1.2em 0.7em -0.7em rgba(255, 255, 255, 1);
       transition-property: background-color, box-shadow;
       transition-duration: 0.2s;
-      grid-row: 1;
     }
     .radio > button:first-of-type {
       box-shadow: inset 0.7em 1.2em 0.7em -0.7em rgba(255, 255, 255, 1);
-      border-radius: 0.22em 0 0 0.22em;
-      grid-column: 1 / 3;
-    }
-    .radio > button:nth-of-type(2) {
-      grid-column: 2 / 5;
+      border-top-left-radius: 0.22em;
+      border-bottom-left-radius: 0.22em;
     }
     .radio > button:last-of-type {
-      border-radius: 0 0.22em 0.22em 0;
-      grid-column: 4 / 6;
-    }
-    .radio > button:first-of-type > span {
-      border-radius: 0.22em 0 0 0.22em;
-      grid-column: 1 / 3;
-    }
-    .radio > button:nth-of-type(2) > span {
-      grid-column: 2 / 5;
-    }
-    .radio > button:last-of-type > span {
-      border-radius: 0 0.22em 0.22em 0;
-      grid-column: 4 / 6;
+      border-top-right-radius: 0.22em;
+      border-bottom-right-radius: 0.22em;
     }
     .radio > button:hover {
       background: lightblue;
@@ -82,40 +62,36 @@
     .radio > button:first-of-type.chosen {
       box-shadow: inset 0.7em 1.2em 0.7em -0.7em rgba(255, 255, 255, 0.5);
     }
-    .radio > button > span {
+    .radio > button > .hover {
+      grid-column: inherit;
       position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
       pointer-events: none;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      right: 0;
-      border: 1px solid;
       opacity: 0;
       transition-property: opacity;
       transition-duration: inherit;
-    }
-    .radio > button > span:first-of-type {
+      border: 1px solid;
+      border-radius: inherit;
       border-color: dodgerblue;
       z-index: 1;
     }
-    .radio > button:hover > span:first-of-type {
-      opacity: 1;
-    }
-    .radio > button > span:last-of-type {
+    .radio > button > .active {
+      grid-column: inherit;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition-property: opacity;
+      transition-duration: inherit;
+      border: 1px solid;
+      border-radius: inherit;
       border-color: gray;
     }
-    .radio > button:active > span:first-of-type {
-      opacity: 0;
-    }
-    .radio > button:active > span:last-of-type {
-      opacity: 1;
-    }
-    .radio > button.chosen > span:first-of-type {
-      opacity: 0;
-    }
-    .radio > button.chosen > span:last-of-type {
-      opacity: 1;
-    }
+    .radio > button:hover > .hover { opacity: 1; }
+    .radio > button:active > .hover { opacity: 0; }
+    .radio > button:active > .active { opacity: 1; }
+    .radio > button.chosen > .hover { opacity: 0; }
+    .radio > button.chosen > .active { opacity: 1; }
     </style>
   </head>
   <body>

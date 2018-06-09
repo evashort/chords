@@ -1,4 +1,4 @@
-port module Theater exposing
+module Theater exposing
   (Frame, init, focus, replace, undoAndReplace, hardUndo)
 
 import Ports

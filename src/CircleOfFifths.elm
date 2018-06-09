@@ -26,8 +26,8 @@ idByRoot firstId chord =
   , chord = chord
   }
 
-view : Int -> PlayStatus -> Html PlayStatus.Msg
-view key playStatus =
+view : String -> Int -> PlayStatus -> Html PlayStatus.Msg
+view gridArea key playStatus =
   let
     rInner = 100
   in let
@@ -56,48 +56,52 @@ view key playStatus =
   in
     Html.span
       [ style
-          [ ( "position", "relative" )
-          , ( "display", "inline-block" )
+          [ ( "grid-area", gridArea )
+          , ( "position", "relative" )
           , ( "font-size", "18pt" )
-          , ( "text-align", "center" )
-          , ( "-webkit-touch-callout", "none" )
-          , ( "-webkit-user-select", "none" )
-          , ( "-khtml-user-select", "none" )
-          , ( "-moz-user-select", "none" )
-          , ( "-ms-user-select", "none" )
-          , ( "user-select", "none" )
           ]
       ]
-      ( List.concat
-          [ [ Svg.svg
-                [ width "500"
-                , height "500"
-                , viewBox "0 0 500 500"
-                ]
-                ( List.concat
-                    [ [ gradients ]
-                    , keyShadow
-                    , List.concat
-                        ( List.indexedMap
-                            (viewChord key playStatus rMid rOuter)
-                            majorChords
-                        )
-                    , List.concat
-                        ( List.indexedMap
-                            (viewChord key playStatus rInner rMid)
-                            minorChords
-                        )
-                    ]
-                )
-            ]
-          , List.indexedMap
-              (viewChordText stopButtonId (0.5 * (rMid + rOuter)))
-              majorChords
-          , List.indexedMap
-              (viewChordText stopButtonId (0.5 * (rInner + rMid)))
-              minorChords
+      [ Svg.svg
+          [ width "500"
+          , height "500"
+          , viewBox "0 0 500 500"
           ]
-      )
+          ( List.concat
+              [ [ gradients ]
+              , keyShadow
+              , List.concat
+                  ( List.indexedMap
+                      (viewChord key playStatus rMid rOuter)
+                      majorChords
+                  )
+              , List.concat
+                  ( List.indexedMap
+                      (viewChord key playStatus rInner rMid)
+                      minorChords
+                  )
+              ]
+          )
+      , Html.span
+          [ style
+              [ ( "position", "absolute" )
+              , ( "top", "0" )
+              , ( "left", "0" )
+              , ( "bottom", "0" )
+              , ( "right", "0" )
+              , ( "pointer-events", "none" )
+              , ( "text-align", "center" )
+              ]
+          ]
+          ( List.concat
+              [ List.indexedMap
+                  (viewChordText stopButtonId (0.5 * (rMid + rOuter)))
+                  majorChords
+              , List.indexedMap
+                  (viewChordText stopButtonId (0.5 * (rInner + rMid)))
+                  minorChords
+              ]
+          )
+      ]
 
 gradients : Svg msg
 gradients =
@@ -221,38 +225,31 @@ viewChordText stopButtonId r i { id, chord } =
     ( x, y ) =
       polar r (2 * pi * (0.25 - toFloat i / 12))
   in
-    if id == stopButtonId then
-      Html.span
-        [ style
-            [ ( "position", "absolute" )
-            , ( "left", toString (x - 10) ++ "px" )
-            , ( "top", toString (y - 10) ++ "px" )
-            , ( "pointer-events", "none" )
-            , ( "background", Colour.fg chord )
-            , ( "width", "20px" )
-            , ( "height", "20px" )
-            ]
-        ]
-        []
-    else
-      Html.span
-        [ style
-            [ ( "position", "absolute" )
-            , ( "left", toString (x - 0.5 * 75) ++ "px" )
-            , ( "top", toString (y - 0.5 * 75) ++ "px" )
-            , ( "pointer-events", "none" )
-            , ( "line-height", "75px" )
-            , ( "color", Colour.fg chord )
-            ]
-        ]
-        [ Html.span
-            [ style
-                [ ( "display", "inline-block" )
-                , ( "width", "75px" )
-                ]
-            ]
-            (Name.view chord)
-        ]
+    Html.span
+      [ style
+          [ ( "position", "absolute" )
+          , ( "left", toString (x - 0.5 * 75) ++ "px" )
+          , ( "top", toString (y - 0.5 * 75) ++ "px" )
+          , ( "width", "75px" )
+          , ( "line-height", "75px" )
+          , ( "color", Colour.fg chord )
+          ]
+      ]
+      ( if id == stopButtonId then
+          [ Html.span
+              [ style
+                  [ ( "width", "20px" )
+                  , ( "height", "20px" )
+                  , ( "display", "inline-block" )
+                  , ( "vertical-align", "middle" )
+                  , ( "background", Colour.fg chord )
+                  ]
+              ]
+              []
+          ]
+        else
+          Name.view chord
+      )
 
 twelfth : Float -> Float -> Float -> Int -> String
 twelfth padding rInner rOuter i =
