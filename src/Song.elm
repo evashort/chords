@@ -21,7 +21,7 @@ view gridArea key playStatus song =
         , ( "grid-auto-columns", "75px" )
         , ( "grid-row-gap", "5px" )
         , ( "grid-column-gap", "5px" )
-        , ( "font-size", "18pt" )
+        , ( "font-size", "175%" )
         ]
     ]
     ( List.concatMap
@@ -120,8 +120,8 @@ viewChord key playStatus y x { id, chord } =
             [ span
                 [ style
                    [ ( "background", Colour.fg chord )
-                   , ( "width", "20px" )
-                   , ( "height", "20px" )
+                   , ( "width", "1em" )
+                   , ( "height", "1em" )
                    , ( "display", "inline-block" )
                    , ( "vertical-align", "middle" )
                    ]

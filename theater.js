@@ -16,7 +16,7 @@ function createScene(index, frame) {
   scene.style.resize = "none";
   scene.style.overflow = "hidden";
   scene.style.boxSizing = "border-box";
-  scene.style.padding = "10px";
+  scene.style.padding = "8px";
   scene.style.borderWidth = "2px";
   scene.style.margin = "0";
   scene.style.font = "inherit";

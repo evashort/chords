@@ -30,14 +30,15 @@ view swatches =
     , onClick Replace
     , style
         [ ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "13pt" )
-        , ( "padding", "1px" )
+        , ( "font-size", "200%" )
+        , ( "padding", "0" )
+        , ( "min-width", "3ch" )
         ]
     ]
     [ span
         [ style
             [ ( "background", "white" )
-            , ( "padding", "2px" )
+            , ( "padding", "0 8px" )
             , ( "display", "block" )
             ]
         ]

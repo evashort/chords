@@ -100,8 +100,11 @@ view buffet =
     ( if buffet.suggestions == [] then
         []
       else
-        Html.text "Suggested replacements (click to use)\xA0" ::
-          (List.indexedMap viewSuggestion buffet.suggestions)
+        Html.text "Suggested replacements (click to use) " ::
+          ( List.intersperse
+              (Html.text " ")
+              (List.indexedMap viewSuggestion buffet.suggestions)
+          )
     )
 
 viewSuggestion : Int -> Suggestion -> Html Msg

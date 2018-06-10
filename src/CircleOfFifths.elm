@@ -58,7 +58,7 @@ view gridArea key playStatus =
       [ style
           [ ( "grid-area", gridArea )
           , ( "position", "relative" )
-          , ( "font-size", "18pt" )
+          , ( "font-size", "175%" )
           ]
       ]
       [ Svg.svg
@@ -238,8 +238,8 @@ viewChordText stopButtonId r i { id, chord } =
       ( if id == stopButtonId then
           [ Html.span
               [ style
-                  [ ( "width", "20px" )
-                  , ( "height", "20px" )
+                  [ ( "width", "1em" )
+                  , ( "height", "1em" )
                   , ( "display", "inline-block" )
                   , ( "vertical-align", "middle" )
                   , ( "background", Colour.fg chord )

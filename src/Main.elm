@@ -544,7 +544,7 @@ viewTitle =
     ]
     [ span
         [ style
-            [ ( "font-size", "18pt" )
+            [ ( "font-size", "175%" )
             , ( "line-height", "initial" )
             ]
         ]
@@ -669,7 +669,7 @@ viewHighlights parse buffet =
         , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
         , ( "font-size", "200%" )
         , ( "line-height", "initial" )
-        , ( "padding", "10px" )
+        , ( "padding", "8px" )
         , ( "border", "2px solid")
         , ( "margin", "0" )
         , ( "white-space", "pre-wrap" )
