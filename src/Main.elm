@@ -22,7 +22,7 @@ import Theater
 
 import AnimationFrame
 import Html exposing
-  ( Html, Attribute, a, button, div, pre, span, text, textarea, input
+  ( Html, Attribute, a, button, div, pre, span, textarea, input
   , select, option
   )
 import Html.Attributes as Attributes exposing
@@ -437,13 +437,12 @@ view model =
           , "Arial, \"Helvetica Neue\", Helvetica, sans-serif"
           )
         , ( "font-size", "85%" )
-        ]
-    ]
-    [ span
-        [ style
-            [ ( "position", "relative" )
-            , ( "display", "grid" )
-            , ( "grid", """
+        , ( "line-height", "2.2" )
+        , ( "white-space", "nowrap" )
+        , ( "position", "relative" )
+        , ( "display", "grid" )
+        , ( "grid", """
+"title ."
 "bpm ."
 "lowestNote ."
 "key ."
@@ -456,80 +455,73 @@ view model =
 "pane pane"
 / minmax(auto, 37.5em) 1fr
 """
+          )
+        , ( "align-items", "center" )
+        ]
+    ]
+    [ viewTitle
+    , Html.Lazy.lazy2
+        viewBpm
+        (hasBackup "bpm" model)
+        (Maybe.withDefault model.parse.bpm model.bpm)
+    , Html.Lazy.lazy2
+        viewLowestNote
+        (hasBackup "lowestNote" model)
+        (Maybe.withDefault model.parse.lowestNote model.lowestNote)
+    , Html.Lazy.lazy2
+        viewKey
+        (hasBackup "key" model)
+        model.parse.scale
+    , div
+        [ id "theater"
+        , style
+            [ ( "grid-area", "theater" )
+            , ( "font-family"
+              , "\"Lucida Console\", Monaco, monospace"
               )
-            , ( "align-items", "center" )
-            , ( "line-height", "2.2" )
-            , ( "white-space", "nowrap" )
+            , ( "font-size", "200%" )
+            , ( "line-height", "initial" )
+            , ( "position", "absolute" )
+            , ( "top", "0" )
+            , ( "left", "0" )
+            , ( "right", "0" )
+            , ( "bottom", "0" )
             ]
         ]
-        [ Html.Lazy.lazy2
-            viewBpm
-            (hasBackup "bpm" model)
-            (Maybe.withDefault model.parse.bpm model.bpm)
-        , Html.Lazy.lazy2
-            viewLowestNote
-            (hasBackup "lowestNote" model)
-            (Maybe.withDefault model.parse.lowestNote model.lowestNote)
-        , Html.Lazy.lazy2
-            viewKey
-            (hasBackup "key" model)
+        []
+    , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
+    , Html.Lazy.lazy viewBuffet model.buffet
+    , button
+        [ onClick Save
+        , disabled model.saved
+        , style
+            [ ( "grid-area", "save" )
+            , ( "justify-self", "start")
+            , ( "align-self", "end" )
+            , ( "margin-left", "8px" )
+            ]
+        ]
+        [ Html.text "Save in URL"
+        ]
+    , Html.Lazy.lazy2
+        viewPlayStyle
+        model.playStyle
+        model.strumInterval
+    , Html.Lazy.lazy2 viewSong model.player model.parse
+    , Html.Lazy.lazy
+        viewPaneSelector
+        model.pane
+    , case model.pane of
+        FifthsPane ->
+          Html.Lazy.lazy2
+            viewCircleOfFifths
             model.parse.scale
-        , div
-            [ id "theater"
-            , style
-                [ ( "grid-area", "theater" )
-                , ( "font-family"
-                  , "\"Lucida Console\", Monaco, monospace"
-                  )
-                , ( "font-size", "200%" )
-                , ( "line-height", "initial" )
-                , ( "position", "absolute" )
-                , ( "top", "0" )
-                , ( "left", "0" )
-                , ( "right", "0" )
-                , ( "bottom", "0" )
-                ]
-            ]
-            [ ]
-        , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
-        , Html.Lazy.lazy viewBuffet model.buffet
-        , button
-            [ onClick Save
-            , disabled model.saved
-            , style
-                [ ( "grid-area", "save" )
-                , ( "justify-self", "start")
-                , ( "align-self", "end" )
-                , ( "margin-left", "5px" )
-                ]
-            ]
-            [ Html.text "Save in URL"
-            ]
-        , Html.Lazy.lazy2
-            viewPlayStyle
-            model.playStyle
-            model.strumInterval
-        , Html.Lazy.lazy2 viewSong model.player model.parse
-        , Html.Lazy.lazy
-            viewPaneSelector
-            model.pane
-        , case model.pane of
-            FifthsPane ->
-              Html.Lazy.lazy2
-                viewCircleOfFifths
-                model.parse.scale
-                model.player
-            HistoryPane ->
-              Html.Lazy.lazy2
-                viewHistory
-                  model.parse.scale
-                  model.history
-        ]
-    , div []
-        [ a
-            [ href "https://github.com/evanshort73/chords" ]
-            [ text "GitHub" ]
-        ]
+            model.player
+        HistoryPane ->
+          Html.Lazy.lazy2
+            viewHistory
+              model.parse.scale
+              model.history
     ]
 
 hasBackup : String -> Model -> Bool
@@ -540,6 +532,32 @@ hasBackup action model =
     Just backup ->
       backup.action == action
 
+viewTitle : Html msg
+viewTitle =
+  span
+    [ style
+        [ ( "grid-area", "title" )
+        , ( "display", "flex" )
+        , ( "align-items", "center" )
+        , ( "justify-content", "space-between" )
+        ]
+    ]
+    [ span
+        [ style
+            [ ( "font-size", "18pt" )
+            , ( "line-height", "initial" )
+            ]
+        ]
+        [ Html.text "Chord progression editor"
+        ]
+    , a
+        [ href "https://github.com/evanshort73/chords"
+        ]
+        [ Html.text "View on GitHub"
+        ]
+    ]
+
+
 viewBpm : Bool -> Float -> Html Msg
 viewBpm hasBackup bpm =
   span
@@ -548,6 +566,7 @@ viewBpm hasBackup bpm =
         , yellowIf hasBackup
         , ( "display", "flex" )
         , ( "align-items", "center" )
+        , ( "margin-top", "8px" )
         ]
     ]
     [ span []
@@ -683,6 +702,7 @@ viewPlayStyle playStyle strumInterval =
         [ ( "grid-area", "playStyle" )
         , ( "display", "flex" )
         , ( "align-items", "center" )
+        , ( "margin-top", "8px" )
         ]
     ]
     ( List.concat
@@ -743,6 +763,7 @@ viewPaneSelector pane =
   span
     [ style
         [ ( "grid-area", "paneSelector" )
+        , ( "margin-top", "8px" )
         ]
     ]
     [ Html.map
