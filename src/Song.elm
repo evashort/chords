@@ -21,7 +21,7 @@ view gridArea key playStatus song =
         , ( "grid-auto-columns", "75px" )
         , ( "grid-row-gap", "5px" )
         , ( "grid-column-gap", "5px" )
-        , ( "font-size", "175%" )
+        , ( "font-size", "150%" )
         ]
     ]
     ( List.concatMap

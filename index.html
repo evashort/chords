@@ -22,6 +22,9 @@
       line-height: initial;
       box-sizing: border-box;
     }
+    select {
+      font: inherit;
+    }
     .radio > button {
       padding: 2px 3px;
       border: 1px solid darkgray;
@@ -95,7 +98,6 @@
     </style>
   </head>
   <body>
-    <div id="main"></div>
     <script>
       var app = Elm.Main.fullscreen();
       app.ports.changeAudio.subscribe(changeAudio);

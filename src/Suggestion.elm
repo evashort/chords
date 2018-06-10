@@ -30,7 +30,7 @@ view swatches =
     , onClick Replace
     , style
         [ ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "200%" )
+        , ( "font-size", "160%" )
         , ( "padding", "0" )
         , ( "min-width", "3ch" )
         ]

@@ -38,7 +38,7 @@ view gridArea key history =
     [ style
         [ ( "grid-area", gridArea )
         , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "200%" )
+        , ( "font-size", "160%" )
         , ( "line-height", "initial" )
         ]
     ]

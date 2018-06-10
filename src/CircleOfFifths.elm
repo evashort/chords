@@ -58,7 +58,7 @@ view gridArea key playStatus =
       [ style
           [ ( "grid-area", gridArea )
           , ( "position", "relative" )
-          , ( "font-size", "175%" )
+          , ( "font-size", "150%" )
           ]
       ]
       [ Svg.svg

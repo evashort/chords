@@ -436,8 +436,7 @@ view model =
         [ ( "font-family"
           , "Arial, \"Helvetica Neue\", Helvetica, sans-serif"
           )
-        , ( "font-size", "85%" )
-        , ( "line-height", "2.2" )
+        , ( "line-height", "1.9" )
         , ( "white-space", "nowrap" )
         , ( "position", "relative" )
         , ( "display", "grid" )
@@ -447,8 +446,7 @@ view model =
 "lowestNote ."
 "key ."
 "theater save"
-"buffet ."
-"tabs ."
+"buffet buffet"
 "playStyle playStyle"
 "song song"
 "paneSelector paneSelector"
@@ -479,7 +477,7 @@ view model =
             , ( "font-family"
               , "\"Lucida Console\", Monaco, monospace"
               )
-            , ( "font-size", "200%" )
+            , ( "font-size", "160%" )
             , ( "line-height", "initial" )
             , ( "position", "absolute" )
             , ( "top", "0" )
@@ -544,7 +542,7 @@ viewTitle =
     ]
     [ span
         [ style
-            [ ( "font-size", "175%" )
+            [ ( "font-size", "150%" )
             , ( "line-height", "initial" )
             ]
         ]
@@ -667,7 +665,7 @@ viewHighlights parse buffet =
     [ style
         [ ( "grid-area", "theater" )
         , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "200%" )
+        , ( "font-size", "160%" )
         , ( "line-height", "initial" )
         , ( "padding", "8px" )
         , ( "border", "2px solid")
