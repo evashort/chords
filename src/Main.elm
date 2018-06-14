@@ -90,9 +90,9 @@ init location =
       , buffet = Buffet.init parse.suggestions
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
-      , player = { openings = [], schedule = [] }
+      , player = Player.init
       , pane = FifthsPane
-      , history = { sequences = [], current = [] }
+      , history = History.init
       }
     , Cmd.batch
         [ Theater.init
@@ -283,14 +283,10 @@ update msg model =
     CurrentTime now ->
       ( case Player.setTime now model.player of
           Nothing -> model
-          Just ( player, sequenceFinished ) ->
+          Just ( player, sequence ) ->
             { model
             | player = player
-            , history =
-                if sequenceFinished then
-                  History.finishSequence model.history
-                else
-                  model.history
+            , history = History.add sequence model.history
             }
       , Cmd.none
       )
@@ -303,19 +299,10 @@ update msg model =
 
     Play ( idChord, now ) ->
       let
-        ( player, sequenceFinished ) =
+        ( player, sequence ) =
           Maybe.withDefault
-            ( model.player, False )
+            ( model.player, [] )
             (Player.setTime now model.player)
-      in let
-        newHistory =
-          History.add
-            idChord.chord
-            ( if sequenceFinished then
-                History.finishSequence model.history
-              else
-                model.history
-            )
       in let
         lowestNote = model.parse.lowestNote
       in let
@@ -330,18 +317,21 @@ update msg model =
             PadStyle ->
               Player.pad lowestNote idChord now player
       in
-        ( { model | player = newPlayer, history = newHistory }
+        ( { model
+          | player = newPlayer
+          , history = History.add sequence model.history
+          }
         , AudioChange.perform changes
         )
 
     Stop now ->
       let
-        ( player, changes ) =
+        ( player, sequence, changes ) =
           Player.stop now model.player
       in
         ( { model
           | player = player
-          , history = History.finishSequence model.history
+          , history = History.add sequence model.history
           }
         , AudioChange.perform changes
         )
@@ -516,10 +506,11 @@ view model =
             model.parse.scale
             model.player
         HistoryPane ->
-          Html.Lazy.lazy2
+          Html.Lazy.lazy3
             viewHistory
               model.parse.scale
               model.history
+              model.player
     ]
 
 hasBackup : String -> Model -> Bool
@@ -787,8 +778,8 @@ viewCircleOfFifths scale player =
       PlayStatusMsg
       (CircleOfFifths.view "pane" key (Player.status player))
 
-viewHistory : Scale -> History -> Html Msg
-viewHistory scale history =
+viewHistory : Scale -> History -> Player -> Html Msg
+viewHistory scale history player =
   let
     key =
       if scale.minor then
@@ -796,4 +787,9 @@ viewHistory scale history =
       else
         scale.root
   in
-    History.view "pane" key history
+    History.view
+      "pane"
+      key
+      history
+      (Player.sequence player)
+      (Player.sequenceFinished player)
