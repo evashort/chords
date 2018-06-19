@@ -3,6 +3,7 @@ module Paragraph exposing
 
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
+import MapCells exposing (mapCells)
 import Replacement exposing (Replacement)
 import Song exposing (Song)
 import Substring exposing (Substring)
@@ -73,6 +74,4 @@ suggestions key paragraph =
 
 mapChords : (Chord -> Chord) -> List Substring -> List Replacement
 mapChords f lines =
-  List.filterMap
-    (Word.mapChord f)
-    (List.concatMap (Substring.find All wordRegex) lines)
+  mapCells (Word.mapChord f) lines

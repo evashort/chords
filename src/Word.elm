@@ -6,7 +6,6 @@ import Colour
 import Highlight exposing (Highlight)
 import Name
 import PlayStatus exposing (IdChord)
-import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
 
@@ -99,13 +98,13 @@ suggestion key word =
           , word.substring
           )
 
-mapChord : (Chord -> Chord) -> Substring -> Maybe Replacement
-mapChord f substring =
-  case Chord.fromCode substring.s of
+mapChord : (Chord -> Chord) -> String -> String
+mapChord f string =
+  case Chord.fromCode string of
     Nothing ->
-      Nothing
+      string
     Just chord ->
-      if Name.code chord == substring.s then
-        Just { old = substring, new = Name.code (f chord) }
+      if Name.code chord == string then
+        Name.code (f chord)
       else
-        Nothing
+        string
