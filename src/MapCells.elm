@@ -1,7 +1,6 @@
 module MapCells exposing (mapCells)
 
 import List1 exposing (List1)
-import List2 exposing (List2)
 import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 
@@ -10,101 +9,79 @@ import Regex exposing (Regex, HowMany(..))
 mapCells : (String -> String) -> List Substring -> List Replacement
 mapCells f lines =
   let
-    maybeRows =
-      List.map
-        (List1.fromList << Substring.find All wordRegex)
-        lines
-  in let
-    rows = List.filterMap identity maybeRows
-  in let
-    rows2 = List.filterMap List2.fromList1 rows
-  in let
-    filteredMappedRows = mapCellsHelp f rows2
-  in let
-    mappedRows =
-      mapCellsHelp2 f rows filteredMappedRows
+    rows = List.filterMap (toRow f) lines
   in
     List.map2
       Replacement
-      (filterLike maybeRows lines)
-      mappedRows
+      (List.filter (not << String.isEmpty << .s) lines)
+      (mapCellsHelp rows)
+
+type alias Row = List1 Replacement
+
+toRow : (String -> String) -> Substring -> Maybe Row
+toRow f line =
+  List1.fromList
+    (List.map (toCell f) (Substring.find All wordRegex line))
 
 wordRegex : Regex
 wordRegex = Regex.regex "[^ ]+"
 
-mapCellsHelp :
-  (String -> String) -> List (List2 Substring) -> List String
-mapCellsHelp f rows =
+toCell : (String -> String) -> Substring -> Replacement
+toCell f old =
+  Replacement old (f old.s)
+
+mapCellsHelp : List Row -> List String
+mapCellsHelp rows =
+  let
+    groups = groupByWidth [] rows
+  in let
+    branches = List.concatMap mapGroupCells groups
+  in let
+    leaves = List.map rowLeaf rows
+  in
+    withDefaults branches leaves
+
+type alias Group =
+  { width : Int
+  , rows : List1 Row
+  }
+
+groupByWidth : List Row -> List Row -> (List Group)
+groupByWidth past rows =
   case rows of
     [] ->
       []
-    row :: _ ->
-      let
-        oldWidth = firstColumnWidth row
-      in let
-        group =
-          takeWhile
-            ((==) oldWidth << firstColumnWidth)
-            rows
-      in let
-        oldStrings = List.map (.s << .first) group
-      in let
-        oldMaxLength =
-          maximum (List.map String.length oldStrings)
-      in let
-        newStrings = List.map f oldStrings
-      in let
-        newMaxLength =
-          maximum (List.map String.length newStrings)
-      in let
-        newWidth =
-          if oldWidth > oldMaxLength + 1 then
-            max oldWidth (newMaxLength + 1)
-          else
-            newMaxLength + 1
-      in let
-        paddedStrings =
-          List.map
-            (String.padRight newWidth ' ')
-            newStrings
-      in let
-        afterColumn = List.filterMap List2.tail2 group
-      in let
-        filteredSuffixes = mapCellsHelp f afterColumn
-      in let
-        group1 = List.map List2.tail1 group
-      in let
-        suffixes =
-          mapCellsHelp2 f group1 filteredSuffixes
-      in let
-        mappedGroup =
-          List.map2 (++) paddedStrings suffixes
-      in let
-        afterGroup = List.drop (List.length group) rows
-      in
-        mappedGroup ++ mapCellsHelp f afterGroup
+    row :: rest ->
+      case row.rest of
+        [] ->
+          groupByWidth (row :: past) rest
+        second :: _ ->
+          let
+            width = second.old.i - row.first.old.i
+          in let
+            currentGroup =
+              takeWhile (compatibleWith width) rest
+          in let
+            pastGroup =
+              takeWhile (compatibleWith width) past
+          in let
+            groupRows =
+              List1.extendLeft
+                (List.reverse pastGroup)
+                (List1 row currentGroup)
+          in
+            Group width groupRows ::
+              groupByWidth
+                (List.reverse currentGroup)
+                (List.drop (List.length currentGroup) rest)
 
-mapCellsHelp2 :
-  (String -> String) -> List (List1 Substring) -> List String ->
-    List String
-mapCellsHelp2 f rows suffixes =
-  case rows of
+compatibleWith : Int -> Row -> Bool
+compatibleWith width row =
+  case row.rest of
     [] ->
-      []
-    row :: afterRow ->
-      if List.isEmpty row.rest then
-        f row.first.s ::
-          mapCellsHelp2 f afterRow suffixes
-      else
-        case suffixes of
-          [] ->
-            []
-          suffix :: afterSuffix ->
-            suffix :: mapCellsHelp2 f afterRow afterSuffix
-
-firstColumnWidth : List2 Substring -> Int
-firstColumnWidth row =
-  row.second.i - row.first.i
+      String.length row.first.old.s < width
+    second :: _ ->
+      second.old.i - row.first.old.i == width
 
 takeWhile : (a -> Bool) -> List a -> List a
 takeWhile condition xs =
@@ -117,20 +94,57 @@ takeWhile condition xs =
       else
         []
 
-maximum : List comparable -> comparable
-maximum xs =
-  case List.maximum xs of
-    Just x ->
-      x
-    Nothing ->
-      Debug.crash "mapCells: maximum called on empty list"
+mapGroupCells : Group -> List String
+mapGroupCells group =
+  let
+    rest = List1.filterMap List1.tail1 group.rows
+  in let
+    suffixes = mapCellsHelp rest
+  in let
+    oldMaxLength =
+      List1.maximum
+        (List1.map (String.length << .s << .old << .first) group.rows)
+  in let
+    newMaxLength =
+      List1.maximum
+        (List1.map (String.length << .new << .first) group.rows)
+  in let
+    newWidth =
+      if group.width > oldMaxLength + 1 then
+        max group.width (newMaxLength + 1)
+      else
+        newMaxLength + 1
+  in
+    List.map2
+      ((++) << String.padRight newWidth ' ')
+      (List1.filterMap rowStem group.rows)
+      suffixes
 
-filterLike : List (Maybe a) -> List b -> List b
-filterLike model xs =
-  case ( model, xs ) of
-    ( Nothing :: modelRest, _ :: xRest ) ->
-      filterLike modelRest xRest
-    ( _ :: modelRest, x :: xRest ) ->
-      x :: filterLike modelRest xRest
-    _ ->
+rowStem : Row -> Maybe String
+rowStem row =
+  if List.isEmpty row.rest then
+    Nothing
+  else
+    Just row.first.new
+
+rowLeaf : Row -> Maybe String
+rowLeaf row =
+  if List.isEmpty row.rest then
+    Just row.first.new
+  else
+    Nothing
+
+withDefaults : List a -> List (Maybe a) -> List a
+withDefaults defaults maybes =
+  case maybes of
+    [] ->
       []
+    Just x :: laterMaybes ->
+      x :: withDefaults defaults laterMaybes
+    Nothing :: laterMaybes ->
+      case defaults of
+        [] ->
+          []
+        default :: laterDefaults ->
+          default ::
+            withDefaults laterDefaults laterMaybes
