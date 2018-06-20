@@ -14,7 +14,7 @@ mapCells f lines =
     List.map2
       Replacement
       (List.filter (not << String.isEmpty << .s) lines)
-      (mapCellsHelp rows)
+      (List.map String.concat (mapCellsHelp rows))
 
 type alias Row = List1 Replacement
 
@@ -30,7 +30,7 @@ toCell : (String -> String) -> Substring -> Replacement
 toCell f old =
   Replacement old (f old.s)
 
-mapCellsHelp : List Row -> List String
+mapCellsHelp : List Row -> List (List String)
 mapCellsHelp rows =
   let
     groups = groupByWidth [] rows
@@ -94,7 +94,7 @@ takeWhile condition xs =
       else
         []
 
-mapGroupCells : Group -> List String
+mapGroupCells : Group -> List (List String)
 mapGroupCells group =
   let
     rest = List1.filterMap List1.tail1 group.rows
@@ -116,7 +116,7 @@ mapGroupCells group =
         newMaxLength + 1
   in
     List.map2
-      ((++) << String.padRight newWidth ' ')
+      ((::) << String.padRight newWidth ' ')
       (List1.filterMap rowStem group.rows)
       suffixes
 
@@ -127,10 +127,10 @@ rowStem row =
   else
     Just row.first.new
 
-rowLeaf : Row -> Maybe String
+rowLeaf : Row -> Maybe (List String)
 rowLeaf row =
   if List.isEmpty row.rest then
-    Just row.first.new
+    Just [ row.first.new ]
   else
     Nothing
 
