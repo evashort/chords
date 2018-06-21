@@ -92,7 +92,7 @@ init location =
       , saved = maybeText /= Nothing
       , buffet = Buffet.init parse.suggestions
       , playStyle = ArpeggioStyle
-      , strumInterval = 0.06
+      , strumInterval = 0.04
       , player = Player.init
       , pane = DegreesPane
       , history = History.init
