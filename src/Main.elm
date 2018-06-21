@@ -111,7 +111,8 @@ defaultText : String
 defaultText =
   """// Type chord names in this box
 // to create play buttons below
-C G Am F
+C G  Am F
+_ G7
 """
 
 -- UPDATE
