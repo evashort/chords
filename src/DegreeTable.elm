@@ -52,10 +52,20 @@ view gridArea scale playStatus =
                       )
                   )
               )
-          , [ viewCategory 2 "7th" ]
+          , if scale.minor then
+              List.concat
+                [ IdChord.view key playStatus 2 3 (toIdChord (sus4 3))
+                , IdChord.view key playStatus 2 5 (toIdChord (major 7))
+                ]
+            else
+              List.concat
+                [ IdChord.view key playStatus 2 1 (toIdChord (sus4 0))
+                , IdChord.view key playStatus 2 3 (toIdChord (major 4))
+                ]
+          , [ viewCategory 3 "7th" ]
           , List.concat
               ( List.indexedMap
-                  (IdChord.view key playStatus 2 << (+) 1)
+                  (IdChord.view key playStatus 3 << (+) 1)
                   ( List.map
                       toIdChord
                       ( if scale.minor then
@@ -65,19 +75,14 @@ view gridArea scale playStatus =
                       )
                   )
               )
-          , [ viewCategory 3 "Misc." ]
           , if scale.minor then
               List.concat
-                [ IdChord.view key playStatus 3 3 (toIdChord (sus4 3))
-                , IdChord.view key playStatus 3 5 (toIdChord (major 7))
-                , IdChord.view key playStatus 4 2 (toIdChord (diminished7 2))
+                [ IdChord.view key playStatus 4 2 (toIdChord (diminished7 2))
                 , IdChord.view key playStatus 4 5 (toIdChord (dominant7 7))
                 ]
             else
               List.concat
-                [ IdChord.view key playStatus 3 1 (toIdChord (sus4 0))
-                , IdChord.view key playStatus 3 3 (toIdChord (major 4))
-                , IdChord.view key playStatus 4 3 (toIdChord (dominant7 4))
+                [ IdChord.view key playStatus 4 3 (toIdChord (dominant7 4))
                 , IdChord.view key playStatus 4 7 (toIdChord (diminished7 11))
                 ]
           ]
