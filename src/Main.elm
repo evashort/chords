@@ -109,7 +109,7 @@ init location =
 
 defaultText : String
 defaultText =
-  "F   Csus4 C  G  G7\nDm7 FM7   _  E  E7\nDm  Asus4 Am Em\nB0\n"
+  "C G Am F\n"
 
 -- UPDATE
 
