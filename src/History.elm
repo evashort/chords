@@ -4,8 +4,9 @@ import Chord exposing (Chord)
 import Colour
 import Name
 
-import Html exposing (Html, div, mark, span, text)
-import Html.Attributes exposing (style)
+import Html exposing (Html, span, button, text, mark)
+import Html.Attributes exposing (style, disabled)
+import Html.Events exposing (onClick)
 
 type alias History =
   { sequences : List (List Chord)
@@ -28,46 +29,71 @@ add sequence history =
   else
     history
 
-view : String -> Int -> History -> List Chord -> Bool -> Html msg
+view : String -> Int -> History -> List Chord -> Bool -> Html String
 view gridArea key history sequence finished =
   span
     [ style
         [ ( "grid-area", gridArea )
-        , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "160%" )
-        , ( "line-height", "initial" )
-        , ( "white-space", "initial" )
+        , ( "display", "grid" )
+        , ( "grid-template-columns", "auto 1fr" )
+        , ( "align-items", "stretch" )
         ]
     ]
     ( List.concat
         [ if List.length sequence >= 2 then
-            [ viewSequence finished key history.length sequence ]
+            viewSequence finished key history.length sequence
           else
             []
-        , List.indexedMap
-            (viewSequence True key << (-) (history.length - 1))
-            history.sequences
+        , List.concat
+            ( List.indexedMap
+                (viewSequence True key << (-) (history.length - 1))
+                history.sequences
+            )
         ]
     )
 
-viewSequence : Bool -> Int -> Int -> List Chord -> Html msg
+viewSequence : Bool -> Int -> Int -> List Chord -> List (Html String)
 viewSequence finished key index sequence =
-  div
-    [ style
-        [ ( "background", indexBackground index )
-        , ( "padding", "5px 0px" )
-        ]
-    ]
-    ( List.concat
-        [ List.intersperse
-            (text " ")
-            (List.map (viewChord key) sequence)
-        , if finished then
-            []
-          else
-            [ text "..." ]
-        ]
-    )
+  [ span
+      [ style
+          [ ( "background", indexBackground index )
+          , ( "grid-column", "1" )
+          , ( "padding", "5px" )
+          , ( "padding-right", "10px" )
+          , ( "display", "flex" )
+          , ( "align-items", "center" )
+          ]
+      ]
+      [ button
+          [ disabled (not finished)
+          , onClick (String.join " " (List.map Name.code sequence))
+          ]
+          [ text "Use"
+          ]
+      ]
+  , span
+      [ style
+          [ ( "background", indexBackground index )
+          , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+          , ( "font-size", "160%" )
+          , ( "line-height", "initial" )
+          , ( "white-space", "initial" )
+          , ( "padding", "5px" )
+          , ( "padding-left", "0px" )
+          , ( "grid-column", "2" )
+          ]
+      ]
+      ( List.concat
+          [ List.intersperse
+              (text " ")
+              (List.map (viewChord key) sequence)
+          , if finished then
+              []
+            else
+              [ text "..." ]
+          ]
+      )
+  ]
 
 indexBackground : Int -> String
 indexBackground index =

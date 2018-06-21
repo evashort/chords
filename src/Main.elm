@@ -128,6 +128,7 @@ type Msg
   | Play (IdChord, Float)
   | Stop Float
   | SetPane Pane
+  | AddLine String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -239,28 +240,11 @@ update msg model =
         [] ->
           ( model, Cmd.none )
         range :: _ ->
-          let
-            replacement =
-              { old = range
-              , new = Swatch.concat suggestion.swatches
-              }
-          in let
-            code = Replacement.apply replacement model.parse.code
-          in
-            ( let parse = Parse.update code model.parse in
-                { model
-                | parse = parse
-                , memory = Nothing
-                , saved = False
-                , buffet =
-                    Buffet.update parse.suggestions model.buffet
-                }
-            , Cmd.batch
-                [ Theater.replace replacement
-                , Theater.focus
-                , clearUrl model.saved
-                ]
-            )
+          replace
+            { old = range
+            , new = Swatch.concat suggestion.swatches
+            }
+            model
 
     SetPlayStyle playStyle ->
       ( if playStyle == model.playStyle then model
@@ -340,6 +324,39 @@ update msg model =
       ( { model | pane = pane }
       , Cmd.none
       )
+
+    AddLine line ->
+      replace
+        { old =
+            Substring (String.length model.parse.code) ""
+        , new =
+            if String.endsWith "\n" model.parse.code then
+              line ++ "\n"
+            else
+              "\n" ++ line ++ "\n"
+        }
+        model
+
+replace : Replacement -> Model -> ( Model, Cmd msg )
+replace replacement model =
+  ( let
+      code = Replacement.apply replacement model.parse.code
+    in let
+      parse = Parse.update code model.parse
+    in
+      { model
+      | parse = parse
+      , memory = Nothing
+      , saved = False
+      , buffet =
+          Buffet.update parse.suggestions model.buffet
+      }
+  , Cmd.batch
+      [ Theater.replace replacement
+      , Theater.focus
+      , clearUrl model.saved
+      ]
+  )
 
 doAction :
   String -> (String -> Maybe Replacement) -> Model -> ( Model, Cmd msg )
@@ -787,9 +804,12 @@ viewHistory scale history player =
       else
         scale.root
   in
-    History.view
-      "pane"
-      key
-      history
-      (Player.sequence player)
-      (Player.sequenceFinished player)
+    Html.map
+      AddLine
+      ( History.view
+          "pane"
+          key
+          history
+          (Player.sequence player)
+          (Player.sequenceFinished player)
+      )

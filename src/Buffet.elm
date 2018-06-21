@@ -5,7 +5,7 @@ import Highlight exposing (Highlight)
 import Suggestion exposing (Suggestion)
 import Swatch
 
-import Html exposing (Html, div)
+import Html exposing (Html, span)
 import Html.Attributes exposing (style)
 
 type alias Buffet =
@@ -92,7 +92,7 @@ highlights buffet =
 
 view : Buffet -> Html Msg
 view buffet =
-  div
+  span
     [ style
         [ ( "grid-area", "buffet" )
         ]

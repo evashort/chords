@@ -5,7 +5,7 @@ import CustomEvents exposing (onLeftDown, onKeyDown)
 import Name
 import PlayStatus exposing (PlayStatus, IdChord)
 
-import Html exposing (Html, button, div, span)
+import Html exposing (Html, button, span)
 import Html.Attributes as Attributes exposing (style)
 
 type alias Song = List (List (Maybe IdChord))
