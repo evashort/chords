@@ -76,7 +76,9 @@ setBpm bpm code =
     unindented =
       Indent.remove (Comment.remove (Substring 0 code))
   in
-    Flag.insert Bpm.flag bpm unindented
+    Maybe.map
+      (glue code)
+      (Flag.insert Bpm.flag bpm unindented)
 
 setLowestNote : Int -> String -> Maybe Replacement
 setLowestNote lowestNote code =
@@ -84,7 +86,9 @@ setLowestNote lowestNote code =
     unindented =
       Indent.remove (Comment.remove (Substring 0 code))
   in
-    Flag.insert LowestNote.flag lowestNote unindented
+    Maybe.map
+      (glue code)
+      (Flag.insert LowestNote.flag lowestNote unindented)
 
 setScale : Scale -> String -> Maybe Replacement
 setScale scale code =
@@ -111,7 +115,7 @@ setScale scale code =
             Flag.insert LowestNote.flag lowestNote unindented
           of
             Nothing ->
-              Just scaleReplacement
+              Just (glue code scaleReplacement)
             Just lowestNoteReplacement ->
               let
                 flagReplacements =
@@ -126,9 +130,28 @@ setScale scale code =
                     (Flag.remove unindented)
               in
                 Just
-                  { old = Substring 0 code
-                  , new =
-                      Replacement.applyAll
-                        (flagReplacements ++ chordReplacements)
-                        code
-                  }
+                  ( glue
+                      code
+                      ( Replacement.combine
+                          (flagReplacements ++ chordReplacements)
+                          (Substring 0 code)
+                      )
+                  )
+
+glue : String -> Replacement -> Replacement
+glue source replacement =
+  if
+    replacement.old.i >= 0 &&
+      Substring.stop replacement.old <= String.length source
+  then
+    replacement
+  else if
+    replacement.old.i == String.length source + 1 &&
+      replacement.old.s == ""
+  then
+    Replacement
+      (Substring (replacement.old.i - 1) "")
+      ("\n" ++ replacement.new)
+  else
+    Debug.crash
+      ("Parse.glue: Replacement out of bounds: " ++ toString replacement)

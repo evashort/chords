@@ -55,110 +55,74 @@ oneOfMap f xs =
 
 insert : Flag a -> a -> List Substring -> Maybe Replacement
 insert flag newValue lines =
-  let reverseLines = List.reverse lines in
-    ( if newValue == flag.default then
-        insertDefaultHelp
-      else
-        insertHelp
-    )
-      { getOld = getValueString flag.key
-      , new = flag.code newValue
-      , flag = flag
-      , allLines = reverseLines
-      }
-      reverseLines
-
-type alias Args a =
-  { getOld : Substring -> Maybe String
-  , new : String
-  , flag : Flag a
-  , allLines : List Substring
-  }
-
-insertDefaultHelp : Args a -> List Substring -> Maybe Replacement
-insertDefaultHelp args lines =
-  case lines of
-    [] ->
-      Nothing
-    line :: rest ->
-      case args.getOld line of
-        Nothing ->
-          insertDefaultHelp args rest
-        Just old ->
-          if old == args.new then
-            Nothing
-          else if parseValue args.flag old == Nothing then
-            insertDefaultHelp args rest
-          else
-            let
-              deleteResult =
-                case
-                  oneOfMap
-                    (Maybe.andThen (parseValue args.flag) << args.getOld)
-                    rest
-                of
-                  Nothing ->
-                    deleteLine args.allLines line
-                  _ ->
-                    Nothing
-            in
-              if deleteResult == Nothing then
-                Just
-                  ( Replacement
-                      (Substring.right (String.length old) line)
-                      args.new
-                  )
-              else
-                deleteResult
-
-deleteLine : List Substring -> Substring -> Maybe Replacement
-deleteLine lines line =
-  case lines of
-    terminator :: lastLine :: rest ->
-      if lastLine.i == line.i then
-        if terminator.i == Substring.stop lastLine + 1 then
-          Just (Replacement lastLine "")
-        else
+  let
+    reverseLines = List.reverse lines
+  in let
+    lineInfos =
+      List.filterMap
+        identity
+        ( List.map2
+            (getLineInfo flag (getValueString flag.key))
+            (List.drop 1 reverseLines)
+            reverseLines
+        )
+  in
+    case lineInfos of
+      [] ->
+        if newValue == flag.default then
           Nothing
-      else
-        deleteLineHelp line.i lastLine.i rest
-    x ->
-      Debug.crash ("Flag.deleteLine: Fewer than two lines: " ++ toString x)
-
-deleteLineHelp : Int -> Int -> List Substring -> Maybe Replacement
-deleteLineHelp target nextLineStart lines =
-  case lines of
-    [] ->
-      Debug.crash ("Flag.deleteLine: Target not found: " ++ toString target)
-    line :: rest ->
-      if line.i == target then
-        if nextLineStart == Substring.stop line + 1 then
-          Just (Replacement { line | s = line.s ++ "\n" } "")
         else
-          Nothing
-      else
-        deleteLineHelp target line.i rest
-
-insertHelp : Args a -> List Substring -> Maybe Replacement
-insertHelp args lines =
-  case lines of
-    [] ->
-      Just (addLine args.flag.key args.new args.allLines)
-    line :: rest ->
-      case args.getOld line of
-        Nothing ->
-          insertHelp args rest
-        Just old ->
-          if old == args.new then
+          Just
+            (addLine flag.key (flag.code newValue) reverseLines)
+      { line, hasComment, valueString, value } :: rest ->
+        let
+          previousValue =
+            case rest of
+              [] ->
+                flag.default
+              previous :: _ ->
+                previous.value
+        in
+          if value == newValue then
             Nothing
-          else if parseValue args.flag old == Nothing then
-            insertHelp args rest
+          else if not hasComment && newValue == previousValue then
+            Just
+              { old = { line | s = line.s ++ "\n" }
+              , new = ""
+              }
           else
             Just
-              ( Replacement
-                  (Substring.right (String.length old) line)
-                  args.new
-              )
+              { old =
+                  Substring.right (String.length valueString) line
+              , new = flag.code newValue
+              }
+
+type alias LineInfo a =
+  { line : Substring
+  , hasComment : Bool
+  , valueString : String
+  , value : a
+  }
+
+getLineInfo :
+  Flag a -> (Substring -> Maybe String) -> Substring -> Substring ->
+    Maybe (LineInfo a)
+getLineInfo flag valueStringGetter line nextLine =
+  case valueStringGetter line of
+    Nothing ->
+      Nothing
+    Just valueString ->
+      case parseValue flag valueString of
+        Nothing ->
+          Nothing
+        Just value ->
+          Just
+            { line = line
+            , hasComment =
+                nextLine.i > Substring.stop line + 1
+            , valueString = valueString
+            , value = value
+            }
 
 addLine : String -> String -> List Substring -> Replacement
 addLine key value lines =
@@ -176,8 +140,8 @@ addLine key value lines =
         Just currentKey ->
           if key >= currentKey then
             Replacement
-              (Substring (nextLine.i - 1) "")
-              ("\n" ++ key ++ ": " ++ value)
+              (Substring nextLine.i "")
+              (key ++ ": " ++ value ++ "\n")
           else
             addLine key value (line :: rest)
 

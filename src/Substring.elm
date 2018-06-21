@@ -1,6 +1,6 @@
 module Substring exposing
-  ( Substring, stop, range, left, right, dropLeft, dropRight, after, find
-  , regexSplit
+  ( Substring, stop, range, left, right, dropLeft, dropRight, before, after
+  , between, find, regexSplit
   )
 
 import Regex exposing (Regex, HowMany(..), Match)
@@ -36,10 +36,20 @@ dropRight : Int -> Substring -> Substring
 dropRight n { i, s } =
   { i = i, s = String.dropRight n s }
 
+before : Int -> Substring -> String
+before x { i, s } =
+  String.left (x - i) s
+
 after : Int -> Substring -> Substring
-after x substring =
-  let s = String.dropLeft (x - substring.i) substring.s in
-    { i = stop substring - String.length s, s = s }
+after x { i, s } =
+  { i = max i x, s = String.dropLeft (x - i) s }
+
+between : Int -> Int -> Substring -> Substring
+between x y { i, s } =
+  let start = max 0 (x - i) in
+    { i = i + start
+    , s = String.slice start (max start (y - i)) s
+    }
 
 find : HowMany -> Regex -> Substring -> List Substring
 find howMany regex { i, s } =

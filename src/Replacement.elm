@@ -1,4 +1,4 @@
-module Replacement exposing (Replacement, apply, applyAll)
+module Replacement exposing (Replacement, apply, combine)
 
 import Substring exposing (Substring)
 
@@ -8,31 +8,45 @@ type alias Replacement =
   }
 
 apply : Replacement -> String -> String
-apply replacement s =
+apply replacement string =
   String.concat
-    [ String.left replacement.old.i s
+    [ String.left replacement.old.i string
     , replacement.new
-    , String.dropLeft (Substring.stop replacement.old) s
+    , String.dropLeft
+        (Substring.stop replacement.old)
+        string
     ]
 
-applyAll : List Replacement -> String -> String
-applyAll replacements s =
-  case replacements of
-    [] -> s
-    replacement :: _ ->
-      String.concat
-        (String.left replacement.old.i s :: applyAllHelp replacements s)
+combine : List Replacement -> Substring -> Replacement
+combine replacements source =
+  case ( replacements, List.reverse replacements ) of
+    ( first :: _, last :: _ ) ->
+      let
+        slicedSource =
+          Substring.between
+            first.old.i
+            (Substring.stop last.old)
+            source
+      in
+        Replacement
+          slicedSource
+          ( String.concat
+              (combineHelp replacements slicedSource)
+          )
+    _ ->
+      Debug.crash "Replacement.combine: No replacements"
 
-applyAllHelp : List Replacement -> String -> List String
-applyAllHelp replacements s =
+combineHelp : List Replacement -> Substring -> List String
+combineHelp replacements source =
   case replacements of
-    a :: b :: rest ->
-      a.new ::
-        String.dropLeft (Substring.stop a.old) (String.left b.old.i s) ::
-          applyAllHelp (b :: rest) s
-    [ replacement ] ->
-      [ replacement.new
-      , String.dropLeft (Substring.stop replacement.old) s
-      ]
     [] ->
-      [ s ]
+      [ source.s ]
+    replacement :: rest ->
+      let
+        start = replacement.old.i
+      in let
+        stop = Substring.stop replacement.old
+      in
+        Substring.before start source ::
+          replacement.new ::
+            combineHelp rest (Substring.after stop source)
