@@ -1,16 +1,13 @@
 module Song exposing (Song, view)
 
-import Colour
-import CustomEvents exposing (onLeftDown, onKeyDown)
-import Name
-import PlayStatus exposing (PlayStatus, IdChord)
+import IdChord exposing (IdChord, PlayStatus)
 
-import Html exposing (Html, button, span)
-import Html.Attributes as Attributes exposing (style)
+import Html exposing (Html, span)
+import Html.Attributes exposing (style)
 
 type alias Song = List (List (Maybe IdChord))
 
-view : String -> Int -> PlayStatus -> Song -> Html PlayStatus.Msg
+view : String -> Int -> PlayStatus -> Song -> Html IdChord.Msg
 view gridArea key playStatus song =
   span
     [ style
@@ -34,101 +31,8 @@ indexedMap2d f rows =
   List.indexedMap (List.indexedMap << f) rows
 
 viewCell :
-  Int -> PlayStatus -> Int -> Int -> Maybe IdChord ->
-    List (Html PlayStatus.Msg)
+  Int -> PlayStatus -> Int -> Int -> Maybe IdChord -> List (Html IdChord.Msg)
 viewCell key playStatus y x cell =
   Maybe.withDefault
     []
-    (Maybe.map (viewChord key playStatus y x) cell)
-
-viewChord :
-  Int -> PlayStatus -> Int -> Int -> IdChord -> List (Html PlayStatus.Msg)
-viewChord key playStatus y x { id, chord } =
-  [ span
-    [ style
-        [ ( "grid-row-start", toString (y + 1) )
-        , ( "grid-column-start", toString (x + 1) )
-        , ( "grid-row-end", "span 1" )
-        , ( "grid-column-end", "span 1" )
-        , ( "position", "absolute" )
-        , ( "top", "-5px" )
-        , ( "left", "-5px" )
-        , ( "right", "-5px" )
-        , ( "bottom", "-5px" )
-        , ( "pointer-events", "none" )
-        , ( "border-width", "5px" )
-        , ( "border-radius", "10px" )
-        , ( "border-color"
-          , if playStatus.active == id || playStatus.next == id then
-              "#3399ff"
-            else
-              "transparent"
-          )
-        , ( "border-style"
-          , if playStatus.next == id then
-              "dashed"
-            else
-              "solid"
-          )
-        ]
-    ]
-    []
-  , let
-      stopButton =
-        playStatus.active == id && playStatus.stoppable
-    in let
-      action =
-        if stopButton then
-          PlayStatus.Stop
-        else
-          PlayStatus.Play (IdChord id chord)
-    in
-      button
-        [ onLeftDown action
-        , onKeyDown
-            [ ( 13, action )
-            , ( 32, action )
-            ]
-        , Attributes.id (toString id)
-        , style
-            [ ( "grid-row", toString (y + 1) )
-            , ( "grid-column", toString (x + 1) )
-            , ( "background", Colour.bg key chord )
-            , ( "color", Colour.fg chord )
-            , ( "font", "inherit" )
-            , ( "padding", "0px 3px" )
-            , ( "border"
-              , String.concat
-                  [ "1px solid rgba(0, 0, 0, "
-                  , Colour.borderOpacity chord
-                  , ")"
-                  ]
-              )
-            , ( "border-radius", "5px" )
-            , ( "box-shadow"
-              , String.concat
-                  [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
-                  , Colour.shineOpacity chord
-                  , ")"
-                  ]
-              )
-            , ( "cursor", "pointer" )
-            , ( "white-space", "nowrap" )
-            ]
-        ]
-        ( if stopButton then
-            [ span
-                [ style
-                   [ ( "background", Colour.fg chord )
-                   , ( "width", "1em" )
-                   , ( "height", "1em" )
-                   , ( "display", "inline-block" )
-                   , ( "vertical-align", "middle" )
-                   ]
-                ]
-                []
-            ]
-          else
-            Name.view chord
-        )
-  ]
+    (Maybe.map (IdChord.view key playStatus y x) cell)

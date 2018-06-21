@@ -36,7 +36,6 @@ view gridArea key history sequence finished =
         [ ( "grid-area", gridArea )
         , ( "display", "grid" )
         , ( "grid-template-columns", "auto 1fr" )
-        , ( "align-items", "stretch" )
         ]
     ]
     ( List.concat

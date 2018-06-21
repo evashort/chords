@@ -4,8 +4,8 @@ module Word exposing
 import Chord exposing (Chord)
 import Colour
 import Highlight exposing (Highlight)
+import IdChord exposing (IdChord)
 import Name
-import PlayStatus exposing (IdChord)
 import Substring exposing (Substring)
 import Swatch exposing (Swatch)
 

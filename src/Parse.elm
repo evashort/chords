@@ -26,9 +26,9 @@ type alias Parse =
   , scale : Scale
   }
 
-init : Int -> String -> Parse
-init firstId code =
-  initHelp (Paragraph.init firstId) code
+init : String -> Parse
+init code =
+  initHelp Paragraph.init code
 
 update : String -> Parse -> Parse
 update code parse =
@@ -103,7 +103,7 @@ setScale scale code =
         let
           oldScale = Flag.parse Scale.flag unindented
         in let
-          offset = (scale.root - oldScale.root) % 12
+          offset = (Scale.key scale - Scale.key oldScale) % 12
         in let
           oldLowestNote =
             Flag.parse LowestNote.flag unindented

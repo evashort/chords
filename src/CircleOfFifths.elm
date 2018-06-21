@@ -1,10 +1,10 @@
-module CircleOfFifths exposing (chordCount, view)
+module CircleOfFifths exposing (view)
 
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
+import IdChord exposing (IdChord, PlayStatus)
 import Name
-import PlayStatus exposing (PlayStatus, IdChord)
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
@@ -17,16 +17,7 @@ import Svg.Attributes exposing
   , textAnchor
   )
 
-chordCount : Int
-chordCount = 24
-
-idByRoot : Int -> Chord -> IdChord
-idByRoot firstId chord =
-  { id = firstId + chord.root
-  , chord = chord
-  }
-
-view : String -> Int -> PlayStatus -> Html PlayStatus.Msg
+view : String -> Int -> PlayStatus -> Html IdChord.Msg
 view gridArea key playStatus =
   let
     rInner = 100
@@ -37,7 +28,7 @@ view gridArea key playStatus =
   in let
     majorChords =
       List.map
-        ( idByRoot 0 <<
+        ( IdChord.fromChord <<
             Chord [ 4, 7 ] <<
             (\i -> (key + 7 * i) % 12)
         )
@@ -45,7 +36,7 @@ view gridArea key playStatus =
   in let
     minorChords =
       List.map
-        ( idByRoot 12 <<
+        ( IdChord.fromChord <<
             Chord [ 3, 7 ] <<
             (\i -> (9 + key + 7 * i) % 12)
         )
@@ -157,7 +148,7 @@ areaAverage x y =
 
 viewChord :
   Int -> PlayStatus -> Float -> Float -> Int -> IdChord ->
-    List (Svg PlayStatus.Msg)
+    List (Svg IdChord.Msg)
 viewChord key playStatus rInner rOuter i { id, chord } =
   List.filterMap
     identity
@@ -180,8 +171,10 @@ viewChord key playStatus rInner rOuter i { id, chord } =
         stopButton = playStatus.active == id && playStatus.stoppable
       in let
         play =
-          if stopButton then PlayStatus.Stop
-          else PlayStatus.Play (IdChord id chord)
+          if stopButton then
+            IdChord.Stop
+          else
+            IdChord.Play (IdChord id chord)
       in
         Just
           ( path

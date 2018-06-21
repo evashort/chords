@@ -7,7 +7,7 @@ import Arp
 import AudioChange exposing (AudioChange(..))
 import Chord exposing (Chord)
 import Cliff exposing (Cliff)
-import PlayStatus exposing (PlayStatus, IdChord)
+import IdChord exposing (IdChord, PlayStatus)
 import Note
 
 type alias Player =

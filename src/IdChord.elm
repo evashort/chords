@@ -1,0 +1,158 @@
+module IdChord exposing (IdChord, PlayStatus, Msg(..), fromChord, count, view)
+
+import Chord exposing (Chord)
+import Colour
+import CustomEvents exposing (onLeftDown, onKeyDown)
+import Name
+
+import Dict exposing (Dict)
+import Html exposing (Html, span, button)
+import Html.Attributes as Attributes exposing (style)
+
+type alias IdChord =
+  { id : Int
+  , chord : Chord
+  }
+
+type alias PlayStatus =
+  { active : Int
+  , next : Int
+  , stoppable : Bool
+  }
+
+type Msg
+  = Play IdChord
+  | Stop
+
+fromChord : Chord -> IdChord
+fromChord chord =
+  case Dict.get chord.flavor schemes of
+    Nothing ->
+      Debug.crash
+        ("IdChord.fromChord: Unknown flavor: " ++ toString chord.flavor)
+    Just i ->
+      IdChord (12 * i + chord.root) chord
+
+count : Int
+count = 12 * Dict.size schemes
+
+schemes : Dict (List Int) Int
+schemes =
+  Dict.fromList
+    (List.indexedMap reversedTuple flavors)
+
+reversedTuple : a -> b -> ( b, a )
+reversedTuple x y =
+  ( y, x )
+
+flavors : List (List Int)
+flavors =
+  [ [ 4, 7 ]
+  , [ 3, 7 ]
+  , [ 3, 6 ]
+  , [ 4, 8 ]
+  , [ 5, 7 ]
+  , [ 2, 7 ]
+  , [ 4, 7, 10 ]
+  , [ 4, 7, 11 ]
+  , [ 3, 7, 10 ]
+  , [ 4, 7, 9 ]
+  , [ 3, 6, 10 ]
+  , [ 3, 7, 9 ]
+  , [ 3, 6, 9 ]
+  , [ 3, 7, 11 ]
+  ]
+
+view : Int -> PlayStatus -> Int -> Int -> IdChord -> List (Html Msg)
+view key playStatus y x { id, chord } =
+  [ span
+    [ style
+        [ ( "grid-row-start", toString (y + 1) )
+        , ( "grid-column-start", toString (x + 1) )
+        , ( "grid-row-end", "span 1" )
+        , ( "grid-column-end", "span 1" )
+        , ( "position", "absolute" )
+        , ( "top", "-5px" )
+        , ( "left", "-5px" )
+        , ( "right", "-5px" )
+        , ( "bottom", "-5px" )
+        , ( "pointer-events", "none" )
+        , ( "border-width", "5px" )
+        , ( "border-radius", "10px" )
+        , ( "border-color"
+          , if playStatus.active == id || playStatus.next == id then
+              "#3399ff"
+            else
+              "transparent"
+          )
+        , ( "border-style"
+          , if playStatus.next == id then
+              "dashed"
+            else
+              "solid"
+          )
+        ]
+    ]
+    []
+  , let
+      stopButton =
+        playStatus.active == id && playStatus.stoppable
+    in let
+      action =
+        if stopButton then
+          Stop
+        else
+          Play (IdChord id chord)
+    in
+      button
+        [ onLeftDown action
+        , onKeyDown
+            [ ( 13, action )
+            , ( 32, action )
+            ]
+        , style
+            [ ( "grid-row", toString (y + 1) )
+            , ( "grid-column", toString (x + 1) )
+            , ( "align-self", "stretch" )
+            , ( "justify-self", "stretch" )
+            , ( "background", Colour.bg key chord )
+            , ( "color", Colour.fg chord )
+            , ( "font", "inherit" ) -- somehow this redundant style changes
+                                    -- line-height and keeps text with
+                                    -- superscripts from sagging
+            , ( "padding", "0" )
+            , ( "border"
+              , String.concat
+                  [ "1px solid rgba(0, 0, 0, "
+                  , Colour.borderOpacity chord
+                  , ")"
+                  ]
+              )
+            , ( "border-radius", "5px" )
+            , ( "box-shadow"
+              , String.concat
+                  [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
+                  , Colour.shineOpacity chord
+                  , ")"
+                  ]
+              )
+            , ( "cursor", "pointer" )
+            , ( "white-space", "nowrap" )
+            ]
+        ]
+        ( if stopButton then
+            [ span
+                [ style
+                   [ ( "background", Colour.fg chord )
+                   , ( "width", "1em" )
+                   , ( "height", "1em" )
+                   , ( "display", "inline-block" )
+                   , ( "vertical-align", "middle" )
+                   ]
+                ]
+                []
+            ]
+          else
+            Name.view chord
+        )
+  ]

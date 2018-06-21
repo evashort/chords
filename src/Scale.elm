@@ -1,4 +1,4 @@
-module Scale exposing (Scale, flag)
+module Scale exposing (Scale, key, setMinor, flag)
 
 import Flag exposing (Flag)
 import Pitch
@@ -11,6 +11,21 @@ type alias Scale =
   { minor : Bool
   , root : Int
   }
+
+key : Scale -> Int
+key scale =
+  (scale.root + majorStart scale.minor) % 12
+
+setMinor : Bool -> Scale -> Scale
+setMinor minor scale =
+  { minor = minor
+  , root =
+      (scale.root + majorStart scale.minor - majorStart minor) % 12
+  }
+
+majorStart : Bool -> Int
+majorStart minor =
+  if minor then 3 else 0
 
 flag : Flag Scale
 flag =

@@ -5,12 +5,14 @@ import AudioTime
 import Buffet exposing (Buffet, LensChange)
 import CircleOfFifths
 import CustomEvents exposing (onChange)
+import DegreeTable
 import Highlight exposing (Highlight)
 import History exposing (History)
+import IdChord exposing (IdChord)
 import LowestNote
 import Parse exposing (Parse)
+import Pitch
 import Player exposing (Player)
-import PlayStatus exposing (PlayStatus, IdChord)
 import Ports
 import Radio
 import Replacement exposing (Replacement)
@@ -65,7 +67,8 @@ type PlayStyle
   | PadStyle
 
 type Pane
-  = FifthsPane
+  = DegreesPane
+  | FifthsPane
   | HistoryPane
 
 type alias Backup =
@@ -80,7 +83,7 @@ init location =
   in let
     text = Maybe.withDefault defaultText maybeText
   in let
-    parse = Parse.init CircleOfFifths.chordCount text
+    parse = Parse.init text
   in
     ( { bpm = Nothing
       , lowestNote = Nothing
@@ -91,7 +94,7 @@ init location =
       , playStyle = ArpeggioStyle
       , strumInterval = 0.06
       , player = Player.init
-      , pane = FifthsPane
+      , pane = DegreesPane
       , history = History.init
       }
     , Cmd.batch
@@ -115,7 +118,8 @@ type Msg
   | SetBpm String
   | PreviewLowestNote String
   | SetLowestNote String
-  | SetKey String
+  | SetScaleRoot String
+  | SetScaleMode String
   | TextChanged String
   | UrlChanged Location
   | Save
@@ -124,7 +128,7 @@ type Msg
   | SetStrumInterval String
   | RequestTime
   | CurrentTime Float
-  | PlayStatusMsg PlayStatus.Msg
+  | IdChordMsg IdChord.Msg
   | Play (IdChord, Float)
   | Stop Float
   | SetPane Pane
@@ -171,18 +175,32 @@ update msg model =
         Err _ ->
           ( model, Cmd.none )
 
-    SetKey keyString ->
-      case String.toInt keyString of
-        Ok key ->
+    SetScaleRoot rootString ->
+      case String.toInt rootString of
+        Ok root ->
           let
-            scale =
-              if model.parse.scale.minor then
-                { minor = True, root = (key - 3) % 12 }
-              else
-                { minor = False, root = key }
+            oldScale = model.parse.scale
+          in let
+            scale = { oldScale | root = root }
           in
-            doAction "key" (Parse.setScale scale) model
+            doAction "scale" (Parse.setScale scale) model
         Err _ ->
+          ( model, Cmd.none )
+
+    SetScaleMode modeString ->
+      case
+        ( case modeString of
+            "Major" -> Just False
+            "Minor" -> Just True
+            _ -> Nothing
+        )
+      of
+        Just minor ->
+          let
+            scale = Scale.setMinor minor model.parse.scale
+          in
+            doAction "scale" (Parse.setScale scale) model
+        Nothing ->
           ( model, Cmd.none )
 
     TextChanged code ->
@@ -275,10 +293,10 @@ update msg model =
       , Cmd.none
       )
 
-    PlayStatusMsg (PlayStatus.Play idChord) ->
+    IdChordMsg (IdChord.Play idChord) ->
       ( model, Task.perform (Play << (,) idChord) AudioTime.now )
 
-    PlayStatusMsg PlayStatus.Stop ->
+    IdChordMsg IdChord.Stop ->
       ( model, Task.perform Stop AudioTime.now )
 
     Play ( idChord, now ) ->
@@ -451,7 +469,7 @@ view model =
 "title ."
 "bpm ."
 "lowestNote ."
-"key ."
+"scale ."
 "theater save"
 "buffet buffet"
 "playStyle playStyle"
@@ -461,7 +479,6 @@ view model =
 / minmax(auto, 37.5em) 1fr
 """
           )
-        , ( "align-items", "center" )
         ]
     ]
     [ viewTitle
@@ -474,8 +491,8 @@ view model =
         (hasBackup "lowestNote" model)
         (Maybe.withDefault model.parse.lowestNote model.lowestNote)
     , Html.Lazy.lazy2
-        viewKey
-        (hasBackup "key" model)
+        viewScale
+        (hasBackup "scale" model)
         model.parse.scale
     , div
         [ id "theater"
@@ -517,6 +534,11 @@ view model =
         viewPaneSelector
         model.pane
     , case model.pane of
+        DegreesPane ->
+          Html.Lazy.lazy2
+            viewDegreeTable
+            model.parse.scale
+            model.player
         FifthsPane ->
           Html.Lazy.lazy2
             viewCircleOfFifths
@@ -595,38 +617,54 @@ viewBpm hasBackup bpm =
         [ Html.text ("\xA0" ++ toString bpm ++ " BPM") ]
     ]
 
-viewKey : Bool -> Scale -> Html Msg
-viewKey hasBackup scale =
+viewScale : Bool -> Scale -> Html Msg
+viewScale hasBackup scale =
+  span
+    [ style
+        [ ( "grid-area", "scale" )
+        , yellowIf hasBackup
+        ]
+    ]
+    [ Html.text "Scale "
+    , select
+        [ onInput SetScaleRoot
+        ]
+        (List.map (viewRootOption scale) (List.range 0 11))
+    , Html.text " "
+    , select
+        [ onInput SetScaleMode
+        ]
+        [ option
+            [ value "Major"
+            , selected (not scale.minor)
+            ]
+            [ Html.text
+                ( (Pitch.view 0 (Scale.setMinor False scale).root) ++
+                    " Major"
+                )
+            ]
+        , option
+            [ value "Minor"
+            , selected scale.minor
+            ]
+            [ Html.text
+                ( (Pitch.view 3 (Scale.setMinor True scale).root) ++
+                    " Minor"
+                )
+            ]
+        ]
+    ]
+
+viewRootOption : Scale -> Int -> Html Msg
+viewRootOption scale root =
   let
-    key =
-      if scale.minor then
-        (scale.root + 3) % 12
-      else
-        scale.root
+    sharpCount = if scale.minor then 3 else 0
   in
-    span
-      [ style
-          [ ( "grid-area", "key" )
-          , yellowIf hasBackup
-          ]
+    option
+      [ value (toString root)
+      , selected (scale.root == root)
       ]
-      [ Html.text "Key signature "
-      , select
-          [ onInput SetKey
-          ]
-          [ option [ value "0", selected (key == 0) ] [ Html.text "C / Am" ]
-          , option [ value "7", selected (key == 7) ] [ Html.text "G / Em" ]
-          , option [ value "2", selected (key == 2) ] [ Html.text "D / Bm" ]
-          , option [ value "9", selected (key == 9) ] [ Html.text "A / F♯m" ]
-          , option [ value "4", selected (key == 4) ] [ Html.text "E / C♯m" ]
-          , option [ value "11", selected (key == 11) ] [ Html.text "B / G♯m" ]
-          , option [ value "6", selected (key == 6) ] [ Html.text "G♭ / E♭m" ]
-          , option [ value "1", selected (key == 1) ] [ Html.text "D♭ / B♭m" ]
-          , option [ value "8", selected (key == 8) ] [ Html.text "A♭ / Fm" ]
-          , option [ value "3", selected (key == 3) ] [ Html.text "E♭ / Cm" ]
-          , option [ value "10", selected (key == 10) ] [ Html.text "B♭ / Gm" ]
-          , option [ value "5", selected (key == 5) ] [ Html.text "F / Dm" ]
-          ]
+      [ Html.text (Pitch.view sharpCount root)
       ]
 
 viewLowestNote : Bool -> Int -> Html Msg
@@ -756,7 +794,7 @@ viewPlayStyle playStyle strumInterval =
 viewSong : Player -> Parse -> Html Msg
 viewSong player parse =
   Html.map
-    PlayStatusMsg
+    IdChordMsg
     ( Song.view
         "song"
         parse.scale.root
@@ -776,40 +814,37 @@ viewPaneSelector pane =
         SetPane
         ( Radio.view
             pane
-            [ ( "Circle of fifths", FifthsPane )
+            [ ( "Scale degrees", DegreesPane )
+            , ( "Circle of fifths", FifthsPane )
             , ( "Recently played", HistoryPane )
             ]
         )
     ]
 
+viewDegreeTable : Scale -> Player -> Html Msg
+viewDegreeTable scale player =
+  Html.map
+    IdChordMsg
+    (DegreeTable.view "pane" scale (Player.status player))
+
 viewCircleOfFifths : Scale -> Player -> Html Msg
 viewCircleOfFifths scale player =
-  let
-    key =
-      if scale.minor then
-        (scale.root + 3) % 12
-      else
-        scale.root
-  in
-    Html.map
-      PlayStatusMsg
-      (CircleOfFifths.view "pane" key (Player.status player))
+  Html.map
+    IdChordMsg
+    ( CircleOfFifths.view
+        "pane"
+        (Scale.key scale)
+        (Player.status player)
+    )
 
 viewHistory : Scale -> History -> Player -> Html Msg
 viewHistory scale history player =
-  let
-    key =
-      if scale.minor then
-        (scale.root + 3) % 12
-      else
-        scale.root
-  in
-    Html.map
-      AddLine
-      ( History.view
-          "pane"
-          key
-          history
-          (Player.sequence player)
-          (Player.sequenceFinished player)
-      )
+  Html.map
+    AddLine
+    ( History.view
+        "pane"
+        (Scale.key scale)
+        history
+        (Player.sequence player)
+        (Player.sequenceFinished player)
+    )

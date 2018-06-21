@@ -3,6 +3,7 @@ module Paragraph exposing
 
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
+import IdChord
 import MapCells exposing (mapCells)
 import Replacement exposing (Replacement)
 import Song exposing (Song)
@@ -19,9 +20,13 @@ type alias Paragraph =
   , words : Train Word
   }
 
-init : Int -> List Substring -> Paragraph
-init firstId lines =
-  let substrings = split lines in
+init : List Substring -> Paragraph
+init lines =
+  let
+    firstId = IdChord.count
+  in let
+    substrings = split lines
+  in
     { nextId = firstId + Train.length substrings
     , words =
         Train.indexedMap (Word.init << (+) firstId) substrings
