@@ -109,7 +109,10 @@ init location =
 
 defaultText : String
 defaultText =
-  "C G Am F\n"
+  """// Type chord names in this box
+// to create play buttons below
+C G Am F
+"""
 
 -- UPDATE
 

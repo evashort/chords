@@ -23,10 +23,10 @@ highlights whole =
             (Substring.find All commentRegex rest)
 
 initialCommentRegex : Regex
-initialCommentRegex = Regex.regex "^#.*"
+initialCommentRegex = Regex.regex "^\\/\\/.*"
 
 commentRegex : Regex
-commentRegex = Regex.regex "[ \\n]#.*"
+commentRegex = Regex.regex "[ \\n]\\/\\/.*"
 
 highlight : Substring -> Highlight
 highlight = Highlight "#008000" "#ffffff"
@@ -40,7 +40,7 @@ remove whole =
 
 removeFromLine : Substring -> Substring
 removeFromLine line =
-  if String.startsWith "#" line.s then
+  if String.startsWith "//" line.s then
     { line | s = "" }
   else
     case Regex.find (AtMost 1) commentStart line.s of
@@ -53,4 +53,4 @@ lineBreak : Regex
 lineBreak = Regex.regex " *\\n"
 
 commentStart : Regex
-commentStart = Regex.regex " +#"
+commentStart = Regex.regex " +\\/\\/"
