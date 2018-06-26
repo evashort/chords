@@ -25,11 +25,11 @@ import Theater
 import AnimationFrame
 import Html exposing
   ( Html, Attribute, a, button, div, pre, span, textarea, input
-  , select, option
+  , select, option, label
   )
 import Html.Attributes as Attributes exposing
-  (href, style, id, type_, value, selected, disabled)
-import Html.Events exposing (onClick, onInput)
+  (href, style, id, type_, value, selected, disabled, checked, for)
+import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
 import Navigation exposing (Location)
 import Task
@@ -58,6 +58,7 @@ type alias Model =
   , strumInterval : Float
   , player : Player
   , pane : Pane
+  , degreeTableSettings : DegreeTable.Settings
   , history : History
   }
 
@@ -95,6 +96,7 @@ init location =
       , strumInterval = 0.04
       , player = Player.init
       , pane = DegreesPane
+      , degreeTableSettings = DegreeTable.init
       , history = History.init
       }
     , Cmd.batch
@@ -136,6 +138,9 @@ type Msg
   | Play (IdChord, Float)
   | Stop Float
   | SetPane Pane
+  | SetHarmonicMinor Bool
+  | SetExtendedChords Bool
+  | SetAddedToneChords Bool
   | AddLine String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -349,6 +354,36 @@ update msg model =
       , Cmd.none
       )
 
+    SetHarmonicMinor harmonicMinor ->
+      ( let
+          oldSettings = model.degreeTableSettings
+        in let
+          settings = { oldSettings | harmonicMinor = harmonicMinor }
+        in
+          { model | degreeTableSettings = settings }
+      , Cmd.none
+      )
+
+    SetExtendedChords extendedChords ->
+      ( let
+          oldSettings = model.degreeTableSettings
+        in let
+          settings = { oldSettings | extendedChords = extendedChords }
+        in
+          { model | degreeTableSettings = settings }
+      , Cmd.none
+      )
+
+    SetAddedToneChords addedToneChords ->
+      ( let
+          oldSettings = model.degreeTableSettings
+        in let
+          settings = { oldSettings | addedToneChords = addedToneChords }
+        in
+          { model | degreeTableSettings = settings }
+      , Cmd.none
+      )
+
     AddLine line ->
       replace
         { old =
@@ -481,6 +516,7 @@ view model =
 "playStyle playStyle"
 "song song"
 "paneSelector paneSelector"
+"paneSettings paneSettings"
 "pane pane"
 / minmax(auto, 37.5em) 1fr
 """
@@ -541,8 +577,16 @@ view model =
         model.pane
     , case model.pane of
         DegreesPane ->
-          Html.Lazy.lazy2
+          viewDegreeTableSettings model.degreeTableSettings
+        FifthsPane ->
+          Html.span [] []
+        HistoryPane ->
+          Html.span [] []
+    , case model.pane of
+        DegreesPane ->
+          Html.Lazy.lazy3
             viewDegreeTable
+            model.degreeTableSettings
             model.parse.scale
             model.player
         FifthsPane ->
@@ -829,11 +873,63 @@ viewPaneSelector pane =
         )
     ]
 
-viewDegreeTable : Scale -> Player -> Html Msg
-viewDegreeTable scale player =
+viewDegreeTableSettings : DegreeTable.Settings -> Html Msg
+viewDegreeTableSettings settings =
+  span
+    [ style
+        [ ( "grid-area", "paneSettings" )
+        ]
+    ]
+    [ input
+        [ type_ "checkbox"
+        , id "harmonicMinor"
+        , checked settings.harmonicMinor
+        , onCheck SetHarmonicMinor
+        ]
+        []
+    , label
+        [ for "harmonicMinor"
+        ]
+        [ Html.text " Harmonic minor"
+        ]
+    , Html.text " "
+    , input
+        [ type_ "checkbox"
+        , id "extendedChords"
+        , checked settings.extendedChords
+        , onCheck SetExtendedChords
+        ]
+        []
+    , label
+        [ for "extendedChords"
+        ]
+        [ Html.text " Extended chords"
+        ]
+    , Html.text " "
+    , input
+        [ type_ "checkbox"
+        , id "addedToneChords"
+        , checked settings.addedToneChords
+        , onCheck SetAddedToneChords
+        ]
+        []
+    , label
+        [ for "addedToneChords"
+        ]
+        [ Html.text " Added tone chords"
+        ]
+    ]
+
+viewDegreeTable : DegreeTable.Settings -> Scale -> Player -> Html Msg
+viewDegreeTable settings scale player =
   Html.map
     IdChordMsg
-    (DegreeTable.view "pane" scale (Player.status player))
+    ( DegreeTable.view
+        "pane"
+        settings
+        scale
+        (Player.status player)
+    )
 
 viewCircleOfFifths : Scale -> Player -> Html Msg
 viewCircleOfFifths scale player =

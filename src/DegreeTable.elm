@@ -1,4 +1,4 @@
-module DegreeTable exposing (view)
+module DegreeTable exposing (Settings, init, view)
 
 import Chord exposing (Chord)
 import IdChord exposing (IdChord, PlayStatus)
@@ -7,8 +7,25 @@ import Scale exposing (Scale)
 import Html exposing (Html, span, text, sup)
 import Html.Attributes exposing (style)
 
-view : String -> Scale -> PlayStatus -> Html IdChord.Msg
-view gridArea scale playStatus =
+type alias Settings =
+  { harmonicMinor : Bool
+  , extendedChords : Bool
+  , addedToneChords : Bool
+  }
+
+init : Settings
+init =
+  { harmonicMinor = False
+  , extendedChords = False
+  , addedToneChords = False
+  }
+
+view : String -> Settings -> Scale -> PlayStatus -> Html IdChord.Msg
+view
+  gridArea
+  { harmonicMinor, extendedChords, addedToneChords }
+  scale
+  playStatus =
   let row = viewRow scale playStatus 0 in
     span
       [ style
@@ -30,22 +47,60 @@ view gridArea scale playStatus =
           [ List.indexedMap
               (viewDegree << (+) 1)
               ( if scale.minor then
-                  [ "i", "iio", "III", "iv", "v", "VI", "VII" ]
+                  [ "i", "iio", "III", "iv"
+                  , if harmonicMinor then "V" else "v"
+                  , "VI", "VII"
+                  ]
                 else
-                  [ "I", "ii", "iii", "IV", "V", "vi", "viio" ]
+                  [ "I", "ii"
+                  , if harmonicMinor then "III" else "iii"
+                  , "IV", "V", "vi", "viio"
+                  ]
               )
           , [ viewCategory 1 "Triad" ]
-          , row 1 "C     Dm     Em   F     G     Am     Bo"
-          , row 2 "Csus4        E"
-          , [ viewCategory 3 "7th" ]
-          , row 3 "CM7   Dm7    Em7  FM7   G7    Am7    B0"
-          , row 4 "             E7               AmM7   Bo7"
-          , [ viewCategory 5 "9th" ]
-          , row 5 "CM9   Dm9         FM9   G9    Am9"
-          , row 6 "Cadd9 Dmadd9 E7b9 Fadd9 Gadd9 Amadd9"
-          , [ viewCategory 7 "13th" ]
-          , row 7 "CM13  Dm13        FM13  G13"
-          , row 8 "C6    Dm6         F6    G6"
+          , if harmonicMinor then
+              row 1 "C Dm E F G Am Bo"
+            else
+              row 1 "C Dm Em F G Am Bo"
+          , [ viewCategory 2 "4th" ]
+          , if harmonicMinor then
+              row 2 "CM7 Dm7 E7 FM7 G7 AmM7 Bo7"
+            else
+              row 2 "CM7 Dm7 Em7 FM7 G7 Am7 B0"
+          , if extendedChords || addedToneChords then
+              List.concat
+                [ [ viewCategory 3 "9th" ]
+                , if extendedChords && harmonicMinor then
+                    row 3 "CM9 Dm9 E7b9 FM9 G9 Am9"
+                  else if extendedChords then
+                    row 3 "CM9 Dm9 FM9 G9 Am9"
+                  else
+                    []
+                , if addedToneChords then
+                    row
+                      (if extendedChords then 4 else 3)
+                      "Cadd9 Dmadd9 Fadd9 Gadd9 Amadd9"
+                  else
+                    []
+                , [ viewCategory
+                      (if extendedChords && addedToneChords then 5 else 4)
+                      "13th"
+                  ]
+                , if extendedChords then
+                    row
+                      (if addedToneChords then 5 else 4)
+                      "CM13 Dm13 FM13 G13"
+                  else
+                    []
+                , if addedToneChords then
+                    row
+                      (if extendedChords then 6 else 4)
+                      "C6 Dm6 F6 G6"
+                  else
+                    []
+                ]
+            else
+              []
           ]
       )
 
