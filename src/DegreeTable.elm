@@ -62,7 +62,7 @@ view
               row 1 "C Dm E F G Am Bo"
             else
               row 1 "C Dm Em F G Am Bo"
-          , [ viewCategory 2 "4th" ]
+          , [ viewCategory 2 "7th" ]
           , if harmonicMinor then
               row 2 "CM7 Dm7 E7 FM7 G7 AmM7 Bo7"
             else
