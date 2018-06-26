@@ -1,4 +1,4 @@
-module Chord exposing (Chord, fromCode, transpose)
+module Chord exposing (Chord, fromCode, transpose, flavors)
 
 import Pitch
 import Submatches exposing (submatches)
@@ -46,6 +46,15 @@ flavors =
     , ( "m6", [ 3, 7, 9 ] )
     , ( "o7", [ 3, 6, 9 ] )
     , ( "mM7", [ 3, 7, 11 ] )
+    , ( "9", [ 4, 7, 10, 14 ] ) -- 7 + 0
+    , ( "M9", [ 4, 7, 11, 14 ] ) -- M7 + m7
+    , ( "add9", [ 4, 7, 14 ] )
+    , ( "madd9", [ 3, 7, 14 ] )
+    , ( "m9", [ 3, 7, 10, 14 ] ) -- m7 + M7
+    , ( "7b9", [ 4, 7, 10, 13 ] ) -- 7 + o7
+    , ( "13", [ 4, 7, 10, 14, 21 ] )
+    , ( "M13", [ 4, 7, 11, 14, 21 ] )
+    , ( "m13", [ 3, 7, 10, 14, 21 ] )
     ]
 
 transpose : Int -> Chord -> Chord

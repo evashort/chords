@@ -58,9 +58,9 @@ wordRegex : Regex
 wordRegex = Regex.regex "[^ ]+"
 
 highlights : Int -> Paragraph -> List Highlight
-highlights key paragraph =
+highlights tonic paragraph =
   List.filterMap
-    (Word.highlight key)
+    (Word.highlight tonic)
     (Train.flatten paragraph.words)
 
 song : Paragraph -> Song
@@ -70,10 +70,10 @@ song paragraph =
     (Train.cars (Train.filterMap Word.meaning paragraph.words))
 
 suggestions : Int -> Paragraph -> List Suggestion
-suggestions key paragraph =
+suggestions tonic paragraph =
   Suggestion.groupByReplacement
     ( List.filterMap
-        (Word.suggestion key)
+        (Word.suggestion tonic)
         (Train.flatten paragraph.words)
     )
 

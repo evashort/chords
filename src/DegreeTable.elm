@@ -9,12 +9,7 @@ import Html.Attributes exposing (style)
 
 view : String -> Scale -> PlayStatus -> Html IdChord.Msg
 view gridArea scale playStatus =
-  let
-    key = Scale.key scale
-  in let
-    toIdChord =
-      IdChord.fromChord << Chord.transpose scale.root
-  in
+  let row = viewRow scale playStatus 0 in
     span
       [ style
           [ ( "grid-area", gridArea )
@@ -40,53 +35,58 @@ view gridArea scale playStatus =
                   [ "I", "ii", "iii", "IV", "V", "vi", "viio" ]
               )
           , [ viewCategory 1 "Triad" ]
-          , List.concat
-              ( List.indexedMap
-                  (IdChord.view key playStatus 1 << (+) 1)
-                  ( List.map
-                      toIdChord
-                      ( if scale.minor then
-                          minorTriads
-                        else
-                          majorTriads
-                      )
-                  )
-              )
-          , if scale.minor then
-              List.concat
-                [ IdChord.view key playStatus 2 3 (toIdChord (sus4 3))
-                , IdChord.view key playStatus 2 5 (toIdChord (major 7))
-                ]
-            else
-              List.concat
-                [ IdChord.view key playStatus 2 1 (toIdChord (sus4 0))
-                , IdChord.view key playStatus 2 3 (toIdChord (major 4))
-                ]
+          , row 1 "C     Dm     Em   F     G     Am     Bo"
+          , row 2 "Csus4        E"
           , [ viewCategory 3 "7th" ]
-          , List.concat
-              ( List.indexedMap
-                  (IdChord.view key playStatus 3 << (+) 1)
-                  ( List.map
-                      toIdChord
-                      ( if scale.minor then
-                          minorSevenths
-                        else
-                          majorSevenths
-                      )
-                  )
-              )
-          , if scale.minor then
-              List.concat
-                [ IdChord.view key playStatus 4 2 (toIdChord (diminished7 2))
-                , IdChord.view key playStatus 4 5 (toIdChord (dominant7 7))
-                ]
-            else
-              List.concat
-                [ IdChord.view key playStatus 4 3 (toIdChord (dominant7 4))
-                , IdChord.view key playStatus 4 7 (toIdChord (diminished7 11))
-                ]
+          , row 3 "CM7   Dm7    Em7  FM7   G7    Am7    B0"
+          , row 4 "             E7               AmM7   Bo7"
+          , [ viewCategory 5 "9th" ]
+          , row 5 "CM9   Dm9         FM9   G9    Am9"
+          , row 6 "Cadd9 Dmadd9 E7b9 Fadd9 Gadd9 Amadd9"
+          , [ viewCategory 7 "13th" ]
+          , row 7 "CM13  Dm13        FM13  G13"
+          , row 8 "C6    Dm6         F6    G6"
           ]
       )
+
+viewRow :
+  Scale -> PlayStatus -> Int -> Int -> String -> List (Html IdChord.Msg)
+viewRow scale playStatus sharpCount row code =
+  let
+    codes = String.split " " code
+  in let
+    chords = List.filterMap Chord.fromCode codes
+  in let
+    sortedChords =
+      List.sortBy (degree sharpCount scale.minor) chords
+  in
+    List.concatMap
+      (viewChord scale playStatus sharpCount row)
+      sortedChords
+
+viewChord :
+  Scale -> PlayStatus -> Int -> Int -> Chord -> List (Html IdChord.Msg)
+viewChord scale playStatus sharpCount row chord =
+  let
+    column =
+      degree sharpCount scale.minor chord + 1
+  in let
+    idChord =
+      IdChord.fromChord
+        (Chord.transpose scale.tonic chord)
+  in
+    IdChord.view scale.tonic playStatus row column idChord
+
+degree : Int -> Bool -> Chord -> Int
+degree sharpCount minor chord =
+  let
+    majorDegree =
+      (chord.root * 7 + 6 - sharpCount) // 12
+  in
+    if minor then
+      (majorDegree + 2) % 7
+    else
+      majorDegree
 
 viewDegree : Int -> String -> Html msg
 viewDegree x name =
@@ -131,30 +131,6 @@ viewCategory y name =
         ]
     )
 
-majorTriads : List Chord
-majorTriads =
-  [ major 0, minor 2, minor 4, major 5
-  , major 7, minor 9, diminished 11
-  ]
-
-minorTriads : List Chord
-minorTriads =
-  [ minor 0, diminished 2, major 3, minor 5
-  , minor 7, major 8, major 10
-  ]
-
-majorSevenths : List Chord
-majorSevenths =
-  [ major7 0, minor7 2, minor7 4, major7 5
-  , dominant7 7, minor7 9, halfDiminished7 11
-  ]
-
-minorSevenths : List Chord
-minorSevenths =
-  [ minor7 0, halfDiminished7 2, major7 3, minor7 5
-  , minor7 7, major7 8, dominant7 10
-  ]
-
 major : Int -> Chord
 major = Chord [ 4, 7 ]
 
@@ -181,3 +157,36 @@ diminished7 = Chord [ 3, 6, 9 ]
 
 sus4 : Int -> Chord
 sus4 = Chord [ 5, 7 ]
+
+dominant9 : Int -> Chord
+dominant9 = Chord [ 4, 7, 10, 14 ]
+
+major9 : Int -> Chord
+major9 = Chord [ 4, 7, 11, 14 ]
+
+add9 : Int -> Chord
+add9 = Chord [ 4, 7, 14 ]
+
+minorAdd9 : Int -> Chord
+minorAdd9 = Chord [ 3, 7, 14 ]
+
+minor9 : Int -> Chord
+minor9 = Chord [ 3, 7, 10, 14 ]
+
+dominant7Flat9 : Int -> Chord
+dominant7Flat9 = Chord [ 4, 7, 10, 13 ]
+
+dominant13 : Int -> Chord
+dominant13 = Chord [ 4, 7, 10, 14, 21 ]
+
+major13 : Int -> Chord
+major13 = Chord [ 4, 7, 11, 14, 21 ]
+
+minor13 : Int -> Chord
+minor13 = Chord [ 3, 7, 10, 14, 21 ]
+
+major6 : Int -> Chord
+major6 = Chord [ 4, 7, 9 ]
+
+minor6 : Int -> Chord
+minor6 = Chord [ 3, 7, 9 ]

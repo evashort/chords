@@ -52,13 +52,13 @@ initHelp getParagraph code =
           [ Comment.highlights (Substring 0 code)
           , Indent.highlights lines
           , Flags.highlights unindented
-          , Paragraph.highlights scale.root paragraph
+          , Paragraph.highlights scale.tonic paragraph
           ]
     , suggestions =
         Suggestion.sort
           ( List.concat
               [ Flags.suggestions unindented
-              , Paragraph.suggestions scale.root paragraph
+              , Paragraph.suggestions scale.tonic paragraph
               ]
           )
     , bpm = Flag.parse Bpm.flag unindented
@@ -103,7 +103,7 @@ setScale scale code =
         let
           oldScale = Flag.parse Scale.flag unindented
         in let
-          offset = (Scale.key scale - Scale.key oldScale) % 12
+          offset = (scale.tonic - oldScale.tonic) % 12
         in let
           oldLowestNote =
             Flag.parse LowestNote.flag unindented

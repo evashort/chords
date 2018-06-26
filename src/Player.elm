@@ -155,7 +155,7 @@ pad lowestNote { id, chord } now player =
           ]
         , List.map
             (AddNote << Note.mapTime (always now))
-            (Arp.strum lowestNote chord)
+            (Arp.pad lowestNote chord)
         ]
     )
 

@@ -39,32 +39,17 @@ count = 12 * Dict.size schemes
 schemes : Dict (List Int) Int
 schemes =
   Dict.fromList
-    (List.indexedMap reversedTuple flavors)
+    ( List.indexedMap
+        reversedTuple
+        (Dict.values Chord.flavors)
+    )
 
 reversedTuple : a -> b -> ( b, a )
 reversedTuple x y =
   ( y, x )
 
-flavors : List (List Int)
-flavors =
-  [ [ 4, 7 ]
-  , [ 3, 7 ]
-  , [ 3, 6 ]
-  , [ 4, 8 ]
-  , [ 5, 7 ]
-  , [ 2, 7 ]
-  , [ 4, 7, 10 ]
-  , [ 4, 7, 11 ]
-  , [ 3, 7, 10 ]
-  , [ 4, 7, 9 ]
-  , [ 3, 6, 10 ]
-  , [ 3, 7, 9 ]
-  , [ 3, 6, 9 ]
-  , [ 3, 7, 11 ]
-  ]
-
 view : Int -> PlayStatus -> Int -> Int -> IdChord -> List (Html Msg)
-view key playStatus y x { id, chord } =
+view tonic playStatus y x { id, chord } =
   [ span
     [ style
         [ ( "grid-row-start", toString (y + 1) )
@@ -115,7 +100,7 @@ view key playStatus y x { id, chord } =
             , ( "grid-column", toString (x + 1) )
             , ( "align-self", "stretch" )
             , ( "justify-self", "stretch" )
-            , ( "background", Colour.bg key chord )
+            , ( "background", Colour.bg tonic chord )
             , ( "color", Colour.fg chord )
             , ( "font", "inherit" ) -- somehow this redundant style changes
                                     -- line-height and keeps text with

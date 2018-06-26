@@ -8,7 +8,7 @@ import Html.Attributes exposing (style)
 type alias Song = List (List (Maybe IdChord))
 
 view : String -> Int -> PlayStatus -> Song -> Html IdChord.Msg
-view gridArea key playStatus song =
+view gridArea tonic playStatus song =
   span
     [ style
         [ ( "grid-area", gridArea )
@@ -23,7 +23,7 @@ view gridArea key playStatus song =
     ]
     ( List.concatMap
         List.concat
-        (indexedMap2d (viewCell key playStatus) song)
+        (indexedMap2d (viewCell tonic playStatus) song)
     )
 
 indexedMap2d : (Int -> Int -> a -> b) -> List (List a) -> List (List b)
@@ -32,7 +32,7 @@ indexedMap2d f rows =
 
 viewCell :
   Int -> PlayStatus -> Int -> Int -> Maybe IdChord -> List (Html IdChord.Msg)
-viewCell key playStatus y x cell =
+viewCell tonic playStatus y x cell =
   Maybe.withDefault
     []
-    (Maybe.map (IdChord.view key playStatus y x) cell)
+    (Maybe.map (IdChord.view tonic playStatus y x) cell)

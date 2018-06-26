@@ -21,23 +21,23 @@ fg chord =
       scheme.fg
 
 bg : Int -> Chord -> String
-bg key chord =
+bg tonic chord =
   case Dict.get chord.flavor schemes of
     Nothing ->
       gray
     Just scheme ->
-      case (chord.root - key) % 3 of
+      case (chord.root - tonic) % 3 of
         0 -> scheme.c
         1 -> scheme.g
         _ -> scheme.f
 
 swatchBg : Int -> Chord -> String
-swatchBg key chord =
+swatchBg tonic chord =
   case Dict.get chord.flavor swatchSchemes of
     Nothing ->
       swatchGray
     Just scheme ->
-      case (chord.root - key) % 3 of
+      case (chord.root - tonic) % 3 of
         0 -> scheme.c
         1 -> scheme.g
         _ -> scheme.f
@@ -56,8 +56,8 @@ schemes =
     , ( [ 3, 7 ], minor )
     , ( [ 3, 6 ], diminished )
     , ( [ 4, 8 ], major )
-    , ( [ 5, 7 ], major )
-    , ( [ 2, 7 ], sus2 )
+    , ( [ 5, 7 ], sus4 )
+    , ( [ 2, 7 ], major7 )
     , ( [ 4, 7, 10 ], dominant7 )
     , ( [ 4, 7, 11 ], major7 )
     , ( [ 3, 7, 10 ], minor7 )
@@ -66,6 +66,15 @@ schemes =
     , ( [ 3, 7, 9 ], minor6 )
     , ( [ 3, 6, 9 ], diminished )
     , ( [ 3, 7, 11 ], minor )
+    , ( [ 4, 7, 10, 14 ], dominant9 )
+    , ( [ 4, 7, 11, 14 ], major9 )
+    , ( [ 3, 7, 10, 14 ], major )
+    , ( [ 4, 7, 10, 13 ], dominant9 )
+    , ( [ 4, 7, 14 ], major9 )
+    , ( [ 3, 7, 14 ], major )
+    , ( [ 4, 7, 10, 14, 21 ], dominant7 )
+    , ( [ 4, 7, 11, 14, 21 ], major7 )
+    , ( [ 3, 7, 10, 14, 21 ], minor7 )
     ]
 
 major : Scheme
@@ -76,12 +85,12 @@ major =
   , g = red
   }
 
-sus2 : Scheme
-sus2 =
+sus4 : Scheme
+sus4 =
   { fg = black
-  , f = blue
-  , c = red
-  , g = green
+  , f = mix red yellow
+  , c = mix green cyan
+  , g = mix blue purple
   }
 
 minor : Scheme
@@ -130,6 +139,22 @@ diminished =
   , f = mix darkRed darkYellow
   , c = mix darkGreen darkCyan
   , g = mix darkBlue darkPurple
+  }
+
+major9 : Scheme
+major9 =
+  { fg = black
+  , f = cyan
+  , c = purple
+  , g = yellow
+  }
+
+dominant9 : Scheme
+dominant9 =
+  { fg = white
+  , f = mix darkGreen darkCyan
+  , c = mix darkBlue darkPurple
+  , g = mix darkRed darkYellow
   }
 
 mix : String -> String -> String

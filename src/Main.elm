@@ -122,8 +122,8 @@ type Msg
   | SetBpm String
   | PreviewLowestNote String
   | SetLowestNote String
-  | SetScaleRoot String
-  | SetScaleMode String
+  | SetTonic String
+  | SetMode String
   | TextChanged String
   | UrlChanged Location
   | Save
@@ -179,19 +179,19 @@ update msg model =
         Err _ ->
           ( model, Cmd.none )
 
-    SetScaleRoot rootString ->
-      case String.toInt rootString of
-        Ok root ->
+    SetTonic tonicString ->
+      case String.toInt tonicString of
+        Ok tonic ->
           let
             oldScale = model.parse.scale
           in let
-            scale = { oldScale | root = root }
+            scale = { oldScale | tonic = tonic }
           in
             doAction "scale" (Parse.setScale scale) model
         Err _ ->
           ( model, Cmd.none )
 
-    SetScaleMode modeString ->
+    SetMode modeString ->
       case
         ( case modeString of
             "Major" -> Just False
@@ -201,7 +201,9 @@ update msg model =
       of
         Just minor ->
           let
-            scale = Scale.setMinor minor model.parse.scale
+            oldScale = model.parse.scale
+          in let
+            scale = { oldScale | minor = minor }
           in
             doAction "scale" (Parse.setScale scale) model
         Nothing ->
@@ -631,44 +633,46 @@ viewScale hasBackup scale =
     ]
     [ Html.text "Scale "
     , select
-        [ onInput SetScaleRoot
+        [ onInput SetTonic
         ]
-        (List.map (viewRootOption scale) (List.range 0 11))
+        (List.map (viewTonicOption scale) (List.range 0 11))
     , Html.text " "
     , select
-        [ onInput SetScaleMode
+        [ onInput SetMode
         ]
         [ option
             [ value "Major"
             , selected (not scale.minor)
             ]
             [ Html.text
-                ( (Pitch.view 0 (Scale.setMinor False scale).root) ++
-                    " Major"
-                )
+                (Pitch.view 0 scale.tonic ++ " Major")
             ]
         , option
             [ value "Minor"
             , selected scale.minor
             ]
             [ Html.text
-                ( (Pitch.view 3 (Scale.setMinor True scale).root) ++
-                    " Minor"
-                )
+                (Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor")
             ]
         ]
     ]
 
-viewRootOption : Scale -> Int -> Html Msg
-viewRootOption scale root =
+viewTonicOption : Scale -> Int -> Html Msg
+viewTonicOption scale namesake =
   let
     sharpCount = if scale.minor then 3 else 0
+  in let
+    tonic =
+      if scale.minor then
+        (namesake + 3) % 12
+      else
+        namesake
   in
     option
-      [ value (toString root)
-      , selected (scale.root == root)
+      [ value (toString tonic)
+      , selected (scale.tonic == tonic)
       ]
-      [ Html.text (Pitch.view sharpCount root)
+      [ Html.text (Pitch.view sharpCount namesake)
       ]
 
 viewLowestNote : Bool -> Int -> Html Msg
@@ -801,7 +805,7 @@ viewSong player parse =
     IdChordMsg
     ( Song.view
         "song"
-        parse.scale.root
+        parse.scale.tonic
         (Player.status player)
         (Parse.song parse)
     )
@@ -837,7 +841,7 @@ viewCircleOfFifths scale player =
     IdChordMsg
     ( CircleOfFifths.view
         "pane"
-        (Scale.key scale)
+        scale.tonic
         (Player.status player)
     )
 
@@ -847,7 +851,7 @@ viewHistory scale history player =
     AddLine
     ( History.view
         "pane"
-        (Scale.key scale)
+        scale.tonic
         history
         (Player.sequence player)
         (Player.sequenceFinished player)

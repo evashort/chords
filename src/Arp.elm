@@ -1,17 +1,28 @@
-module Arp exposing (strum, intro, continuation)
+module Arp exposing (pad, strum, intro, continuation)
 
 import Chord exposing (Chord)
 import Note exposing (Note)
 
 import Dict exposing (Dict)
 
-strum : Int -> Chord -> List Note
-strum lowestNote chord =
+pad : Int -> Chord -> List Note
+pad lowestNote chord =
   templateNotes
     1
     lowestNote
     chord
-    (List.range 0 (List.length chord.flavor) ++ [ 10 ])
+    (List.range 0 (List.length chord.flavor))
+
+strum : Int -> Chord -> List Note
+strum lowestNote chord =
+  let
+    strumChord =
+      if List.length chord.flavor <= 2 then
+        { chord | flavor = chord.flavor ++ [ 12 ] }
+      else
+        chord
+  in
+    pad lowestNote strumChord
 
 intro : Int -> Chord -> List Note
 intro lowestNote chord =
@@ -36,7 +47,7 @@ default lowestNote chord =
     lowestNote
     chord
     ( List.map
-        ((%) (1 + List.length chord.flavor))
+        (\i -> i % (1 + List.length chord.flavor))
         (List.range 0 15)
     )
 
@@ -108,28 +119,45 @@ schemes =
     , ( [ 3, 7, 9 ], seventh )
     , ( [ 3, 6, 9 ], seventh )
     , ( [ 3, 7, 11 ], seventh )
+    , ( [ 4, 7, 10, 14 ], ninth )
+    , ( [ 4, 7, 11, 14 ], ninth )
+    , ( [ 4, 7, 14 ], addNinth )
+    , ( [ 3, 7, 14 ], addNinth )
+    , ( [ 3, 7, 10, 14 ], minorNinth )
+    , ( [ 4, 7, 10, 13 ], ninth )
+    , ( [ 4, 7, 10, 14, 21 ], thirteenth )
+    , ( [ 4, 7, 11, 14, 21 ], thirteenth )
+    , ( [ 3, 7, 10, 14, 21 ], thirteenth )
     ]
 
 triad : Scheme
 triad =
-  { intro =
-      [    0, 1, 2, 10, 11, 12, 10, 11
-      , 2000, 1, 2, 10, 11, 12, 10, 11
-      ]
-  , continuation =
-      [ 2000, 1, 2, 10, 11, 12, 10, 11
-      , 2000, 1, 2, 10, 11, 12, 10, 11
-      ]
-  }
+  basic [ 2000, 1, 2, 10, 11, 12, 10, 11 ]
 
 seventh : Scheme
 seventh =
+  basic [ 1300, 1, 2, 3, 10, 11, 3, 10 ]
+
+thirteenth : Scheme
+thirteenth =
+  basic [ 500, 1, 2, 3, 4, 2, 3, 4 ]
+
+addNinth : Scheme
+addNinth =
+  basic [ 1300, 1, 2, 3, 11, 12, 3, 11 ]
+
+ninth : Scheme
+ninth =
+  basic [ 1400, 1, 2, 11, 12, 13, 11, 12 ]
+
+minorNinth : Scheme
+minorNinth =
+  basic [ 1400, 1, 2, 10, 12, 13, 10, 12 ]
+
+basic : List Int -> Scheme
+basic half =
   { intro =
-      [    0, 1, 2, 3, 10, 11, 3, 10
-      , 1200, 1, 2, 3, 10, 11, 3, 10
-      ]
+      0 :: List.drop 1 half ++ half
   , continuation =
-      [ 2000, 1, 2, 3, 10, 11, 3, 10
-      , 1200, 1, 2, 3, 10, 11, 3, 10
-      ]
+      half ++ half
   }

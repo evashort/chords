@@ -1,4 +1,4 @@
-module Scale exposing (Scale, key, setMinor, flag)
+module Scale exposing (Scale, flag)
 
 import Flag exposing (Flag)
 import Pitch
@@ -9,23 +9,8 @@ import Regex exposing (Regex)
 
 type alias Scale =
   { minor : Bool
-  , root : Int
+  , tonic : Int
   }
-
-key : Scale -> Int
-key scale =
-  (scale.root + majorStart scale.minor) % 12
-
-setMinor : Bool -> Scale -> Scale
-setMinor minor scale =
-  { minor = minor
-  , root =
-      (scale.root + majorStart scale.minor - majorStart minor) % 12
-  }
-
-majorStart : Bool -> Int
-majorStart minor =
-  if minor then 3 else 0
 
 flag : Flag Scale
 flag =
@@ -34,22 +19,28 @@ flag =
   , code = code
   , default =
       { minor = False
-      , root = 0
+      , tonic = 0
       }
   }
 
 fromCode : String -> Maybe Scale
 fromCode code =
   case submatches regex code of
-    [ Just rootCode, Just flavorCode ] ->
+    [ Just namesakeCode, Just flavorCode ] ->
       case Dict.get flavorCode flavors of
         Nothing ->
           Nothing
         Just minor ->
-          Just
-            { minor = minor
-            , root = Pitch.fromCode rootCode
-            }
+          let
+            namesake = Pitch.fromCode namesakeCode
+          in let
+            tonic =
+              if minor then
+                (namesake + 3) % 12
+              else
+                namesake
+          in
+            Just (Scale minor tonic)
     _ ->
       Nothing
 
@@ -66,6 +57,6 @@ flavors =
 code : Scale -> String
 code scale =
   if scale.minor then
-    Pitch.code 3 scale.root ++ "m"
+    Pitch.code 3 ((scale.tonic - 3) % 12) ++ "m"
   else
-    Pitch.code 0 scale.root
+    Pitch.code 0 scale.tonic

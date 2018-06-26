@@ -49,7 +49,7 @@ update mSubstring mWord =
       Nothing
 
 highlight : Int -> Word -> Maybe Highlight
-highlight key word =
+highlight tonic word =
   case word.cache of
     Nothing ->
       if word.substring.s == "_" then
@@ -60,7 +60,7 @@ highlight key word =
       if word.substring.s == cache.codeName then
         Just
           { fg = Colour.fg cache.chord
-          , bg = Colour.swatchBg key cache.chord
+          , bg = Colour.swatchBg tonic cache.chord
           , substring = word.substring
           }
       else
@@ -81,7 +81,7 @@ meaning word =
         Nothing
 
 suggestion : Int -> Word -> Maybe (List Swatch, Substring)
-suggestion key word =
+suggestion tonic word =
   case word.cache of
     Nothing ->
       Nothing
@@ -91,7 +91,7 @@ suggestion key word =
       else
         Just
           ( [ { fg = Colour.fg cache.chord
-              , bg = Colour.swatchBg key cache.chord
+              , bg = Colour.swatchBg tonic cache.chord
               , s = cache.codeName
               }
             ]

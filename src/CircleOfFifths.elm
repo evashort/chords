@@ -18,7 +18,7 @@ import Svg.Attributes exposing
   )
 
 view : String -> Int -> PlayStatus -> Html IdChord.Msg
-view gridArea key playStatus =
+view gridArea tonic playStatus =
   let
     rInner = 100
   in let
@@ -30,7 +30,7 @@ view gridArea key playStatus =
       List.map
         ( IdChord.fromChord <<
             Chord [ 4, 7 ] <<
-            (\i -> (key + 7 * i) % 12)
+            (\i -> (tonic + 7 * i) % 12)
         )
         (List.range 0 11)
   in let
@@ -38,7 +38,7 @@ view gridArea key playStatus =
       List.map
         ( IdChord.fromChord <<
             Chord [ 3, 7 ] <<
-            (\i -> (9 + key + 7 * i) % 12)
+            (\i -> (9 + tonic + 7 * i) % 12)
         )
         (List.range 0 11)
   in let
@@ -59,15 +59,15 @@ view gridArea key playStatus =
           ]
           ( List.concat
               [ [ gradients ]
-              , keyShadow
+              , scaleShadow
               , List.concat
                   ( List.indexedMap
-                      (viewChord key playStatus rMid rOuter)
+                      (viewChord tonic playStatus rMid rOuter)
                       majorChords
                   )
               , List.concat
                   ( List.indexedMap
-                      (viewChord key playStatus rInner rMid)
+                      (viewChord tonic playStatus rInner rMid)
                       minorChords
                   )
               ]
@@ -114,8 +114,8 @@ gradients =
         ]
     ]
 
-keyShadow : List (Svg msg)
-keyShadow =
+scaleShadow : List (Svg msg)
+scaleShadow =
   [ path
       [ fill "lightgray"
       , stroke "lightgray"
@@ -149,7 +149,7 @@ areaAverage x y =
 viewChord :
   Int -> PlayStatus -> Float -> Float -> Int -> IdChord ->
     List (Svg IdChord.Msg)
-viewChord key playStatus rInner rOuter i { id, chord } =
+viewChord tonic playStatus rInner rOuter i { id, chord } =
   List.filterMap
     identity
     [ if playStatus.active == id || playStatus.next == id then
@@ -183,7 +183,7 @@ viewChord key playStatus rInner rOuter i { id, chord } =
                   [ ( 13, play )
                   , ( 32, play )
                   ]
-              , fill (Colour.bg key chord)
+              , fill (Colour.bg tonic chord)
               , attribute "tabindex" "0"
               , style [ ( "cursor", "pointer" ) ]
               , d (twelfth 5 rInner rOuter i)

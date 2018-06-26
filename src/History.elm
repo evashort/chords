@@ -30,7 +30,7 @@ add sequence history =
     history
 
 view : String -> Int -> History -> List Chord -> Bool -> Html String
-view gridArea key history sequence finished =
+view gridArea tonic history sequence finished =
   span
     [ style
         [ ( "grid-area", gridArea )
@@ -40,19 +40,19 @@ view gridArea key history sequence finished =
     ]
     ( List.concat
         [ if List.length sequence >= 2 then
-            viewSequence finished key history.length sequence
+            viewSequence finished tonic history.length sequence
           else
             []
         , List.concat
             ( List.indexedMap
-                (viewSequence True key << (-) (history.length - 1))
+                (viewSequence True tonic << (-) (history.length - 1))
                 history.sequences
             )
         ]
     )
 
 viewSequence : Bool -> Int -> Int -> List Chord -> List (Html String)
-viewSequence finished key index sequence =
+viewSequence finished tonic index sequence =
   [ span
       [ style
           [ ( "background", indexBackground index )
@@ -85,7 +85,7 @@ viewSequence finished key index sequence =
       ( List.concat
           [ List.intersperse
               (text " ")
-              (List.map (viewChord key) sequence)
+              (List.map (viewChord tonic) sequence)
           , if finished then
               []
             else
@@ -102,10 +102,10 @@ indexBackground index =
     "#eeeeee"
 
 viewChord : Int -> Chord -> Html msg
-viewChord key chord =
+viewChord tonic chord =
   mark
     [ style
-        [ ( "background", Colour.swatchBg key chord )
+        [ ( "background", Colour.swatchBg tonic chord )
         , ( "color", Colour.fg chord )
         , ( "border-radius", "3px" )
         ]
