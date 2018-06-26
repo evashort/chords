@@ -11,12 +11,14 @@ import Html.Events exposing (onClick)
 type alias History =
   { sequences : List (List Chord)
   , length : Int
+  , shortenSequences : Bool
   }
 
 init : History
 init =
   { sequences = []
   , length = 0
+  , shortenSequences = True
   }
 
 add : List Chord -> History -> History
@@ -40,59 +42,89 @@ view gridArea tonic history sequence finished =
     ]
     ( List.concat
         [ if List.length sequence >= 2 then
-            viewSequence finished tonic history.length sequence
+            viewSequence
+              history.shortenSequences
+              finished
+              tonic
+              history.length
+              sequence
           else
             []
         , List.concat
             ( List.indexedMap
-                (viewSequence True tonic << (-) (history.length - 1))
+                ( viewSequence
+                    history.shortenSequences
+                    True
+                    tonic <<
+                  (-) (history.length - 1)
+                )
                 history.sequences
             )
         ]
     )
 
-viewSequence : Bool -> Int -> Int -> List Chord -> List (Html String)
-viewSequence finished tonic index sequence =
-  [ span
-      [ style
-          [ ( "background", indexBackground index )
-          , ( "grid-column", "1" )
-          , ( "padding", "5px" )
-          , ( "padding-right", "10px" )
-          , ( "display", "flex" )
-          , ( "align-items", "center" )
-          ]
-      ]
-      [ button
-          [ disabled (not finished)
-          , onClick (String.join " " (List.map Name.code sequence))
-          ]
-          [ text "Use"
-          ]
-      ]
-  , span
-      [ style
-          [ ( "background", indexBackground index )
-          , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-          , ( "font-size", "160%" )
-          , ( "line-height", "initial" )
-          , ( "white-space", "initial" )
-          , ( "padding", "5px" )
-          , ( "padding-left", "0px" )
-          , ( "grid-column", "2" )
-          ]
-      ]
-      ( List.concat
-          [ List.intersperse
-              (text " ")
-              (List.map (viewChord tonic) sequence)
-          , if finished then
-              []
-            else
-              [ text "..." ]
-          ]
-      )
-  ]
+viewSequence : Bool -> Bool -> Int -> Int -> List Chord -> List (Html String)
+viewSequence shorten finished tonic index sequence =
+  let
+    shortenedSequence =
+      if shorten then
+          List.drop
+            (List.length sequence - 8)
+            sequence
+        else
+          sequence
+  in
+    [ span
+        [ style
+            [ ( "background", indexBackground index )
+            , ( "grid-column", "1" )
+            , ( "padding", "5px" )
+            , ( "padding-right", "10px" )
+            , ( "display", "flex" )
+            , ( "align-items", "center" )
+            ]
+        ]
+        [ button
+            [ disabled (not finished)
+            , onClick
+                ( String.join
+                    " "
+                    (List.map Name.code shortenedSequence)
+                )
+            ]
+            [ text "Use"
+            ]
+        ]
+    , span
+        [ style
+            [ ( "background", indexBackground index )
+            , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
+            , ( "font-size", "160%" )
+            , ( "line-height", "initial" )
+            , ( "white-space", "initial" )
+            , ( "padding", "5px" )
+            , ( "padding-left", "0px" )
+            , ( "grid-column", "2" )
+            ]
+        ]
+        ( List.concat
+            [ if shorten && List.length sequence > 8 then
+                [ text "..." ]
+              else
+                []
+            , List.intersperse
+                (text " ")
+                ( List.map
+                    (viewChord tonic)
+                    shortenedSequence
+                )
+            , if finished then
+                []
+              else
+                [ text "..." ]
+            ]
+        )
+    ]
 
 indexBackground : Int -> String
 indexBackground index =

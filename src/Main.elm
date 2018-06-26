@@ -141,6 +141,7 @@ type Msg
   | SetHarmonicMinor Bool
   | SetExtendedChords Bool
   | SetAddedToneChords Bool
+  | SetShortenSequences Bool
   | AddLine String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -358,7 +359,8 @@ update msg model =
       ( let
           oldSettings = model.degreeTableSettings
         in let
-          settings = { oldSettings | harmonicMinor = harmonicMinor }
+          settings =
+            { oldSettings | harmonicMinor = harmonicMinor }
         in
           { model | degreeTableSettings = settings }
       , Cmd.none
@@ -368,7 +370,8 @@ update msg model =
       ( let
           oldSettings = model.degreeTableSettings
         in let
-          settings = { oldSettings | extendedChords = extendedChords }
+          settings =
+            { oldSettings | extendedChords = extendedChords }
         in
           { model | degreeTableSettings = settings }
       , Cmd.none
@@ -378,9 +381,21 @@ update msg model =
       ( let
           oldSettings = model.degreeTableSettings
         in let
-          settings = { oldSettings | addedToneChords = addedToneChords }
+          settings =
+            { oldSettings | addedToneChords = addedToneChords }
         in
           { model | degreeTableSettings = settings }
+      , Cmd.none
+      )
+
+    SetShortenSequences shortenSequences ->
+      ( let
+          oldHistory = model.history
+        in let
+          history =
+            { oldHistory | shortenSequences = shortenSequences }
+        in
+          { model | history = history }
       , Cmd.none
       )
 
@@ -581,7 +596,7 @@ view model =
         FifthsPane ->
           Html.span [] []
         HistoryPane ->
-          Html.span [] []
+          viewHistorySettings model.history.shortenSequences
     , case model.pane of
         DegreesPane ->
           Html.Lazy.lazy3
@@ -917,6 +932,27 @@ viewDegreeTableSettings settings =
         [ for "addedToneChords"
         ]
         [ Html.text " Added tone chords"
+        ]
+    ]
+
+viewHistorySettings : Bool -> Html Msg
+viewHistorySettings shortenSequences =
+  span
+    [ style
+        [ ( "grid-area", "paneSettings" )
+        ]
+    ]
+    [ input
+        [ type_ "checkbox"
+        , id "shortenSequences"
+        , checked shortenSequences
+        , onCheck SetShortenSequences
+        ]
+        []
+    , label
+        [ for "shortenSequences"
+        ]
+        [ Html.text " Show only last 8 chords of each sequence"
         ]
     ]
 

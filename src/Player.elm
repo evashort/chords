@@ -138,14 +138,16 @@ pad lowestNote { id, chord } now player =
   let
     truncatedSchedule =
       truncateAfter now player.schedule
+  in let
+    schedule =
+      addSegment
+        (Segment id chord infinity)
+        truncatedSchedule
   in
     ( { player
       | cliff = Cliff.dropAfter now player.cliff
-      , schedule =
-          addSegment
-            (Segment id chord infinity)
-            truncatedSchedule
-      , pastLength = List.length truncatedSchedule
+      , schedule = schedule
+      , pastLength = List.length (dropAfter now schedule)
       }
     , List.concat
         [ stopOldChord now chord now truncatedSchedule
@@ -165,14 +167,16 @@ strum strumInterval lowestNote { id, chord } now player =
   let
     truncatedSchedule =
       truncateAfter now player.schedule
+  in let
+    schedule =
+      addSegment
+        (Segment id chord (now + 2.25))
+        truncatedSchedule
   in
     ( { player
       | cliff = Cliff.dropAfter now player.cliff
-      , schedule =
-          addSegment
-            (Segment id chord (now + 2.25))
-            truncatedSchedule
-      , pastLength = List.length truncatedSchedule
+      , schedule = schedule
+      , pastLength = List.length (dropAfter now schedule)
       }
     , List.concat
         [ stopOldChord now chord now truncatedSchedule
