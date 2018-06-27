@@ -11,7 +11,7 @@ flag =
   { key = "octave"
   , fromCode = fromCode
   , code = code
-  , default = 48
+  , default = 45
   }
 
 fromCode : String -> Maybe Int
