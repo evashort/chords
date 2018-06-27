@@ -901,7 +901,7 @@ viewDegreeTableSettings settings =
     , label
         [ for "harmonicMinor"
         ]
-        [ Html.text " Harmonic minor"
+        [ Html.text " Chords from harmonic minor"
         ]
     , Html.text " "
     , input
