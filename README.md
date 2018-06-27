@@ -57,7 +57,7 @@ First, download Elm from http://elm-lang.org/
 
 To build in Atom, install the
 [Atom Build package](https://atom.io/packages/build) and press cmd+alt+b /
-ctrl+alt+b to execute the build command in
+ctrl+alt+b to execute the build command found in
 [`.atom-build.yml`](https://github.com/evanshort73/chords/blob/master/.atom-build.yml).
 
 To build from the command line, navigate to the repo folder and enter the
