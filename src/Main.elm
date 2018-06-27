@@ -125,7 +125,7 @@ type Msg
   | PreviewLowestNote String
   | SetLowestNote String
   | SetTonic String
-  | SetMode String
+  | SetMinor Bool
   | TextChanged String
   | UrlChanged Location
   | Save
@@ -197,23 +197,13 @@ update msg model =
         Err _ ->
           ( model, Cmd.none )
 
-    SetMode modeString ->
-      case
-        ( case modeString of
-            "Major" -> Just False
-            "Minor" -> Just True
-            _ -> Nothing
-        )
-      of
-        Just minor ->
-          let
-            oldScale = model.parse.scale
-          in let
-            scale = { oldScale | minor = minor }
-          in
-            doAction "scale" (Parse.setScale scale) model
-        Nothing ->
-          ( model, Cmd.none )
+    SetMinor minor ->
+      let
+        oldScale = model.parse.scale
+      in let
+        scale = { oldScale | minor = minor }
+      in
+        doAction "scale" (Parse.setScale scale) model
 
     TextChanged code ->
       ( let parse = Parse.update code model.parse in
@@ -697,42 +687,40 @@ viewScale hasBackup scale =
         ]
         (List.map (viewTonicOption scale) (List.range 0 11))
     , Html.text " "
-    , select
-        [ onInput SetMode
-        ]
-        [ option
-            [ value "Major"
-            , selected (not scale.minor)
+    , Html.map
+        SetMinor
+        ( Radio.view
+            scale.minor
+            [ ( Pitch.view 0 scale.tonic ++ " Major"
+              , False
+              )
+            , ( Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor"
+              , True
+              )
             ]
-            [ Html.text
-                (Pitch.view 0 scale.tonic ++ " Major")
-            ]
-        , option
-            [ value "Minor"
-            , selected scale.minor
-            ]
-            [ Html.text
-                (Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor")
-            ]
-        ]
+        )
     ]
 
 viewTonicOption : Scale -> Int -> Html Msg
 viewTonicOption scale namesake =
   let
-    sharpCount = if scale.minor then 3 else 0
-  in let
     tonic =
       if scale.minor then
         (namesake + 3) % 12
       else
         namesake
+  in let
+    scaleName =
+      if scale.minor then
+        Pitch.view 3 namesake ++ " Minor"
+      else
+        Pitch.view 0 namesake ++ " Major"
   in
     option
       [ value (toString tonic)
       , selected (scale.tonic == tonic)
       ]
-      [ Html.text (Pitch.view sharpCount namesake)
+      [ Html.text scaleName
       ]
 
 viewLowestNote : Bool -> Int -> Html Msg
