@@ -52,6 +52,20 @@ red being darkest. The lightness was chosen to contrast with the text as
 required by
 [WCAG 2.0](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html).
 
+## Build steps
+First, download Elm from http://elm-lang.org/
+
+To build in Atom, install the
+[Atom Build package](https://atom.io/packages/build) and press cmd+alt+b /
+ctrl+alt+b to execute the build command in
+(`.atom-build.yml`)[https://github.com/evanshort73/chords/blob/master/.atom-build.yml].
+
+To build from the command line, navigate to the repo folder and enter the
+build command found in
+(`.atom-build.yml`)[https://github.com/evanshort73/chords/blob/master/.atom-build.yml].
+
+To run, open `index.html` in your browser.
+
 ## Implementation details
 On the JS side, I use the Web Audio API to set up 6 sawtooth oscillators,
 connect each one to a gain node, and use Web Audio API commands like
