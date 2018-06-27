@@ -587,8 +587,9 @@ view model =
         model.playStyle
         model.strumInterval
     , Html.Lazy.lazy2 viewSong model.player model.parse
-    , Html.Lazy.lazy
+    , Html.Lazy.lazy2
         viewPaneSelector
+        model.parse.scale
         model.pane
     , case model.pane of
         DegreesPane ->
@@ -869,24 +870,31 @@ viewSong player parse =
         (Parse.song parse)
     )
 
-viewPaneSelector : Pane -> Html Msg
-viewPaneSelector pane =
-  span
-    [ style
-        [ ( "grid-area", "paneSelector" )
-        , ( "margin-top", "8px" )
-        ]
-    ]
-    [ Html.map
-        SetPane
-        ( Radio.view
-            pane
-            [ ( "Scale degrees", DegreesPane )
-            , ( "Circle of fifths", FifthsPane )
-            , ( "Recently played", HistoryPane )
-            ]
-        )
-    ]
+viewPaneSelector : Scale -> Pane -> Html Msg
+viewPaneSelector scale pane =
+  let
+    scaleName =
+      if scale.minor then
+        Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor"
+      else
+        Pitch.view 0 scale.tonic ++ " Major"
+  in
+    span
+      [ style
+          [ ( "grid-area", "paneSelector" )
+          , ( "margin-top", "8px" )
+          ]
+      ]
+      [ Html.map
+          SetPane
+          ( Radio.view
+              pane
+              [ ( "Chords in " ++ scaleName, DegreesPane )
+              , ( "Circle of fifths", FifthsPane )
+              , ( "Recently played", HistoryPane )
+              ]
+          )
+      ]
 
 viewDegreeTableSettings : DegreeTable.Settings -> Html Msg
 viewDegreeTableSettings settings =

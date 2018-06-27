@@ -65,7 +65,7 @@ schemes =
     , ( [ 3, 6, 10 ], minor6 )
     , ( [ 3, 7, 9 ], minor6 )
     , ( [ 3, 6, 9 ], diminished )
-    , ( [ 3, 7, 11 ], minor )
+    , ( [ 3, 7, 11 ], minor7 )
     , ( [ 4, 7, 10, 14 ], dominant9 )
     , ( [ 4, 7, 11, 14 ], major9 )
     , ( [ 3, 7, 10, 14 ], major )
