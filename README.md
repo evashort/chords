@@ -80,29 +80,29 @@ ctrl+z can also affect the hidden textareas so we have to detect and
 counteract that. This is all handled on the JS side in `theater.js`, with an
 Elm interface in `Theater.elm`.
 
-# Design principles
+## Design principles
 
-## Keep it flat flat flat
+### Keep it flat flat flat
 Refactor code when it becomes hard to manage, not when it becomes repetitive.
 Refactoring for the sake of code re-use tends to introduce extra abstraction
 layers which can hide opportunities for more meaningful refactors. The same
 is true of refactors that attempt to increase encapsulation.
 
-## Always be open to removing features
+### Always be open to removing features
 The most important refactors start by questioning the utility of a feature you
 always thought was essential. This project was essentially dead for two months
 because the code got too complicated to maintain. I was able to bring it back
 by removing the ability to invert chords, a feature that had been baked into
 the design from the beginning.
 
-## Fail loudly
+### Fail loudly
 It's not always practical to rely on Elm's guarantee of no runtime errors. For
 example, you might let `y = x % 12` and then assume that `y < 12`. Or you
 add an item to a list and then assume that the list is not empty. Make these
 assumptions explicit by calling `Debug.crash` if they fail and printing some
 useful information.
 
-## Accept no glitches
+### Accept no glitches
 As users, we don't always notice how much mental energy we spend compensating
 for interfaces that are slightly unpredictable. We develop a lot of
 unconscious behaviors like double-checking that a certain element has focus.
@@ -110,21 +110,21 @@ This program is meant to act like an extension of the user's brain as they
 reason about chords, so it's very important to fix any glitches that might sap
 their mental energy.
 
-## The UI should be normal
+### The UI should be normal
 Use standard controls like checkboxes, buttons, and drop-down menus. Don't
 style them with custom CSS. Yes, I know broke this rule by making fancy
 Mac-inspired radio buttons. Each UI element should have an explicit text
 description that's always visible so users know what it does at a glance.
 Don't hide things to save space unless absolutely necessary.
 
-## Variable names
+### Variable names
 Prefer single-word variable names that refer to concrete objects in the real
 world. Use a thesaurus to spark your creativity but forego the long words.
 Take advantage of metaphors to name multiple related variables. For example, a
 1D list containing multiple rows of data separated with a delimiter is called
 a `train`, and each row of data is called a `car`.
 
-## Code style
+### Code style
 I don't have strong opinions about code style and formatting; I'm just doing
 what works for me. I'd like to start using elm-format but I'm afraid it will
 ruin the commit history.
