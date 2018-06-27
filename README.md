@@ -4,6 +4,8 @@ Text-based chord progression editor
 Type chord names in a textbox to create a sequence of play buttons that you
 can use like an instrument.
 
+Try it in your browser: http://evanshort.name/chords/
+
 ## Current features
 - Chords in textbox are colored to match play buttons
 - Play chords as arpeggio, continuous pad, or basic strum
