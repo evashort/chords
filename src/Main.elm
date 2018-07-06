@@ -18,6 +18,7 @@ import Radio
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
 import Song
+import StrumPattern exposing (StrumPattern)
 import Substring exposing (Substring)
 import Swatch
 import Theater
@@ -55,6 +56,7 @@ type alias Model =
   , saved : Bool
   , buffet : Buffet
   , playStyle : PlayStyle
+  , strumPattern : StrumPattern
   , strumInterval : Float
   , player : Player
   , pane : Pane
@@ -66,6 +68,7 @@ type PlayStyle
   = ArpeggioStyle
   | StrumStyle
   | PadStyle
+  | StrumPatternStyle
 
 type Pane
   = DegreesPane
@@ -93,6 +96,7 @@ init location =
       , saved = maybeText /= Nothing
       , buffet = Buffet.init parse.suggestions
       , playStyle = ArpeggioStyle
+      , strumPattern = StrumPattern.Modern
       , strumInterval = 0.04
       , player = Player.init
       , pane = DegreesPane
@@ -131,6 +135,7 @@ type Msg
   | Save
   | BuffetMsg Buffet.Msg
   | SetPlayStyle PlayStyle
+  | SetStrumPattern StrumPattern
   | SetStrumInterval String
   | RequestTime
   | CurrentTime Float
@@ -272,6 +277,12 @@ update msg model =
       , Cmd.none
       )
 
+    SetStrumPattern strumPattern ->
+      ( if strumPattern == model.strumPattern then model
+        else { model | strumPattern = strumPattern }
+      , Cmd.none
+      )
+
     SetStrumInterval strumIntervalString ->
       ( case String.toFloat strumIntervalString of
           Ok strumInterval ->
@@ -320,6 +331,14 @@ update msg model =
                 model.strumInterval lowestNote idChord now player
             PadStyle ->
               Player.pad lowestNote idChord now player
+            StrumPatternStyle ->
+              Player.strumPattern
+                model.strumPattern
+                (60 / model.parse.bpm)
+                lowestNote
+                idChord
+                now
+                player
       in
         ( { model
           | player = newPlayer
@@ -519,6 +538,7 @@ view model =
 "theater save"
 "buffet buffet"
 "playStyle playStyle"
+"playSettings playSettings"
 "song song"
 "paneSelector paneSelector"
 "paneSettings paneSettings"
@@ -572,9 +592,13 @@ view model =
         ]
         [ Html.text "Save in URL"
         ]
-    , Html.Lazy.lazy2
+    , Html.Lazy.lazy
         viewPlayStyle
         model.playStyle
+    , Html.Lazy.lazy3
+        viewPlaySettings
+        model.playStyle
+        model.strumPattern
         model.strumInterval
     , Html.Lazy.lazy2 viewSong model.player model.parse
     , Html.Lazy.lazy2
@@ -795,57 +819,83 @@ viewBuffet : Buffet -> Html Msg
 viewBuffet buffet =
   Html.map BuffetMsg (Buffet.view buffet)
 
-viewPlayStyle : PlayStyle -> Float -> Html Msg
-viewPlayStyle playStyle strumInterval =
+viewPlayStyle : PlayStyle -> Html Msg
+viewPlayStyle playStyle =
   span
     [ style
         [ ( "grid-area", "playStyle" )
-        , ( "display", "flex" )
-        , ( "align-items", "center" )
         , ( "margin-top", "8px" )
         ]
     ]
-    ( List.concat
-        [ [ Html.text "Play chords as\xA0"
-          , Html.map
-              SetPlayStyle
-              ( Radio.view
-                  playStyle
-                  [ ( "Arpeggio", ArpeggioStyle )
-                  , ( "Strum", StrumStyle )
-                  , ( "Pad", PadStyle )
-                  ]
-              )
-          ]
-        , if playStyle == StrumStyle then
-            [ Html.text "\xA0"
-            , input
-                [ type_ "range"
-                , onInput SetStrumInterval
-                , Attributes.min "0"
-                , Attributes.max "100"
-                , Attributes.step "20"
-                , value (toString (1000 * strumInterval))
-                , style
-                    [ ( "width", "5em" )
-                    ]
-                ]
-                []
-            , Html.text "\xA0"
-            , span
-                [ style
-                    [ ( "line-height", "1.25" )
-                    , ( "white-space", "normal" )
-                    ]
-                ]
-                [ Html.text
-                    (toString (1000 * strumInterval) ++ "ms between notes")
-                ]
+    [ Html.text "Play chords as\xA0"
+    , Html.map
+        SetPlayStyle
+        ( Radio.view
+            playStyle
+            [ ( "Arpeggio", ArpeggioStyle )
+            , ( "Strum", StrumStyle )
+            , ( "Pad", PadStyle )
+            , ( "Strum pattern", StrumPatternStyle )
             ]
-          else
-            []
+        )
+    ]
+
+viewPlaySettings : PlayStyle -> StrumPattern -> Float -> Html Msg
+viewPlaySettings playStyle strumPattern strumInterval =
+  case playStyle of
+    StrumPatternStyle ->
+      span
+        [ style
+            [ ( "grid-area", "playSettings" )
+            ]
         ]
-    )
+        [ Html.text "Strum pattern\xA0"
+        , Html.map
+            SetStrumPattern
+            ( Radio.view
+                strumPattern
+                [ ( "Basic", StrumPattern.Basic )
+                , ( "Indie", StrumPattern.Indie )
+                , ( "Modern", StrumPattern.Modern )
+                ]
+            )
+        ]
+    StrumStyle ->
+      span
+        [ style
+            [ ( "grid-area", "playSettings" )
+            , ( "display", "flex" )
+            , ( "align-items", "center" )
+            ]
+        ]
+      [ Html.text "Strum length\xA0"
+      , input
+          [ type_ "range"
+          , onInput SetStrumInterval
+          , Attributes.min "0"
+          , Attributes.max "100"
+          , Attributes.step "20"
+          , value (toString (1000 * strumInterval))
+          , style
+              [ ( "width", "5em" )
+              ]
+          ]
+          []
+      , Html.text
+          ( String.concat
+              [ "\xA0"
+              , toString (1000 * strumInterval)
+              , "ms between notes"
+              ]
+          )
+      ]
+    _ ->
+      span
+        [ style
+            [ ( "grid-area", "playStyle" )
+            ]
+        ]
+        []
 
 viewSong : Player -> Parse -> Html Msg
 viewSong player parse =

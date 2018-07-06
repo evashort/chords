@@ -1,6 +1,6 @@
 module Player exposing
   ( Player, init, setTime, status, willChange, sequence, sequenceFinished
-  , stop, pad, strum, arp
+  , stop, pad, strum, arp, strumPattern
   )
 
 import Arp
@@ -9,6 +9,7 @@ import Chord exposing (Chord)
 import Cliff exposing (Cliff)
 import IdChord exposing (IdChord, PlayStatus)
 import Note
+import StrumPattern exposing (StrumPattern, StrumNote)
 
 type alias Player =
   { cliff : Cliff Bool
@@ -130,7 +131,7 @@ stop now player =
       | pastLength =
           List.length (dropAfter now player.schedule)
       }
-  , [ MuteAllNotes { t = now, before = False } ]
+  , [ Mute now ]
   )
 
 pad : Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
@@ -149,16 +150,12 @@ pad lowestNote { id, chord } now player =
       , schedule = schedule
       , pastLength = List.length (dropAfter now schedule)
       }
-    , List.concat
-        [ stopOldChord now chord now truncatedSchedule
-        , [ SetAttack 0.2
-          , SetPeak 0.25
-          , SetDecay infinity
-          ]
-        , List.map
-            (AddNote << Note.mapTime (always now))
+    , (::)
+        (Mute now)
+        ( List.map
+            (AddPadNote << Note.mapTime (always now))
             (Arp.pad lowestNote chord)
-        ]
+        )
     )
 
 strum :
@@ -178,18 +175,14 @@ strum strumInterval lowestNote { id, chord } now player =
       , schedule = schedule
       , pastLength = List.length (dropAfter now schedule)
       }
-    , List.concat
-        [ stopOldChord now chord now truncatedSchedule
-        , [ SetAttack 0
-          , SetPeak 0.5
-          , SetDecay 3
-          ]
-        , List.map
-            ( AddNote <<
+    , (::)
+        (Mute now)
+        ( List.map
+            ( AddGuitarNote <<
                 Note.mapTime ((+) now << (*) strumInterval)
             )
             (Arp.strum lowestNote chord)
-        ]
+        )
     )
 
 arp :
@@ -218,24 +211,72 @@ arp beatInterval lowestNote { id, chord } now player =
       , schedule = schedule
       , pastLength = List.length (dropAfter now schedule)
       }
-    , List.concat
-        [ stopOldChord startTime chord now truncatedSchedule
-        , [ SetAttack 0
-          , SetPeak 0.5
-          , SetDecay 1.5
-          ]
-        , List.map
-            ( AddNote <<
+    , (::)
+        (Mute startTime)
+        ( List.map
+            ( AddPianoNote <<
                 Note.mapTime
-                  (max now << (+) startTime << (*) beatInterval)
+                  ((+) startTime << (*) beatInterval)
             )
             ( if highStart then
                 Arp.continuation lowestNote chord
               else
                 Arp.intro lowestNote chord
             )
-        ]
+        )
     )
+
+strumPattern :
+  StrumPattern -> Float -> Int -> IdChord -> Float -> Player ->
+    (Player, List AudioChange)
+strumPattern strumPattern beatInterval lowestNote { id, chord } now player =
+  let
+    ( startTime, highStart ) =
+      Maybe.withDefault
+        ( now, False )
+        (Cliff.nextHold now player.cliff)
+  in let
+    beatCount = if highStart then 6 else 8
+  in let
+    truncatedSchedule =
+      truncateAfter startTime player.schedule
+  in let
+    schedule =
+      addSegment
+        (Segment id chord (startTime + beatCount * beatInterval))
+        truncatedSchedule
+  in
+    ( { cliff =
+          Cliff.addHolds
+            startTime
+            (2 * beatInterval)
+            ( if highStart then
+                [ False, True, False ]
+              else
+                [ True, False, True, False ]
+            )
+            player.cliff
+      , schedule = schedule
+      , pastLength = List.length (dropAfter now schedule)
+      }
+    , (::)
+        (Mute startTime)
+        ( List.map
+            (processStrumNote startTime beatInterval)
+            (StrumPattern.notes strumPattern highStart lowestNote chord)
+        )
+    )
+
+processStrumNote : Float -> Float -> StrumNote -> AudioChange
+processStrumNote startTime beatInterval strumNote =
+  AddGuitarNote
+    { v = strumNote.v
+    , t =
+        startTime +
+          beatInterval * strumNote.t +
+          0.009 * toFloat strumNote.strumIndex
+    , f = strumNote.f
+    }
 
 truncateAfter : Float -> List Segment -> List Segment
 truncateAfter time schedule =
@@ -266,25 +307,6 @@ addSegment segment schedule =
         segment :: rest
       else
         segment :: schedule
-
-stopOldChord : Float -> Chord -> Float -> List Segment -> List AudioChange
-stopOldChord startTime chord now schedule =
-  let
-    changeTime =
-      { t = max now startTime
-      , before = now < startTime
-      }
-  in
-    case schedule of
-      [] ->
-        [ CancelFutureNotes changeTime ]
-      segment :: _ ->
-        if segment.stop == infinity then
-          [ SetDecay 0.5, CancelFutureNotes changeTime ]
-        else if segment.chord /= chord then
-          [ MuteAllNotes changeTime ]
-        else
-          [ CancelFutureNotes changeTime ]
 
 infinity : Float
 infinity = 1/0

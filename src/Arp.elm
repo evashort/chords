@@ -75,7 +75,7 @@ pitchFrequency pitch =
 codeNotes : Float -> List Float -> Int -> Int -> List Note
 codeNotes interval chordFrequencies i code =
   List.map
-    (Note (interval * toFloat i))
+    (Note 1 (interval * toFloat i))
     (codeFrequencies chordFrequencies code)
 
 codeFrequencies : List Float -> Int -> List Float
@@ -87,10 +87,10 @@ codeFrequencies chordFrequencies code =
       else
         List.take 1 (List.drop (code % 10) chordFrequencies)
   in let
-    octaves = (code // 10) % 10
+    octave = (code // 10) % 10
   in let
     frequencies =
-      List.map ((*) (toFloat (2 ^ octaves))) lowFrequencies
+      List.map ((*) (toFloat (2 ^ octave))) lowFrequencies
   in
     if code >= 100 then
       frequencies ++ codeFrequencies chordFrequencies (code // 100)

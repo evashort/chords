@@ -6,12 +6,10 @@ import Ports
 import Json.Encode as Encode
 
 type AudioChange
-  = AddNote Note
-  | MuteAllNotes ChangeTime
-  | CancelFutureNotes ChangeTime
-  | SetAttack Float
-  | SetPeak Float
-  | SetDecay Float
+  = AddPianoNote Note
+  | AddGuitarNote Note
+  | AddPadNote Note
+  | Mute Float
 
 type alias ChangeTime =
   { t : Float
@@ -24,36 +22,29 @@ perform = Ports.changeAudio << List.map toJson
 toJson : AudioChange -> Encode.Value
 toJson change =
   case change of
-    AddNote { t, f } ->
+    AddPianoNote { v, t, f } ->
       Encode.object
-        [ ( "type", Encode.string "note" )
+        [ ( "type", Encode.string "piano" )
+        , ( "v", Encode.float v )
         , ( "t", Encode.float t )
         , ( "f", Encode.float f )
         ]
-    MuteAllNotes { t, before } ->
+    AddGuitarNote { v, t, f } ->
+      Encode.object
+        [ ( "type", Encode.string "guitar" )
+        , ( "v", Encode.float v )
+        , ( "t", Encode.float t )
+        , ( "f", Encode.float f )
+        ]
+    AddPadNote { v, t, f } ->
+      Encode.object
+        [ ( "type", Encode.string "pad" )
+        , ( "v", Encode.float v )
+        , ( "t", Encode.float t )
+        , ( "f", Encode.float f )
+        ]
+    Mute t ->
       Encode.object
         [ ( "type", Encode.string "mute" )
         , ( "t", Encode.float t )
-        , ( "before", Encode.bool before )
-        ]
-    CancelFutureNotes { t, before } ->
-      Encode.object
-        [ ( "type", Encode.string "cancel" )
-        , ( "t", Encode.float t )
-        , ( "before", Encode.bool before )
-        ]
-    SetAttack attack ->
-      Encode.object
-        [ ( "type", Encode.string "attack" )
-        , ( "attack", Encode.float attack )
-        ]
-    SetPeak peak ->
-      Encode.object
-        [ ( "type", Encode.string "peak" )
-        , ( "peak", Encode.float peak )
-        ]
-    SetDecay decay ->
-      Encode.object
-        [ ( "type", Encode.string "decay" )
-        , ( "decay", Encode.float decay )
         ]
