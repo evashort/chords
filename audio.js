@@ -74,6 +74,8 @@ function changeAudio(changes) {
   for (let i = 0; i < notes.length; i++) {
     if (notes[i].expiration > ac.currentTime) {
       newNotes.push(notes[i]);
+    } else {
+      notes[i].fader.disconnect();
     }
   }
 
