@@ -10,9 +10,10 @@ var notes = [];
 
 function stopAt(t, note) {
   if (note.expiration > t) {
-    safeTime = Math.max(t, ac.currentTime + 0.01);
-    release = 0.1;
-    note.fader.gain.setTargetAtTime(0, safeTime, 0.25 * release);
+    safeTime = Math.max(t, ac.currentTime + 0.025);
+    release = 0.01;
+    note.fader.gain.setValueAtTime(1, safeTime);
+    note.fader.gain.linearRampToValueAtTime(0, safeTime + release);
     for (let i = 0; i < note.oscillators.length; i++) {
       note.oscillators[i].stop(safeTime + release);
     }
@@ -34,7 +35,11 @@ function cancelAt(t, note) {
 
 function muteAt(t) {
   for (let i = 0; i < notes.length; i++) {
-    stopAt(t, notes[i]);
+    if (notes[i].start >= t) {
+      stopAt(ac.currentTime, notes[i]);
+    } else {
+      stopAt(t, notes[i]);
+    }
   }
 }
 
@@ -49,15 +54,13 @@ function addNote(addInstrumentNote, spec) {
 }
 
 function changeAudio(changes) {
-  if (changes.length > 0) {
-    for (let i = 0; i < notes.length; i++) {
-      cancelAt(changes[0].t, notes[i]);
-    }
-  }
-
   for (let i = 0; i < changes.length; i++) {
     if (changes[i].type == "mute") {
       muteAt(changes[i].t);
+    } else if (changes[i].type == "cancel") {
+      for (let j = 0; j < notes.length; j++) {
+        cancelAt(changes[i].t, notes[j]);
+      }
     } else if (changes[i].type == "piano") {
       addNote(addPianoNote, changes[i]);
     } else if (changes[i].type == "guitar") {

@@ -10,6 +10,7 @@ type AudioChange
   | AddGuitarNote Note
   | AddPadNote Note
   | Mute Float
+  | Cancel Float
 
 type alias ChangeTime =
   { t : Float
@@ -46,5 +47,10 @@ toJson change =
     Mute t ->
       Encode.object
         [ ( "type", Encode.string "mute" )
+        , ( "t", Encode.float t )
+        ]
+    Cancel t ->
+      Encode.object
+        [ ( "type", Encode.string "cancel" )
         , ( "t", Encode.float t )
         ]

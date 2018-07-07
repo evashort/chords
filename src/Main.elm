@@ -537,7 +537,7 @@ view model =
 "scale ."
 "theater save"
 "buffet buffet"
-"playStyle playStyle"
+"playStyle stop"
 "playSettings playSettings"
 "song song"
 "paneSelector paneSelector"
@@ -595,6 +595,28 @@ view model =
     , Html.Lazy.lazy
         viewPlayStyle
         model.playStyle
+    , button
+        [ onClick (IdChordMsg IdChord.Stop)
+        , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
+        , disabled (not (Player.playing model.player))
+        , style
+            [ ( "grid-area", "stop" )
+            , ( "justify-self", "start")
+            , ( "align-self", "end" )
+            , ( "margin-left", "8px" )
+            ]
+        ]
+        [ span
+            [ style
+               [ ( "background", "currentcolor" )
+               , ( "width", "0.75em" )
+               , ( "height", "0.75em" )
+               , ( "display", "inline-block" )
+               ]
+            ]
+            []
+        , Html.text " Stop"
+        ]
     , Html.Lazy.lazy3
         viewPlaySettings
         model.playStyle

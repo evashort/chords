@@ -1,5 +1,6 @@
 module Player exposing
-  ( Player, init, setTime, status, willChange, sequence, sequenceFinished
+  ( Player, init, setTime, playing, status, willChange, sequence
+  , sequenceFinished
   , stop, pad, strum, arp, strumPattern
   )
 
@@ -8,7 +9,7 @@ import AudioChange exposing (AudioChange(..))
 import Chord exposing (Chord)
 import Cliff exposing (Cliff)
 import IdChord exposing (IdChord, PlayStatus)
-import Note
+import Note exposing (Note)
 import StrumPattern exposing (StrumPattern, StrumNote)
 
 type alias Player =
@@ -62,6 +63,10 @@ dropAfter time schedule =
         dropAfter time rest
       else
         schedule
+
+playing : Player -> Bool
+playing player =
+  List.length player.schedule > player.pastLength
 
 status : Player -> PlayStatus
 status player =
@@ -245,6 +250,22 @@ strumPattern strumPattern beatInterval lowestNote { id, chord } now player =
       addSegment
         (Segment id chord (startTime + beatCount * beatInterval))
         truncatedSchedule
+  in let
+    notes =
+      ( List.map
+          (processStrumNote startTime beatInterval)
+          (StrumPattern.notes strumPattern highStart lowestNote chord)
+      )
+  in let
+    otherChanges =
+      case notes of
+        [] ->
+          [ Mute startTime ]
+        firstNote :: _ ->
+          if firstNote.t > startTime then
+            [ Cancel startTime, Mute firstNote.t ]
+          else
+            [ Mute startTime ]
   in
     ( { cliff =
           Cliff.addHolds
@@ -259,24 +280,18 @@ strumPattern strumPattern beatInterval lowestNote { id, chord } now player =
       , schedule = schedule
       , pastLength = List.length (dropAfter now schedule)
       }
-    , (::)
-        (Mute startTime)
-        ( List.map
-            (processStrumNote startTime beatInterval)
-            (StrumPattern.notes strumPattern highStart lowestNote chord)
-        )
+    , otherChanges ++ List.map AddGuitarNote notes
     )
 
-processStrumNote : Float -> Float -> StrumNote -> AudioChange
+processStrumNote : Float -> Float -> StrumNote -> Note
 processStrumNote startTime beatInterval strumNote =
-  AddGuitarNote
-    { v = strumNote.v
-    , t =
-        startTime +
-          beatInterval * strumNote.t +
-          0.009 * toFloat strumNote.strumIndex
-    , f = strumNote.f
-    }
+  { v = strumNote.v
+  , t =
+      startTime +
+        beatInterval * strumNote.t +
+        0.009 * toFloat strumNote.strumIndex
+  , f = strumNote.f
+  }
 
 truncateAfter : Float -> List Segment -> List Segment
 truncateAfter time schedule =
