@@ -10,7 +10,6 @@ function addPadNote(v, t, f) {
   let peakTime = t + attack;
   let sawPeak = 0.3 * peakScale;
   let squarePeak = 0.5 * sawPeak;
-  let stop = t + 30;
 
   let filter = ac.createBiquadFilter();
   filter.connect(fader);
@@ -28,14 +27,12 @@ function addPadNote(v, t, f) {
   saw1.frequency.value = 1.0035 * f;
   saw1.connect(sawGain);
   saw1.start(t);
-  saw1.stop(stop);
 
   let saw2 = ac.createOscillator();
   saw2.type = "sawtooth";
   saw2.frequency.value = 0.9965 * f;
   saw2.connect(sawGain);
   saw2.start(t);
-  saw2.stop(stop);
 
   let squareGain = ac.createGain();
   sawGain.connect(filter);
@@ -47,14 +44,12 @@ function addPadNote(v, t, f) {
   square.frequency.value = f;
   square.connect(squareGain);
   square.start(t);
-  square.stop(stop);
 
   let note = {
     fader: fader,
     oscillators: [saw1, saw2, square],
     start: t,
-    stop: stop,
-    expiration: stop,
+    expiration: Infinity,
     frequency: f
   }
 

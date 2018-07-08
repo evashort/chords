@@ -12,7 +12,6 @@ function addPianoNote(v, t, f) {
   let peakTime = t + attack;
   let sawPeak = 0.5 * peakScale;
   let sawDecay = 2;
-  let stop = t + attack + sawDecay;
 
   let filter = ac.createBiquadFilter();
   filter.connect(fader);
@@ -31,14 +30,12 @@ function addPianoNote(v, t, f) {
   saw.frequency.value = f;
   saw.connect(sawGain);
   saw.start(t);
-  saw.stop(stop);
 
   let note = {
     fader: fader,
     oscillators: [saw],
     start: t,
-    stop: stop,
-    expiration: stop,
+    expiration: peakTime + sawDecay,
     frequency: f
   }
 
