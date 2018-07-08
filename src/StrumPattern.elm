@@ -46,12 +46,15 @@ notes pattern highStart lowestNote chord =
   in let
     patternStrums =
       case pattern of
-        Basic -> basic
-        Indie -> indie
-        Modern -> modern
+        Basic ->
+          basic
+        Indie ->
+          indie
+        Modern ->
+          modern
   in let
     strums =
-      if highStart then
+      if highStart && pattern /= Indie then
         List.drop 8 patternStrums ++ patternStrums
       else
         patternStrums ++ patternStrums
@@ -223,8 +226,6 @@ basic =
 indie : List (Maybe Strum)
 indie =
   [ down 85 0,  Nothing, down 62 0, Nothing
-  , down 108 0, Nothing, down 67 0, up 77 1.38
-  , down 85 0,  Nothing, down 62 0, Nothing
   , down 108 0, Nothing, down 67 0, up 77 1.38
   ]
 

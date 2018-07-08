@@ -1,4 +1,4 @@
-module Cliff exposing (Cliff, nextHold, dropAfter, addHolds, addIndexedHolds)
+module Cliff exposing (Cliff, nextHold, dropAfter, addHolds)
 
 holdLength : Float
 holdLength = 0.05
@@ -66,37 +66,5 @@ addHoldsHelp origin interval firstBeat blobs =
   List.reverse
     ( List.indexedMap
         (Hold origin interval << (+) firstBeat)
-        blobs
-    )
-
-addIndexedHolds : Float -> Float -> List Int -> List a -> Cliff a -> Cliff a
-addIndexedHolds origin interval beats blobs cliff =
-  case cliff of
-    [] ->
-      addIndexedHoldsHelp origin interval 0 beats blobs
-    hold :: rest ->
-      let start = holdStart hold in
-        if start > origin then
-          addIndexedHolds origin interval beats blobs rest
-        else if start == origin && hold.interval == interval then
-          (++)
-            ( addIndexedHoldsHelp
-                hold.origin
-                interval
-                hold.beat
-                beats
-                blobs
-            )
-            cliff
-        else
-          addIndexedHoldsHelp origin interval 0 beats blobs ++
-            cliff
-
-addIndexedHoldsHelp : Float -> Float -> Int -> List Int -> List a -> Cliff a
-addIndexedHoldsHelp origin interval firstBeat beats blobs =
-  List.reverse
-    ( List.map2
-        (Hold origin interval << (+) firstBeat)
-        beats
         blobs
     )
