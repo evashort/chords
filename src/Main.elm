@@ -56,6 +56,7 @@ type alias Model =
   , saved : Bool
   , buffet : Buffet
   , playStyle : PlayStyle
+  , playing : Bool
   , strumPattern : StrumPattern
   , strumInterval : Float
   , player : Player
@@ -96,6 +97,7 @@ init location =
       , saved = maybeText /= Nothing
       , buffet = Buffet.init parse.suggestions
       , playStyle = ArpeggioStyle
+      , playing = False
       , strumPattern = StrumPattern.Modern
       , strumInterval = 0.04
       , player = Player.init
@@ -142,6 +144,7 @@ type Msg
   | IdChordMsg IdChord.Msg
   | Play (IdChord, Float)
   | Stop Float
+  | Stopped
   | SetPane Pane
   | SetHarmonicMinor Bool
   | SetExtendedChords Bool
@@ -310,7 +313,9 @@ update msg model =
       ( model, Task.perform (Play << (,) idChord) AudioTime.now )
 
     IdChordMsg IdChord.Stop ->
-      ( model, Task.perform Stop AudioTime.now )
+      ( { model | playing = False }
+      , Task.perform Stop AudioTime.now
+      )
 
     Play ( idChord, now ) ->
       let
@@ -341,7 +346,8 @@ update msg model =
                 player
       in
         ( { model
-          | player = newPlayer
+          | playing = True
+          , player = newPlayer
           , history = History.add sequence model.history
           }
         , AudioChange.perform changes
@@ -358,6 +364,11 @@ update msg model =
           }
         , AudioChange.perform changes
         )
+
+    Stopped ->
+      ( { model | playing = False }
+      , Cmd.none
+      )
 
     SetPane pane ->
       ( { model | pane = pane }
@@ -509,13 +520,17 @@ clearUrl saved =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-  if Player.willChange model.player then
-    Sub.batch
-      [ Ports.text TextChanged
-      , AnimationFrame.times (always RequestTime)
-      ]
-  else
-    Ports.text TextChanged
+  Sub.batch
+    [ Ports.text TextChanged
+    , if model.playing then
+        Ports.stopped (always Stopped)
+      else
+        Sub.none
+    , if Player.willChange model.player then
+        AnimationFrame.times (always RequestTime)
+      else
+        Sub.none
+    ]
 
 -- VIEW
 
@@ -598,7 +613,7 @@ view model =
     , button
         [ onClick (IdChordMsg IdChord.Stop)
         , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
-        , disabled (not (Player.playing model.player))
+        , disabled (not model.playing)
         , style
             [ ( "grid-area", "stop" )
             , ( "justify-self", "start")

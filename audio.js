@@ -96,6 +96,7 @@ function collectNotes() {
   if (notes.length == 0) {
     clearInterval(noteCollector);
     noteCollector = 0;
+    app.ports.stopped.send(null);
   }
 }
 

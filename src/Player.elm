@@ -1,6 +1,5 @@
 module Player exposing
-  ( Player, init, setTime, playing, status, willChange, sequence
-  , sequenceFinished
+  ( Player, init, setTime, status, willChange, sequence, sequenceFinished
   , stop, pad, strum, arp, strumPattern
   )
 
@@ -63,10 +62,6 @@ dropAfter time schedule =
         dropAfter time rest
       else
         schedule
-
-playing : Player -> Bool
-playing player =
-  List.length player.schedule > player.pastLength
 
 status : Player -> PlayStatus
 status player =
