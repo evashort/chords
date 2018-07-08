@@ -2,6 +2,8 @@ module StrumPattern exposing (StrumPattern(..), StrumNote, notes)
 
 import Chord exposing (Chord)
 
+import Dict exposing (Dict)
+
 type StrumPattern
   = Basic
   | Indie
@@ -25,10 +27,22 @@ notes pattern highStart lowestNote chord =
         (pitchFrequency << (+) rootPitch)
         (0 :: chord.flavor)
   in let
+    strings =
+      case Dict.get chord.flavor schemes of
+        Just scheme ->
+          if rootPitch < 48 then
+            scheme.low
+          else if rootPitch < 52 then
+            scheme.mid
+          else
+            scheme.high
+        Nothing ->
+          List.range 0 (List.length chord.flavor)
+  in let
     stringFrequencies =
       List.map
         (stringFrequency chordFrequencies)
-        triad
+        strings
   in let
     patternStrums =
       case pattern of
@@ -115,8 +129,74 @@ indexedMap2 f xs ys =
     xs
     ys
 
-triad : List Int
-triad = [ -10, -12, 0, 1, 2, 10 ]
+type alias Scheme =
+  { low : List Int -- B2 and below
+  , mid : List Int -- C3 to Eb3
+  , high : List Int -- E3 and above
+  }
+
+schemes : Dict (List Int) Scheme
+schemes =
+  Dict.fromList
+    [ ( [ 4, 7 ], triad )
+    , ( [ 3, 7 ], triad )
+    , ( [ 3, 6 ], triad )
+    , ( [ 4, 8 ], triad )
+    , ( [ 5, 7 ], triad )
+    , ( [ 2, 7 ], triad )
+    , ( [ 4, 7, 10 ], seventh )
+    , ( [ 4, 7, 11 ], seventh )
+    , ( [ 3, 7, 10 ], seventh )
+    , ( [ 4, 7, 9 ], seventh )
+    , ( [ 3, 6, 10 ], seventh )
+    , ( [ 3, 7, 9 ], seventh )
+    , ( [ 3, 6, 9 ], seventh )
+    , ( [ 3, 7, 11 ], seventh )
+    , ( [ 4, 7, 10, 14 ], ninth )
+    , ( [ 4, 7, 11, 14 ], ninth )
+    , ( [ 4, 7, 14 ], addNinth )
+    , ( [ 3, 7, 14 ], addNinth )
+    , ( [ 3, 7, 10, 14 ], ninth )
+    , ( [ 4, 7, 10, 13 ], ninth )
+    , ( [ 4, 7, 10, 14, 21 ], thirteenth )
+    , ( [ 4, 7, 11, 14, 21 ], thirteenth )
+    , ( [ 3, 7, 10, 14, 21 ], thirteenth )
+    ]
+
+triad : Scheme
+triad =
+  { low = [ 0, 2, 10, 11, 12 ]
+  , mid = [ 0, 1, 2, 10, 11 ]
+  , high = [ -10, -12, 0, 1, 2, 10 ]
+  }
+
+seventh : Scheme
+seventh =
+  { low = [ 0, 2, 10, 11, 13 ]
+  , mid = [ 0, 2, 3, 11 ]
+  , high = [ -10, -12, 0, 1, 3, 10 ]
+  }
+
+ninth : Scheme
+ninth =
+  { low = [ 0, 1, 3, 4 ]
+  , mid = [ 0, 1, 3, 4 ]
+  , high = [ -10, -12, 1, 3, 4 ]
+  }
+
+addNinth : Scheme
+addNinth =
+  { low = [ 0, 1, 2, 3 ]
+  , mid = [ 0, 1, 2, 3 ]
+  , high = [ -10, -12, 1, 2, 3 ]
+  }
+
+thirteenth : Scheme
+thirteenth =
+  { low = [ 0, 1, 3, 4, 5 ]
+  , mid = [ 0, 1, 3, 4, 5 ]
+  , high = [ -10, -12, 1, 3, 4, 5 ]
+  }
 
 type alias Strum =
   { up : Bool
