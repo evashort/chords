@@ -37,7 +37,7 @@ function addGuitarNote(v, t, f) {
     fader: fader,
     oscillators: [saw],
     start: t,
-    expiration: peakTime + sawDecay,
+    expiration: peakTime + 6,
     frequency: f
   }
 
