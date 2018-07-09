@@ -548,8 +548,8 @@ view model =
         , ( "grid", """
 "title ."
 "bpm ."
-"lowestNote ."
 "scale ."
+"lowestNote ."
 "theater save"
 "buffet buffet"
 "playStyle stop"
@@ -569,13 +569,13 @@ view model =
         (hasBackup "bpm" model)
         (Maybe.withDefault model.parse.bpm model.bpm)
     , Html.Lazy.lazy2
-        viewLowestNote
-        (hasBackup "lowestNote" model)
-        (Maybe.withDefault model.parse.lowestNote model.lowestNote)
-    , Html.Lazy.lazy2
         viewScale
         (hasBackup "scale" model)
         model.parse.scale
+    , Html.Lazy.lazy2
+        viewLowestNote
+        (hasBackup "lowestNote" model)
+        (Maybe.withDefault model.parse.lowestNote model.lowestNote)
     , div
         [ id "theater"
         , style
@@ -742,7 +742,7 @@ viewScale hasBackup scale =
         , yellowIf hasBackup
         ]
     ]
-    [ Html.text "Scale "
+    [ Html.text "Key "
     , select
         [ onInput SetTonic
         ]

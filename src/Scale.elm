@@ -14,7 +14,7 @@ type alias Scale =
 
 flag : Flag Scale
 flag =
-  { key = "scale"
+  { key = "key"
   , fromCode = fromCode
   , code = code
   , default =

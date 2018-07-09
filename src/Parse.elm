@@ -119,10 +119,10 @@ setScale scale code =
             Just lowestNoteReplacement ->
               let
                 flagReplacements =
-                  if scaleReplacement.old.i < lowestNoteReplacement.old.i then
-                    [ scaleReplacement, lowestNoteReplacement ]
-                  else
+                  if lowestNoteReplacement.old.i < scaleReplacement.old.i then
                     [ lowestNoteReplacement, scaleReplacement ]
+                  else
+                    [ scaleReplacement, lowestNoteReplacement ]
               in let
                 chordReplacements =
                   Paragraph.mapChords
