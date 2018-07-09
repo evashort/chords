@@ -99,7 +99,7 @@ init location =
       , playStyle = ArpeggioStyle
       , playing = False
       , strumPattern = StrumPattern.Indie
-      , strumInterval = 0.04
+      , strumInterval = 0.01
       , player = Player.init
       , pane = DegreesPane
       , degreeTableSettings = DegreeTable.init
@@ -905,12 +905,12 @@ viewPlaySettings playStyle strumPattern strumInterval =
             , ( "align-items", "center" )
             ]
         ]
-      [ Html.text "Strum length\xA0"
+      [ Html.text "Strum interval\xA0"
       , input
           [ type_ "range"
           , onInput SetStrumInterval
-          , Attributes.min "0"
-          , Attributes.max "100"
+          , Attributes.min "10"
+          , Attributes.max "90"
           , Attributes.step "20"
           , value (toString (1000 * strumInterval))
           , style
