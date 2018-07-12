@@ -1,4 +1,4 @@
-module ChordsInKey exposing (Settings, init, view)
+module ChordsInKey exposing (view)
 
 import Chord exposing (Chord)
 import IdChord exposing (IdChord, PlayStatus)
@@ -8,20 +8,7 @@ import Storage exposing (Storage)
 import Html exposing (Html, span, text, sup)
 import Html.Attributes exposing (style)
 
-type alias Settings =
-  { harmonicMinor : Bool
-  , extendedChords : Bool
-  , addedToneChords : Bool
-  }
-
-init : Storage -> Settings
-init storage =
-  { harmonicMinor = storage.harmonicMinor
-  , extendedChords = storage.extendedChords
-  , addedToneChords = storage.addedToneChords
-  }
-
-view : String -> Settings -> Scale -> PlayStatus -> Html IdChord.Msg
+view : String -> Storage -> Scale -> PlayStatus -> Html IdChord.Msg
 view
   gridArea
   { harmonicMinor, extendedChords, addedToneChords }

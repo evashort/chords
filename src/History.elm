@@ -11,14 +11,12 @@ import Html.Events exposing (onClick)
 type alias History =
   { sequences : List (List Chord)
   , length : Int
-  , shortenSequences : Bool
   }
 
-init : Bool -> History
-init shortenSequences =
+init : History
+init =
   { sequences = []
   , length = 0
-  , shortenSequences = shortenSequences
   }
 
 add : List Chord -> History -> History
@@ -31,8 +29,8 @@ add sequence history =
   else
     history
 
-view : String -> Int -> History -> List Chord -> Bool -> Html String
-view gridArea tonic history sequence finished =
+view : String -> Int -> Bool -> History -> List Chord -> Bool -> Html String
+view gridArea tonic shorten history sequence finished =
   span
     [ style
         [ ( "grid-area", gridArea )
@@ -43,7 +41,7 @@ view gridArea tonic history sequence finished =
     ( List.concat
         [ if List.length sequence >= 2 then
             viewSequence
-              history.shortenSequences
+              shorten
               finished
               tonic
               history.length
@@ -53,7 +51,7 @@ view gridArea tonic history sequence finished =
         , List.concat
             ( List.indexedMap
                 ( viewSequence
-                    history.shortenSequences
+                    shorten
                     True
                     tonic <<
                   (-) (history.length - 1)

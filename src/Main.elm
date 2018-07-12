@@ -32,7 +32,7 @@ import Html exposing
   , select, option, label
   )
 import Html.Attributes as Attributes exposing
-  (attribute, href, style, id, type_, value, selected, disabled, checked, for)
+  (attribute, href, style, id, type_, value, selected, checked, disabled)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -65,13 +65,9 @@ type alias Model =
   , memory : Maybe Backup
   , saved : Bool
   , buffet : Buffet
-  , playStyle : PlayStyle
+  , storage : Storage
   , playing : Bool
-  , strumPattern : StrumPattern
-  , strumInterval : Float
   , player : Player
-  , pane : Pane
-  , chordsInKeySettings : ChordsInKey.Settings
   , history : History
   }
 
@@ -97,12 +93,7 @@ init flags location =
   in let
     maybeText = Url.hashParamValue "text" location
   in let
-    text =
-      case maybeText of
-        Just x ->
-          x
-        Nothing ->
-          defaultText storage
+    text = Maybe.withDefault defaultText maybeText
   in let
     parse = Parse.init text
   in
@@ -114,14 +105,10 @@ init flags location =
       , memory = Nothing
       , saved = maybeText /= Nothing
       , buffet = Buffet.init parse.suggestions
-      , playStyle = storage.playStyle
+      , storage = storage
       , playing = False
-      , strumPattern = storage.strumPattern
-      , strumInterval = storage.strumInterval
       , player = Player.init
-      , pane = storage.pane
-      , chordsInKeySettings = ChordsInKey.init storage
-      , history = History.init storage.shortenSequences
+      , history = History.init
       }
     , Cmd.batch
         [ Theater.init
@@ -137,10 +124,9 @@ init flags location =
         ]
     )
 
-defaultText : Storage -> String
-defaultText storage =
-  Storage.code storage ++
-    """// Type chord names in this box
+defaultText : String
+defaultText =
+  """// Type chord names in this box
 // to create play buttons below
 C G  Am F
 _ G7
@@ -160,8 +146,7 @@ type Msg
   | UrlChanged Location
   | Save
   | BuffetMsg Buffet.Msg
-  | SetPlayStyle PlayStyle
-  | SetStrumPattern StrumPattern
+  | SetStorage Storage
   | SetStrumInterval String
   | RequestTime
   | CurrentTime Float
@@ -169,11 +154,6 @@ type Msg
   | Play (IdChord, Float)
   | Stop Float
   | Stopped
-  | SetPane Pane
-  | SetHarmonicMinor Bool
-  | SetExtendedChords Bool
-  | SetAddedToneChords Bool
-  | SetShortenSequences Bool
   | AddLine String
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -303,22 +283,21 @@ update msg model =
             }
             model
 
-    SetPlayStyle playStyle ->
-      ( if playStyle == model.playStyle then model
-        else { model | playStyle = playStyle }
-      , Cmd.none
-      )
-
-    SetStrumPattern strumPattern ->
-      ( if strumPattern == model.strumPattern then model
-        else { model | strumPattern = strumPattern }
+    SetStorage storage ->
+      ( { model | storage = storage }
       , Cmd.none
       )
 
     SetStrumInterval strumIntervalString ->
       ( case String.toFloat strumIntervalString of
           Ok strumInterval ->
-            { model | strumInterval = 0.001 * strumInterval }
+            let storage = model.storage in
+              { model
+              | storage =
+                  { storage
+                  | strumInterval = 0.001 * strumInterval
+                  }
+              }
           Err _ ->
             model
       , Cmd.none
@@ -356,13 +335,13 @@ update msg model =
         lowestNote = model.parse.lowestNote
       in let
         ( newPlayer, changes ) =
-          case model.playStyle of
+          case model.storage.playStyle of
             PlayStyle.Arpeggio ->
               Player.arp
                 (60 / model.parse.bpm) lowestNote idChord now player
             PlayStyle.StrumPattern ->
               Player.strumPattern
-                model.strumPattern
+                model.storage.strumPattern
                 (60 / model.parse.bpm)
                 lowestNote
                 idChord
@@ -370,7 +349,7 @@ update msg model =
                 player
             PlayStyle.Strum ->
               Player.strum
-                model.strumInterval lowestNote idChord now player
+                model.storage.strumInterval lowestNote idChord now player
             PlayStyle.Pad ->
               Player.pad lowestNote idChord now player
       in
@@ -396,55 +375,6 @@ update msg model =
 
     Stopped ->
       ( { model | playing = False }
-      , Cmd.none
-      )
-
-    SetPane pane ->
-      ( { model | pane = pane }
-      , Cmd.none
-      )
-
-    SetHarmonicMinor harmonicMinor ->
-      ( let
-          oldSettings = model.chordsInKeySettings
-        in let
-          settings =
-            { oldSettings | harmonicMinor = harmonicMinor }
-        in
-          { model | chordsInKeySettings = settings }
-      , Cmd.none
-      )
-
-    SetExtendedChords extendedChords ->
-      ( let
-          oldSettings = model.chordsInKeySettings
-        in let
-          settings =
-            { oldSettings | extendedChords = extendedChords }
-        in
-          { model | chordsInKeySettings = settings }
-      , Cmd.none
-      )
-
-    SetAddedToneChords addedToneChords ->
-      ( let
-          oldSettings = model.chordsInKeySettings
-        in let
-          settings =
-            { oldSettings | addedToneChords = addedToneChords }
-        in
-          { model | chordsInKeySettings = settings }
-      , Cmd.none
-      )
-
-    SetShortenSequences shortenSequences ->
-      ( let
-          oldHistory = model.history
-        in let
-          history =
-            { oldHistory | shortenSequences = shortenSequences }
-        in
-          { model | history = history }
       , Cmd.none
       )
 
@@ -576,12 +506,12 @@ view model =
         , ( "display", "grid" )
         , ( "grid", """
 "title ."
-"bpm shouldStore"
-"scale shouldStore"
-"lowestNote shouldStore"
+"bpm ."
+"scale ."
+"lowestNote ."
 "theater save"
 "buffet buffet"
-"playStyle stop"
+"playStyle playStyle"
 "playSettings playSettings"
 "song song"
 "paneSelector paneSelector"
@@ -592,7 +522,10 @@ view model =
           )
         ]
     ]
-    [ viewStorage model
+    [ Html.Lazy.lazy2
+        viewStorage
+        model.shouldStore
+        model.storage
     , viewTitle
     , Html.Lazy.lazy2
         viewBpm
@@ -606,10 +539,6 @@ view model =
         viewLowestNote
         (hasBackup "lowestNote" model)
         (Maybe.withDefault model.parse.lowestNote model.lowestNote)
-    , Html.Lazy.lazy2
-        viewShouldStore
-        model.canStore
-        model.shouldStore
     , div
         [ id "theater"
         , style
@@ -635,72 +564,53 @@ view model =
         , style
             [ ( "grid-area", "save" )
             , ( "justify-self", "start")
-            , ( "align-self", "end" )
+            , ( "align-self", "start" )
             , ( "margin-left", "8px" )
             ]
         ]
         [ Html.text "Save in URL"
         ]
-    , Html.Lazy.lazy
-        viewPlayStyle
-        model.playStyle
-    , button
-        [ onClick (IdChordMsg IdChord.Stop)
-        , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
-        , disabled (not model.playing)
-        , style
-            [ ( "grid-area", "stop" )
-            , ( "justify-self", "start")
-            , ( "align-self", "end" )
-            , ( "margin-left", "8px" )
-            ]
-        ]
-        [ span
-            [ style
-               [ ( "background", "currentcolor" )
-               , ( "width", "0.75em" )
-               , ( "height", "0.75em" )
-               , ( "display", "inline-block" )
-               ]
-            ]
-            []
-        , Html.text " Stop"
-        ]
-    , Html.Lazy.lazy3
-        viewPlaySettings
-        model.playStyle
-        model.strumPattern
-        model.strumInterval
+    , Html.Lazy.lazy2
+        viewShouldStore
+        model.canStore
+        model.shouldStore
+    , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
+    , Html.Lazy.lazy viewPlaySettings model.storage
     , Html.Lazy.lazy2 viewSong model.player model.parse
     , Html.Lazy.lazy2
         viewPaneSelector
         model.parse.scale
-        model.pane
-    , case model.pane of
+        model.storage
+    , Html.Lazy.lazy viewPaneSettings model.storage
+    , case model.storage.pane of
         Pane.ChordsInKey ->
-          viewChordsInKeySettings model.chordsInKeySettings
+          Html.map
+            IdChordMsg
+            ( ChordsInKey.view
+                "pane"
+                model.storage
+                model.parse.scale
+                (Player.status model.player)
+            )
         Pane.Circle ->
-          Html.span [] []
+          Html.map
+            IdChordMsg
+            ( Circle.view
+                "pane"
+                model.parse.scale.tonic
+                (Player.status model.player)
+            )
         Pane.History ->
-          viewHistorySettings model.history.shortenSequences
-    , case model.pane of
-        Pane.ChordsInKey ->
-          Html.Lazy.lazy3
-            viewChordsInKey
-            model.chordsInKeySettings
-            model.parse.scale
-            model.player
-        Pane.Circle ->
-          Html.Lazy.lazy2
-            viewCircle
-            model.parse.scale
-            model.player
-        Pane.History ->
-          Html.Lazy.lazy3
-            viewHistory
-              model.parse.scale
-              model.history
-              model.player
+          Html.map
+            AddLine
+            ( History.view
+                "pane"
+                model.parse.scale.tonic
+                model.storage.shortenSequences
+                model.history
+                (Player.sequence model.player)
+                (Player.sequenceFinished model.player)
+            )
     ]
 
 hasBackup : String -> Model -> Bool
@@ -711,33 +621,20 @@ hasBackup action model =
     Just backup ->
       backup.action == action
 
-viewStorage : Model -> Html msg
-viewStorage model =
+viewStorage : Bool -> Storage -> Html msg
+viewStorage shouldStore storage =
   span
     [ id "storage"
     , style [ ( "display", "none" ) ]
-    , attribute "value" (storageString model)
+    , attribute
+        "value"
+        ( if shouldStore then
+            Storage.serialize storage
+          else
+            ""
+        )
     ]
     []
-
-storageString : Model -> String
-storageString model =
-  if model.shouldStore then
-    Storage.serialize
-      { bpm = model.parse.bpm
-      , key = model.parse.scale
-      , octave = model.parse.lowestNote
-      , playStyle = model.playStyle
-      , strumPattern = model.strumPattern
-      , strumInterval = model.strumInterval
-      , pane = model.pane
-      , harmonicMinor = model.chordsInKeySettings.harmonicMinor
-      , extendedChords = model.chordsInKeySettings.extendedChords
-      , addedToneChords = model.chordsInKeySettings.addedToneChords
-      , shortenSequences = model.history.shortenSequences
-      }
-  else
-    ""
 
 viewTitle : Html msg
 viewTitle =
@@ -884,40 +781,6 @@ yellowIf : Bool -> (String, String)
 yellowIf condition =
   ( "background", if condition then "#fafac0" else "inherit" )
 
-viewShouldStore : Bool -> Bool -> Html Msg
-viewShouldStore canStore shouldStore =
-  span
-    [ style
-        [ ( "grid-area", "shouldStore" )
-        , ( "align-self", "end" )
-        , ( "white-space", "normal" )
-        , ( "line-height", "normal" )
-        , ( "margin-left", "8px" )
-        ]
-    ]
-    [ input
-        [ type_ "checkbox"
-        , id "shouldStore"
-        , disabled (not canStore)
-        , checked shouldStore
-        , onCheck SetShouldStore
-        ]
-        []
-    , label
-        [ for "shouldStore"
-        , style
-            [ ( "color"
-              , if not canStore then
-                  "GrayText"
-                else
-                  "initial"
-              )
-            ]
-        ]
-        [ Html.text " Save settings in local storage"
-        ]
-    ]
-
 viewHighlights : Parse -> Buffet -> Html Msg
 viewHighlights parse buffet =
   pre
@@ -952,8 +815,35 @@ viewBuffet : Buffet -> Html Msg
 viewBuffet buffet =
   Html.map BuffetMsg (Buffet.view buffet)
 
-viewPlayStyle : PlayStyle -> Html Msg
-viewPlayStyle playStyle =
+viewShouldStore : Bool -> Bool -> Html Msg
+viewShouldStore canStore shouldStore =
+  label
+    [ style
+        [ ( "grid-area", "save" )
+        , ( "align-self", "end" )
+        , ( "white-space", "normal" )
+        , ( "line-height", "normal" )
+        , ( "margin-left", "8px" )
+        , ( "color"
+          , if not canStore then
+              "GrayText"
+            else
+              ""
+          )
+        ]
+    ]
+    [ input
+        [ type_ "checkbox"
+        , disabled (not canStore)
+        , checked shouldStore
+        , onCheck SetShouldStore
+        ]
+        []
+    , Html.text " Save settings in local storage"
+    ]
+
+viewPlayStyle : Storage -> Bool -> Html Msg
+viewPlayStyle storage playing =
   span
     [ style
         [ ( "grid-area", "playStyle" )
@@ -962,20 +852,37 @@ viewPlayStyle playStyle =
     ]
     [ Html.text "Play chords as\xA0"
     , Html.map
-        SetPlayStyle
+        (\x -> SetStorage { storage | playStyle = x })
         ( Radio.view
-            playStyle
+            storage.playStyle
             [ ( "Arpeggio", PlayStyle.Arpeggio )
             , ( "Strum pattern", PlayStyle.StrumPattern )
             , ( "Strum", PlayStyle.Strum )
             , ( "Pad", PlayStyle.Pad )
             ]
         )
+    , Html.text " "
+    , button
+        [ onClick (IdChordMsg IdChord.Stop)
+        , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
+        , disabled (not playing)
+        ]
+        [ span
+            [ style
+               [ ( "background", "currentcolor" )
+               , ( "width", "0.75em" )
+               , ( "height", "0.75em" )
+               , ( "display", "inline-block" )
+               ]
+            ]
+            []
+        , Html.text " Stop"
+        ]
     ]
 
-viewPlaySettings : PlayStyle -> StrumPattern -> Float -> Html Msg
-viewPlaySettings playStyle strumPattern strumInterval =
-  case playStyle of
+viewPlaySettings : Storage -> Html Msg
+viewPlaySettings storage =
+  case storage.playStyle of
     PlayStyle.StrumPattern ->
       span
         [ style
@@ -984,9 +891,9 @@ viewPlaySettings playStyle strumPattern strumInterval =
         ]
         [ Html.text "Strum pattern\xA0"
         , Html.map
-            SetStrumPattern
+            (\x -> SetStorage { storage | strumPattern = x })
             ( Radio.view
-                strumPattern
+                storage.strumPattern
                 [ ( "Basic", StrumPattern.Basic )
                 , ( "Indie", StrumPattern.Indie )
                 , ( "Modern", StrumPattern.Modern )
@@ -1008,7 +915,7 @@ viewPlaySettings playStyle strumPattern strumInterval =
           , Attributes.min "10"
           , Attributes.max "90"
           , Attributes.step "20"
-          , value (toString (1000 * strumInterval))
+          , value (toString (1000 * storage.strumInterval))
           , style
               [ ( "width", "5em" )
               ]
@@ -1017,7 +924,7 @@ viewPlaySettings playStyle strumPattern strumInterval =
       , Html.text
           ( String.concat
               [ "\xA0"
-              , toString (1000 * strumInterval)
+              , toString (1000 * storage.strumInterval)
               , "ms between notes"
               ]
           )
@@ -1025,7 +932,7 @@ viewPlaySettings playStyle strumPattern strumInterval =
     _ ->
       span
         [ style
-            [ ( "grid-area", "playStyle" )
+            [ ( "grid-area", "playSettings" )
             ]
         ]
         []
@@ -1041,8 +948,8 @@ viewSong player parse =
         (Parse.song parse)
     )
 
-viewPaneSelector : Scale -> Pane -> Html Msg
-viewPaneSelector scale pane =
+viewPaneSelector : Scale -> Storage -> Html Msg
+viewPaneSelector scale storage =
   let
     scaleName =
       if scale.minor then
@@ -1057,9 +964,9 @@ viewPaneSelector scale pane =
           ]
       ]
       [ Html.map
-          SetPane
+          (\x -> SetStorage { storage | pane = x })
           ( Radio.view
-              pane
+              storage.pane
               [ ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
               , ( "Recently played", Pane.History )
@@ -1067,103 +974,73 @@ viewPaneSelector scale pane =
           )
       ]
 
-viewChordsInKeySettings : ChordsInKey.Settings -> Html Msg
-viewChordsInKeySettings settings =
-  span
-    [ style
-        [ ( "grid-area", "paneSettings" )
+viewPaneSettings : Storage -> Html Msg
+viewPaneSettings storage =
+  case storage.pane of
+    Pane.ChordsInKey ->
+      span
+        [ style
+            [ ( "grid-area", "paneSettings" )
+            ]
         ]
-    ]
-    [ input
-        [ type_ "checkbox"
-        , id "harmonicMinor"
-        , checked settings.harmonicMinor
-        , onCheck SetHarmonicMinor
+        [ label
+            []
+            [ input
+                [ type_ "checkbox"
+                , checked storage.harmonicMinor
+                , onCheck
+                    (\x -> SetStorage { storage | harmonicMinor = x })
+                ]
+                []
+            , Html.text " Chords from harmonic minor"
+            ]
+        , Html.text " "
+        , label
+            []
+            [ input
+                [ type_ "checkbox"
+                , checked storage.extendedChords
+                , onCheck
+                    (\x -> SetStorage { storage | extendedChords = x })
+                ]
+                []
+            , Html.text " Extended chords"
+            ]
+        , Html.text " "
+        , label
+            []
+            [ input
+                [ type_ "checkbox"
+                , checked storage.addedToneChords
+                , onCheck
+                    (\x -> SetStorage { storage | addedToneChords = x })
+                ]
+                []
+            , Html.text " Added tone chords"
+            ]
         ]
-        []
-    , label
-        [ for "harmonicMinor"
-        ]
-        [ Html.text " Chords from harmonic minor"
-        ]
-    , Html.text " "
-    , input
-        [ type_ "checkbox"
-        , id "extendedChords"
-        , checked settings.extendedChords
-        , onCheck SetExtendedChords
-        ]
-        []
-    , label
-        [ for "extendedChords"
-        ]
-        [ Html.text " Extended chords"
-        ]
-    , Html.text " "
-    , input
-        [ type_ "checkbox"
-        , id "addedToneChords"
-        , checked settings.addedToneChords
-        , onCheck SetAddedToneChords
-        ]
-        []
-    , label
-        [ for "addedToneChords"
-        ]
-        [ Html.text " Added tone chords"
-        ]
-    ]
-
-viewHistorySettings : Bool -> Html Msg
-viewHistorySettings shortenSequences =
-  span
-    [ style
-        [ ( "grid-area", "paneSettings" )
-        ]
-    ]
-    [ input
-        [ type_ "checkbox"
-        , id "shortenSequences"
-        , checked shortenSequences
-        , onCheck SetShortenSequences
+    Pane.Circle ->
+      span
+        [ style
+            [ ( "grid-area", "paneSettings" )
+            ]
         ]
         []
-    , label
-        [ for "shortenSequences"
+    Pane.History ->
+      span
+        [ style
+            [ ( "grid-area", "paneSettings" )
+            ]
         ]
-        [ Html.text " Show only last 8 chords of each sequence"
+        [ label
+            []
+            [ input
+                [ type_ "checkbox"
+                , checked storage.shortenSequences
+                , onCheck
+                    (\x -> SetStorage { storage | shortenSequences = x })
+                ]
+                []
+            , Html.text " Show only last 8 chords of each sequence"
+            ]
         ]
-    ]
-
-viewChordsInKey : ChordsInKey.Settings -> Scale -> Player -> Html Msg
-viewChordsInKey settings scale player =
-  Html.map
-    IdChordMsg
-    ( ChordsInKey.view
-        "pane"
-        settings
-        scale
-        (Player.status player)
-    )
-
-viewCircle : Scale -> Player -> Html Msg
-viewCircle scale player =
-  Html.map
-    IdChordMsg
-    ( Circle.view
-        "pane"
-        scale.tonic
-        (Player.status player)
-    )
-
-viewHistory : Scale -> History -> Player -> Html Msg
-viewHistory scale history player =
-  Html.map
-    AddLine
-    ( History.view
-        "pane"
-        scale.tonic
-        history
-        (Player.sequence player)
-        (Player.sequenceFinished player)
-    )

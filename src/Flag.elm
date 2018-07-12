@@ -1,11 +1,9 @@
-module Flag exposing (Flag, parse, insert, remove, encoder, decoder)
+module Flag exposing (Flag, parse, insert, remove)
 
 import Replacement exposing (Replacement)
 import Submatches exposing (submatches)
 import Substring exposing (Substring)
 
-import Json.Decode as Decode exposing (Decoder)
-import Json.Encode as Encode
 import Regex exposing (Regex)
 import Set exposing (Set)
 
@@ -187,23 +185,3 @@ keyRegex = Regex.regex "^([^:]+):([^ ])?"
 keys : Set String
 keys =
   Set.fromList [ "bpm", "key", "octave" ]
-
-encoder : Flag a -> a -> Encode.Value
-encoder flag =
-  Encode.string << flag.code
-
-decoder : Flag a -> Decoder a
-decoder flag =
-  Decode.andThen
-    ( failOnNothing ("Could not parse " ++ flag.key) <<
-        parseValue flag
-    )
-    Decode.string
-
-failOnNothing : String -> Maybe a -> Decoder a
-failOnNothing message maybe =
-  case maybe of
-    Just x ->
-      Decode.succeed x
-    Nothing ->
-      Decode.fail message

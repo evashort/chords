@@ -1,12 +1,8 @@
-module Storage exposing (Storage, init, default, code, serialize, deserialize)
+module Storage exposing (Storage, init, default, serialize, deserialize)
 
-import Bpm
-import Flag exposing (Flag)
-import LowestNote
 import Pane exposing (Pane)
 import PlayStyle exposing (PlayStyle)
 import Ports
-import Scale exposing (Scale)
 import StrumPattern exposing (StrumPattern)
 import Submatches exposing (submatches)
 
@@ -19,10 +15,7 @@ init : Cmd msg
 init = Ports.initStorage ()
 
 type alias Storage =
-  { bpm : Float
-  , key : Scale
-  , octave : Int
-  , playStyle : PlayStyle
+  { playStyle : PlayStyle
   , strumPattern : StrumPattern
   , strumInterval : Float
   , pane : Pane
@@ -34,10 +27,7 @@ type alias Storage =
 
 default : Storage
 default =
-  { bpm = .default <| Bpm.flag
-  , key = .default <| Scale.flag
-  , octave = .default <| LowestNote.flag
-  , playStyle = PlayStyle.Arpeggio
+  { playStyle = PlayStyle.Arpeggio
   , strumPattern = StrumPattern.Indie
   , strumInterval = 0.01
   , pane = Pane.ChordsInKey
@@ -47,21 +37,6 @@ default =
   , shortenSequences = True
   }
 
-code : Storage -> String
-code storage =
-  String.concat
-    [ codeLine Bpm.flag storage.bpm
-    , codeLine Scale.flag storage.key
-    , codeLine LowestNote.flag storage.octave
-    ]
-
-codeLine : Flag a -> a -> String
-codeLine flag value =
-  if value == flag.default then
-    ""
-  else
-    flag.key ++ ": " ++ flag.code value ++ "\n"
-
 serialize : Storage -> String
 serialize storage =
   Encode.encode 0 (encoder storage)
@@ -70,16 +45,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 0 0))
-      )
-    , ( "bpm"
-      , Flag.encoder Bpm.flag storage.bpm
-      )
-    , ( "key"
-      , Flag.encoder Scale.flag storage.key
-      )
-    , ( "octave"
-      , Flag.encoder LowestNote.flag storage.octave
+      , Encode.string (versionString (Version 0 1 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -117,20 +83,11 @@ decoderHelp version =
     Decode.fail
       ("Incompatible major version: " ++ toString version.major)
   else
-    v0Decoder
+    v0_1Decoder
 
-v0Decoder : Decoder Storage
-v0Decoder =
+v0_1Decoder : Decoder Storage
+v0_1Decoder =
   Pipeline.decode Storage
-    |> Pipeline.required
-        "bpm"
-        (Flag.decoder Bpm.flag)
-    |> Pipeline.required
-        "key"
-        (Flag.decoder Scale.flag)
-    |> Pipeline.required
-        "octave"
-        (Flag.decoder LowestNote.flag)
     |> Pipeline.required
         "playStyle"
         (parseDecoder "play style" parsePlayStyle)
