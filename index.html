@@ -24,6 +24,7 @@
     <script src="freeverb.js"></script>
     <script src="audio.js"></script>
     <script src="theater.js"></script>
+    <script src="storage.js"></script>
     <script src="elm.js"></script>
     <style>
     button {
@@ -113,13 +114,29 @@
   </head>
   <body>
     <script>
-      var app = Elm.Main.fullscreen();
+      let storage = "";
+      let canStore = typeof(Storage) !== "undefined";
+      if (canStore) {
+        storage = localStorage.getItem("storage");
+        if (storage == null) {
+          storage = "";
+        }
+      }
+
+      var app = Elm.Main.fullscreen(
+        {
+          storage: storage,
+          canStore: canStore
+        }
+      );
+
       app.ports.changeAudio.subscribe(changeAudio);
       app.ports.initTheater.subscribe(initTheater);
       app.ports.focusTheater.subscribe(focusTheater);
       app.ports.replace.subscribe(replace);
       app.ports.undoAndReplace.subscribe(undoAndReplace);
       app.ports.hardUndo.subscribe(hardUndo);
+      app.ports.initStorage.subscribe(initStorage);
     </script>
   </body>
 </html>

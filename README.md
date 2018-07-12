@@ -94,6 +94,24 @@ ctrl+z can also affect the hidden textareas so we have to detect and
 counteract that. This is all handled on the JS side in `theater.js`, with an
 Elm interface in `Theater.elm`.
 
+### Local storage format
+```json
+settings: {
+  "version": "0.0.0",
+  "bpm": "115",
+  "key": "Am",
+  "octave": "C2",
+  "playStyle": "StrumPattern",
+  "strumPattern": "Indie",
+  "strumInterval": 0.01,
+  "pane": "ChordsInKey",
+  "harmonicMinor": false,
+  "extendedChords": false,
+  "addedToneChords": false,
+  "shortenSequences": false
+}
+```
+
 ## Design principles
 
 ### Keep it flat flat flat

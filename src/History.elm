@@ -14,11 +14,11 @@ type alias History =
   , shortenSequences : Bool
   }
 
-init : History
-init =
+init : Bool -> History
+init shortenSequences =
   { sequences = []
   , length = 0
-  , shortenSequences = True
+  , shortenSequences = shortenSequences
   }
 
 add : List Chord -> History -> History

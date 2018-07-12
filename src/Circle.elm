@@ -1,4 +1,4 @@
-module CircleOfFifths exposing (view)
+module Circle exposing (view)
 
 import Chord exposing (Chord)
 import Colour

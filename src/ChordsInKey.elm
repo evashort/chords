@@ -1,8 +1,9 @@
-module DegreeTable exposing (Settings, init, view)
+module ChordsInKey exposing (Settings, init, view)
 
 import Chord exposing (Chord)
 import IdChord exposing (IdChord, PlayStatus)
 import Scale exposing (Scale)
+import Storage exposing (Storage)
 
 import Html exposing (Html, span, text, sup)
 import Html.Attributes exposing (style)
@@ -13,11 +14,11 @@ type alias Settings =
   , addedToneChords : Bool
   }
 
-init : Settings
-init =
-  { harmonicMinor = False
-  , extendedChords = False
-  , addedToneChords = False
+init : Storage -> Settings
+init storage =
+  { harmonicMinor = storage.harmonicMinor
+  , extendedChords = storage.extendedChords
+  , addedToneChords = storage.addedToneChords
   }
 
 view : String -> Settings -> Scale -> PlayStatus -> Html IdChord.Msg

@@ -3,21 +3,24 @@ module Main exposing (..)
 import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
-import CircleOfFifths
+import ChordsInKey
+import Circle
 import CustomEvents exposing (onChange)
-import DegreeTable
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
 import LowestNote
+import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
 import Player exposing (Player)
+import PlayStyle exposing (PlayStyle)
 import Ports
 import Radio
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
 import Song
+import Storage exposing (Storage)
 import StrumPattern exposing (StrumPattern)
 import Substring exposing (Substring)
 import Swatch
@@ -29,16 +32,21 @@ import Html exposing
   , select, option, label
   )
 import Html.Attributes as Attributes exposing
-  (href, style, id, type_, value, selected, disabled, checked, for)
+  (attribute, href, style, id, type_, value, selected, disabled, checked, for)
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
 import Navigation exposing (Location)
 import Task
 import Url
 
-main : Program Never Model Msg
+type alias Flags =
+  { storage : String
+  , canStore : Bool
+  }
+
+main : Program Flags Model Msg
 main =
-  Navigation.program
+  Navigation.programWithFlags
     UrlChanged
     { init = init
     , view = Html.Lazy.lazy view
@@ -51,6 +59,8 @@ main =
 type alias Model =
   { bpm : Maybe Float
   , lowestNote : Maybe Int
+  , canStore : Bool
+  , shouldStore : Bool
   , parse : Parse
   , memory : Maybe Backup
   , saved : Bool
@@ -61,49 +71,57 @@ type alias Model =
   , strumInterval : Float
   , player : Player
   , pane : Pane
-  , degreeTableSettings : DegreeTable.Settings
+  , chordsInKeySettings : ChordsInKey.Settings
   , history : History
   }
-
-type PlayStyle
-  = ArpeggioStyle
-  | StrumStyle
-  | PadStyle
-  | StrumPatternStyle
-
-type Pane
-  = DegreesPane
-  | FifthsPane
-  | HistoryPane
 
 type alias Backup =
   { code : String
   , action : String
   }
 
-init : Location -> ( Model, Cmd Msg )
-init location =
+init : Flags -> Location -> ( Model, Cmd Msg )
+init flags location =
   let
+    ( storage, shouldStore ) =
+      if flags.storage == "" then
+        ( Storage.default, False )
+      else
+        case Storage.deserialize flags.storage of
+          Ok x ->
+            ( x, True )
+          Err message ->
+            always
+              ( Storage.default, False )
+              (Debug.log message flags.storage)
+  in let
     maybeText = Url.hashParamValue "text" location
   in let
-    text = Maybe.withDefault defaultText maybeText
+    text =
+      case maybeText of
+        Just x ->
+          x
+        Nothing ->
+          defaultText storage
   in let
     parse = Parse.init text
   in
     ( { bpm = Nothing
       , lowestNote = Nothing
+      , canStore = flags.canStore
+      , shouldStore = shouldStore
       , parse = parse
       , memory = Nothing
       , saved = maybeText /= Nothing
       , buffet = Buffet.init parse.suggestions
-      , playStyle = ArpeggioStyle
+      , playStyle = storage.playStyle
       , playing = False
-      , strumPattern = StrumPattern.Indie
-      , strumInterval = 0.01
+      , strumPattern = storage.strumPattern
+      , strumInterval = storage.strumInterval
       , player = Player.init
-      , pane = DegreesPane
-      , degreeTableSettings = DegreeTable.init
-      , history = History.init
+      , pane = storage.pane
+      , chordsInKeySettings = ChordsInKey.init storage
+      , history = History.init storage.shortenSequences
       }
     , Cmd.batch
         [ Theater.init
@@ -112,12 +130,17 @@ init location =
             , selectionEnd = String.length text
             }
         , Theater.focus
+        , if flags.canStore then
+            Storage.init
+          else
+            Cmd.none
         ]
     )
 
-defaultText : String
-defaultText =
-  """// Type chord names in this box
+defaultText : Storage -> String
+defaultText storage =
+  Storage.code storage ++
+    """// Type chord names in this box
 // to create play buttons below
 C G  Am F
 _ G7
@@ -132,6 +155,7 @@ type Msg
   | SetLowestNote String
   | SetTonic String
   | SetMinor Bool
+  | SetShouldStore Bool
   | TextChanged String
   | UrlChanged Location
   | Save
@@ -212,6 +236,11 @@ update msg model =
         scale = { oldScale | minor = minor }
       in
         doAction "scale" (Parse.setScale scale) model
+
+    SetShouldStore shouldStore ->
+      ( { model | shouldStore = shouldStore }
+      , Cmd.none
+      )
 
     TextChanged code ->
       ( let parse = Parse.update code model.parse in
@@ -328,15 +357,10 @@ update msg model =
       in let
         ( newPlayer, changes ) =
           case model.playStyle of
-            ArpeggioStyle ->
+            PlayStyle.Arpeggio ->
               Player.arp
                 (60 / model.parse.bpm) lowestNote idChord now player
-            StrumStyle ->
-              Player.strum
-                model.strumInterval lowestNote idChord now player
-            PadStyle ->
-              Player.pad lowestNote idChord now player
-            StrumPatternStyle ->
+            PlayStyle.StrumPattern ->
               Player.strumPattern
                 model.strumPattern
                 (60 / model.parse.bpm)
@@ -344,6 +368,11 @@ update msg model =
                 idChord
                 now
                 player
+            PlayStyle.Strum ->
+              Player.strum
+                model.strumInterval lowestNote idChord now player
+            PlayStyle.Pad ->
+              Player.pad lowestNote idChord now player
       in
         ( { model
           | playing = True
@@ -377,34 +406,34 @@ update msg model =
 
     SetHarmonicMinor harmonicMinor ->
       ( let
-          oldSettings = model.degreeTableSettings
+          oldSettings = model.chordsInKeySettings
         in let
           settings =
             { oldSettings | harmonicMinor = harmonicMinor }
         in
-          { model | degreeTableSettings = settings }
+          { model | chordsInKeySettings = settings }
       , Cmd.none
       )
 
     SetExtendedChords extendedChords ->
       ( let
-          oldSettings = model.degreeTableSettings
+          oldSettings = model.chordsInKeySettings
         in let
           settings =
             { oldSettings | extendedChords = extendedChords }
         in
-          { model | degreeTableSettings = settings }
+          { model | chordsInKeySettings = settings }
       , Cmd.none
       )
 
     SetAddedToneChords addedToneChords ->
       ( let
-          oldSettings = model.degreeTableSettings
+          oldSettings = model.chordsInKeySettings
         in let
           settings =
             { oldSettings | addedToneChords = addedToneChords }
         in
-          { model | degreeTableSettings = settings }
+          { model | chordsInKeySettings = settings }
       , Cmd.none
       )
 
@@ -547,9 +576,9 @@ view model =
         , ( "display", "grid" )
         , ( "grid", """
 "title ."
-"bpm ."
-"scale ."
-"lowestNote ."
+"bpm shouldStore"
+"scale shouldStore"
+"lowestNote shouldStore"
 "theater save"
 "buffet buffet"
 "playStyle stop"
@@ -563,7 +592,8 @@ view model =
           )
         ]
     ]
-    [ viewTitle
+    [ viewStorage model
+    , viewTitle
     , Html.Lazy.lazy2
         viewBpm
         (hasBackup "bpm" model)
@@ -576,6 +606,10 @@ view model =
         viewLowestNote
         (hasBackup "lowestNote" model)
         (Maybe.withDefault model.parse.lowestNote model.lowestNote)
+    , Html.Lazy.lazy2
+        viewShouldStore
+        model.canStore
+        model.shouldStore
     , div
         [ id "theater"
         , style
@@ -643,25 +677,25 @@ view model =
         model.parse.scale
         model.pane
     , case model.pane of
-        DegreesPane ->
-          viewDegreeTableSettings model.degreeTableSettings
-        FifthsPane ->
+        Pane.ChordsInKey ->
+          viewChordsInKeySettings model.chordsInKeySettings
+        Pane.Circle ->
           Html.span [] []
-        HistoryPane ->
+        Pane.History ->
           viewHistorySettings model.history.shortenSequences
     , case model.pane of
-        DegreesPane ->
+        Pane.ChordsInKey ->
           Html.Lazy.lazy3
-            viewDegreeTable
-            model.degreeTableSettings
+            viewChordsInKey
+            model.chordsInKeySettings
             model.parse.scale
             model.player
-        FifthsPane ->
+        Pane.Circle ->
           Html.Lazy.lazy2
-            viewCircleOfFifths
+            viewCircle
             model.parse.scale
             model.player
-        HistoryPane ->
+        Pane.History ->
           Html.Lazy.lazy3
             viewHistory
               model.parse.scale
@@ -676,6 +710,34 @@ hasBackup action model =
       False
     Just backup ->
       backup.action == action
+
+viewStorage : Model -> Html msg
+viewStorage model =
+  span
+    [ id "storage"
+    , style [ ( "display", "none" ) ]
+    , attribute "value" (storageString model)
+    ]
+    []
+
+storageString : Model -> String
+storageString model =
+  if model.shouldStore then
+    Storage.serialize
+      { bpm = model.parse.bpm
+      , key = model.parse.scale
+      , octave = model.parse.lowestNote
+      , playStyle = model.playStyle
+      , strumPattern = model.strumPattern
+      , strumInterval = model.strumInterval
+      , pane = model.pane
+      , harmonicMinor = model.chordsInKeySettings.harmonicMinor
+      , extendedChords = model.chordsInKeySettings.extendedChords
+      , addedToneChords = model.chordsInKeySettings.addedToneChords
+      , shortenSequences = model.history.shortenSequences
+      }
+  else
+    ""
 
 viewTitle : Html msg
 viewTitle =
@@ -822,6 +884,40 @@ yellowIf : Bool -> (String, String)
 yellowIf condition =
   ( "background", if condition then "#fafac0" else "inherit" )
 
+viewShouldStore : Bool -> Bool -> Html Msg
+viewShouldStore canStore shouldStore =
+  span
+    [ style
+        [ ( "grid-area", "shouldStore" )
+        , ( "align-self", "end" )
+        , ( "white-space", "normal" )
+        , ( "line-height", "normal" )
+        , ( "margin-left", "8px" )
+        ]
+    ]
+    [ input
+        [ type_ "checkbox"
+        , id "shouldStore"
+        , disabled (not canStore)
+        , checked shouldStore
+        , onCheck SetShouldStore
+        ]
+        []
+    , label
+        [ for "shouldStore"
+        , style
+            [ ( "color"
+              , if not canStore then
+                  "GrayText"
+                else
+                  "initial"
+              )
+            ]
+        ]
+        [ Html.text " Save settings in local storage"
+        ]
+    ]
+
 viewHighlights : Parse -> Buffet -> Html Msg
 viewHighlights parse buffet =
   pre
@@ -869,10 +965,10 @@ viewPlayStyle playStyle =
         SetPlayStyle
         ( Radio.view
             playStyle
-            [ ( "Arpeggio", ArpeggioStyle )
-            , ( "Strum", StrumStyle )
-            , ( "Pad", PadStyle )
-            , ( "Strum pattern", StrumPatternStyle )
+            [ ( "Arpeggio", PlayStyle.Arpeggio )
+            , ( "Strum pattern", PlayStyle.StrumPattern )
+            , ( "Strum", PlayStyle.Strum )
+            , ( "Pad", PlayStyle.Pad )
             ]
         )
     ]
@@ -880,7 +976,7 @@ viewPlayStyle playStyle =
 viewPlaySettings : PlayStyle -> StrumPattern -> Float -> Html Msg
 viewPlaySettings playStyle strumPattern strumInterval =
   case playStyle of
-    StrumPatternStyle ->
+    PlayStyle.StrumPattern ->
       span
         [ style
             [ ( "grid-area", "playSettings" )
@@ -897,7 +993,7 @@ viewPlaySettings playStyle strumPattern strumInterval =
                 ]
             )
         ]
-    StrumStyle ->
+    PlayStyle.Strum ->
       span
         [ style
             [ ( "grid-area", "playSettings" )
@@ -964,15 +1060,15 @@ viewPaneSelector scale pane =
           SetPane
           ( Radio.view
               pane
-              [ ( "Chords in " ++ scaleName, DegreesPane )
-              , ( "Circle of fifths", FifthsPane )
-              , ( "Recently played", HistoryPane )
+              [ ( "Chords in " ++ scaleName, Pane.ChordsInKey )
+              , ( "Circle of fifths", Pane.Circle )
+              , ( "Recently played", Pane.History )
               ]
           )
       ]
 
-viewDegreeTableSettings : DegreeTable.Settings -> Html Msg
-viewDegreeTableSettings settings =
+viewChordsInKeySettings : ChordsInKey.Settings -> Html Msg
+viewChordsInKeySettings settings =
   span
     [ style
         [ ( "grid-area", "paneSettings" )
@@ -1039,22 +1135,22 @@ viewHistorySettings shortenSequences =
         ]
     ]
 
-viewDegreeTable : DegreeTable.Settings -> Scale -> Player -> Html Msg
-viewDegreeTable settings scale player =
+viewChordsInKey : ChordsInKey.Settings -> Scale -> Player -> Html Msg
+viewChordsInKey settings scale player =
   Html.map
     IdChordMsg
-    ( DegreeTable.view
+    ( ChordsInKey.view
         "pane"
         settings
         scale
         (Player.status player)
     )
 
-viewCircleOfFifths : Scale -> Player -> Html Msg
-viewCircleOfFifths scale player =
+viewCircle : Scale -> Player -> Html Msg
+viewCircle scale player =
   Html.map
     IdChordMsg
-    ( CircleOfFifths.view
+    ( Circle.view
         "pane"
         scale.tonic
         (Player.status player)

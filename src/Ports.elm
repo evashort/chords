@@ -2,6 +2,7 @@ port module Ports exposing
   ( changeAudio, stopped
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
+  , initStorage
   )
 
 import Json.Encode as Encode
@@ -16,3 +17,5 @@ port undoAndReplace : Encode.Value -> Cmd msg
 port hardUndo : () -> Cmd msg
 
 port text : (String -> msg) -> Sub msg
+
+port initStorage : () -> Cmd msg
