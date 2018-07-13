@@ -630,7 +630,10 @@ view model =
         model.storage
     , Html.Lazy.lazy
         viewBeforeUnload
-        (model.storage.unsavedWarning && model.shouldWarn)
+        ( model.storage.unsavedWarning &&
+            model.shouldWarn &&
+            model.parse.code /= ""
+        )
     , viewBrand
     , Html.Lazy.lazy3
         viewTitle
