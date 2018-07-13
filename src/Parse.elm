@@ -1,5 +1,5 @@
 module Parse exposing
-  (Parse, init, update, song, setBpm, setLowestNote, setScale, defaultTitle)
+  (Parse, init, update, song, setBpm, setLowestNote, setScale)
 
 import Bpm
 import Chord
@@ -24,6 +24,7 @@ type alias Parse =
   , bpm : Float
   , lowestNote : Int
   , scale : Scale
+  , defaultTitle : String
   }
 
 init : String -> Parse
@@ -64,6 +65,12 @@ initHelp getParagraph code =
     , bpm = Flag.parse Bpm.flag unindented
     , lowestNote = Flag.parse LowestNote.flag unindented
     , scale = scale
+    , defaultTitle =
+        case Paragraph.defaultTitle paragraph of
+          "" ->
+            "Untitled"
+          title ->
+            title
     }
 
 song : Parse -> Song
@@ -155,11 +162,3 @@ glue source replacement =
   else
     Debug.crash
       ("Parse.glue: Replacement out of bounds: " ++ toString replacement)
-
-defaultTitle : Parse -> String
-defaultTitle parse =
-  case Paragraph.defaultTitle parse.paragraph of
-    "" ->
-      "Untitled"
-    title ->
-      title

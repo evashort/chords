@@ -32,7 +32,9 @@ import Html exposing
   , select, option, label
   )
 import Html.Attributes as Attributes exposing
-  (attribute, href, style, id, type_, value, selected, checked, disabled)
+  ( attribute, href, style, id, type_, value, selected, checked
+  , disabled, placeholder
+  )
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
 import Navigation exposing (Location)
@@ -57,7 +59,8 @@ main =
 -- MODEL
 
 type alias Model =
-  { bpm : Maybe Float
+  { title : String
+  , bpm : Maybe Float
   , lowestNote : Maybe Int
   , canStore : Bool
   , shouldStore : Bool
@@ -91,13 +94,19 @@ init flags location =
               ( Storage.default, False )
               (Debug.log message flags.storage)
   in let
+    title =
+      Maybe.withDefault
+        ""
+        (Url.hashParamValue "title" location)
+  in let
     maybeText = Url.hashParamValue "text" location
   in let
     text = Maybe.withDefault defaultText maybeText
   in let
     parse = Parse.init text
   in
-    ( { bpm = Nothing
+    ( { title = title
+      , bpm = Nothing
       , lowestNote = Nothing
       , canStore = flags.canStore
       , shouldStore = shouldStore
@@ -121,8 +130,10 @@ init flags location =
             Storage.init
           else
             Cmd.none
-        , Ports.setTitle
-            (Parse.defaultTitle parse ++ " - Chords")
+        , if title == "" then
+            Ports.setTitle parse.defaultTitle
+          else
+            Ports.setTitle title
         ]
     )
 
@@ -137,16 +148,16 @@ _ G7
 -- UPDATE
 
 type Msg
-  = PreviewBpm String
+  = SetTitle String
+  | Save
+  | PreviewBpm String
   | SetBpm String
   | PreviewLowestNote String
   | SetLowestNote String
   | SetTonic String
   | SetMinor Bool
-  | SetShouldStore Bool
   | TextChanged String
   | UrlChanged Location
-  | Save
   | BuffetMsg Buffet.Msg
   | SetStorage Storage
   | SetStrumInterval String
@@ -157,10 +168,40 @@ type Msg
   | Stop Float
   | Stopped
   | AddLine String
+  | SetShouldStore Bool
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
+    SetTitle title ->
+      ( { model
+        | title = title
+        }
+      , Cmd.batch
+          [ clearUrl model.saved
+          , if title == "" then
+              Ports.setTitle model.parse.defaultTitle
+            else
+              Ports.setTitle title
+          ]
+      )
+
+    Save ->
+      ( model
+      , if model.title == "" then
+          Navigation.modifyUrl
+            ("#text=" ++ Url.percentEncode model.parse.code)
+        else
+          Navigation.modifyUrl
+            ( String.concat
+                [ "#title="
+                , Url.percentEncode model.title
+                , "&text="
+                , Url.percentEncode model.parse.code
+                ]
+            )
+      )
+
     PreviewBpm bpmString ->
       ( case String.toFloat bpmString of
           Ok bpm ->
@@ -219,57 +260,79 @@ update msg model =
       in
         doAction "scale" (Parse.setScale scale) model
 
-    SetShouldStore shouldStore ->
-      ( { model | shouldStore = shouldStore }
-      , Cmd.none
-      )
-
     TextChanged code ->
       let parse = Parse.update code model.parse in
         ( { model
           | parse = parse
           , memory = Nothing
-          , saved = False
           , buffet =
               Buffet.update parse.suggestions model.buffet
           }
         , Cmd.batch
             [ clearUrl model.saved
-            , Ports.setTitle
-                (Parse.defaultTitle parse ++ " - Chords")
+            , updateTitle model.title parse
             ]
         )
 
     UrlChanged location ->
-      case Url.hashParamValue "text" location of
-        Nothing ->
-          ( model, Cmd.none )
-        Just code ->
-          if code == model.parse.code then
-            ( { model | saved = True }, Cmd.none )
-          else
-            ( let parse = Parse.update code model.parse in
-                { model
-                | parse = parse
-                , memory = Nothing
-                , saved = True
-                , buffet =
-                    Buffet.update parse.suggestions model.buffet
-                }
+      let
+        title =
+          Maybe.withDefault
+            ""
+            (Url.hashParamValue "title" location)
+      in let
+        maybeText = Url.hashParamValue "text" location
+      in
+        if
+          model.saved && title == "" && maybeText == Nothing
+        then
+          ( { model | saved = False }, Cmd.none )
+        else if
+          not model.saved &&
+            title == model.title &&
+            maybeText == Just model.parse.code
+        then
+          ( { model | saved = True }, Cmd.none )
+        else
+          let
+            text = Maybe.withDefault defaultText maybeText
+          in let
+            parse = Parse.init text
+          in
+            ( { title = title
+              , bpm = Nothing
+              , lowestNote = Nothing
+              , canStore = model.canStore
+              , shouldStore = model.shouldStore
+              , parse = parse
+              , memory = Nothing
+              , saved = maybeText /= Nothing
+              , buffet = Buffet.init parse.suggestions
+              , storage =
+                  if model.shouldStore then
+                    model.storage
+                  else
+                    Storage.default
+              , playing = False
+              , player = Player.init
+              , history = History.init
+              }
             , Cmd.batch
-                [ Theater.replace
+                [ if model.playing then
+                    Task.perform Stop AudioTime.now
+                  else
+                    Cmd.none
+                , Theater.replace
                     { old = Substring 0 model.parse.code
-                    , new = code
+                    , new = text
                     }
                 , Theater.focus
+                , if title == "" then
+                    Ports.setTitle parse.defaultTitle
+                  else
+                    Ports.setTitle title
                 ]
             )
-
-    Save ->
-      ( model
-      , Navigation.modifyUrl
-          ("#text=" ++ Url.percentEncode model.parse.code)
-      )
 
     BuffetMsg (Buffet.LensesChanged lensChange) ->
       ( { model
@@ -340,22 +403,27 @@ update msg model =
       in let
         lowestNote = model.parse.lowestNote
       in let
+        beatInterval = 60 / model.parse.bpm
+      in let
         ( newPlayer, changes ) =
           case model.storage.playStyle of
             PlayStyle.Arpeggio ->
-              Player.arp
-                (60 / model.parse.bpm) lowestNote idChord now player
+              Player.arp beatInterval lowestNote idChord now player
             PlayStyle.StrumPattern ->
               Player.strumPattern
                 model.storage.strumPattern
-                (60 / model.parse.bpm)
+                beatInterval
                 lowestNote
                 idChord
                 now
                 player
             PlayStyle.Strum ->
               Player.strum
-                model.storage.strumInterval lowestNote idChord now player
+                model.storage.strumInterval
+                lowestNote
+                idChord
+                now
+                player
             PlayStyle.Pad ->
               Player.pad lowestNote idChord now player
       in
@@ -396,6 +464,11 @@ update msg model =
         }
         model
 
+    SetShouldStore shouldStore ->
+      ( { model | shouldStore = shouldStore }
+      , Cmd.none
+      )
+
 replace : Replacement -> Model -> ( Model, Cmd msg )
 replace replacement model =
   let
@@ -406,7 +479,6 @@ replace replacement model =
     ( { model
       | parse = parse
       , memory = Nothing
-      , saved = False
       , buffet =
           Buffet.update parse.suggestions model.buffet
       }
@@ -414,8 +486,7 @@ replace replacement model =
         [ Theater.replace replacement
         , Theater.focus
         , clearUrl model.saved
-        , Ports.setTitle
-            (Parse.defaultTitle parse ++ " - Chords")
+        , updateTitle model.title parse
         ]
     )
 
@@ -444,15 +515,13 @@ doAction action f model =
                 ( { model
                   | parse = parse
                   , memory = Nothing
-                  , saved = False
                   , buffet =
                       Buffet.update parse.suggestions model.buffet
                   }
                 , Cmd.batch
                     [ Theater.hardUndo
                     , clearUrl model.saved
-                    , Ports.setTitle
-                        (Parse.defaultTitle parse ++ " - Chords")
+                    , updateTitle model.title parse
                     ]
                 )
             else
@@ -466,7 +535,6 @@ doAction action f model =
           ( { model
             | parse = parse
             , memory = Just { action = action, code = oldCode }
-            , saved = False
             , buffet =
                 Buffet.update parse.suggestions model.buffet
             }
@@ -480,8 +548,7 @@ doAction action f model =
                     else
                       Theater.replace replacement
               , clearUrl model.saved
-              , Ports.setTitle
-                  (Parse.defaultTitle parse ++ " - Chords")
+              , updateTitle model.title parse
               ]
           )
 
@@ -489,6 +556,13 @@ clearUrl : Bool -> Cmd msg
 clearUrl saved =
   if saved then
     Navigation.newUrl "#"
+  else
+    Cmd.none
+
+updateTitle : String -> Parse -> Cmd msg
+updateTitle title parse =
+  if title == "" then
+    Ports.setTitle parse.defaultTitle
   else
     Cmd.none
 
@@ -522,11 +596,12 @@ view model =
         , ( "position", "relative" )
         , ( "display", "grid" )
         , ( "grid", """
+"brand ."
 "title ."
 "bpm ."
 "scale ."
 "lowestNote ."
-"theater save"
+"theater ."
 "buffet buffet"
 "playStyle playStyle"
 "playSettings playSettings"
@@ -534,6 +609,7 @@ view model =
 "paneSelector paneSelector"
 "paneSettings paneSettings"
 "pane pane"
+"misc misc"
 / minmax(auto, 37.5em) 1fr
 """
           )
@@ -543,7 +619,12 @@ view model =
         viewStorage
         model.shouldStore
         model.storage
-    , viewTitle
+    , viewBrand
+    , Html.Lazy.lazy3
+        viewTitle
+        model.parse.defaultTitle
+        model.title
+        model.saved
     , Html.Lazy.lazy2
         viewBpm
         (hasBackup "bpm" model)
@@ -575,22 +656,6 @@ view model =
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy viewBuffet model.buffet
-    , button
-        [ onClick Save
-        , disabled model.saved
-        , style
-            [ ( "grid-area", "save" )
-            , ( "justify-self", "start")
-            , ( "align-self", "start" )
-            , ( "margin-left", "8px" )
-            ]
-        ]
-        [ Html.text "Save in URL"
-        ]
-    , Html.Lazy.lazy2
-        viewShouldStore
-        model.canStore
-        model.shouldStore
     , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
     , Html.Lazy.lazy viewPlaySettings model.storage
     , Html.Lazy.lazy2 viewSong model.player model.parse
@@ -628,6 +693,10 @@ view model =
                 (Player.sequence model.player)
                 (Player.sequenceFinished model.player)
             )
+    , Html.Lazy.lazy2
+        viewMiscSettings
+        model.canStore
+        model.shouldStore
     ]
 
 hasBackup : String -> Model -> Bool
@@ -653,14 +722,15 @@ viewStorage shouldStore storage =
     ]
     []
 
-viewTitle : Html msg
-viewTitle =
+viewBrand : Html msg
+viewBrand =
   span
     [ style
-        [ ( "grid-area", "title" )
+        [ ( "grid-area", "brand" )
         , ( "display", "flex" )
         , ( "align-items", "center" )
         , ( "justify-content", "space-between" )
+        , ( "margin-bottom", "8px" )
         ]
     ]
     [ span
@@ -678,6 +748,29 @@ viewTitle =
         ]
     ]
 
+viewTitle : String -> String -> Bool -> Html Msg
+viewTitle defaultTitle title saved =
+  span
+    [ style
+        [ ( "grid-area", "title" )
+        ]
+    ]
+    [ Html.text "Title "
+    , input
+        [ type_ "text"
+        , onInput SetTitle
+        , placeholder defaultTitle
+        , value title
+        ]
+        []
+    , Html.text " "
+    , button
+        [ onClick Save
+        , disabled saved
+        ]
+        [ Html.text "Save in URL"
+        ]
+    ]
 
 viewBpm : Bool -> Float -> Html Msg
 viewBpm hasBackup bpm =
@@ -687,7 +780,6 @@ viewBpm hasBackup bpm =
         , yellowIf hasBackup
         , ( "display", "flex" )
         , ( "align-items", "center" )
-        , ( "margin-top", "8px" )
         ]
     ]
     [ span []
@@ -831,33 +923,6 @@ viewHighlights parse buffet =
 viewBuffet : Buffet -> Html Msg
 viewBuffet buffet =
   Html.map BuffetMsg (Buffet.view buffet)
-
-viewShouldStore : Bool -> Bool -> Html Msg
-viewShouldStore canStore shouldStore =
-  label
-    [ style
-        [ ( "grid-area", "save" )
-        , ( "align-self", "end" )
-        , ( "white-space", "normal" )
-        , ( "line-height", "normal" )
-        , ( "margin-left", "8px" )
-        , ( "color"
-          , if not canStore then
-              "GrayText"
-            else
-              ""
-          )
-        ]
-    ]
-    [ input
-        [ type_ "checkbox"
-        , disabled (not canStore)
-        , checked shouldStore
-        , onCheck SetShouldStore
-        ]
-        []
-    , Html.text " Save settings in local storage"
-    ]
 
 viewPlayStyle : Storage -> Bool -> Html Msg
 viewPlayStyle storage playing =
@@ -1061,3 +1126,32 @@ viewPaneSettings storage =
             , Html.text " Show only last 8 chords of each sequence"
             ]
         ]
+
+viewMiscSettings : Bool -> Bool -> Html Msg
+viewMiscSettings canStore shouldStore =
+  span
+    [ style
+        [ ( "grid-area", "misc" )
+        , ( "margin-top", "8px" )
+        ]
+    ]
+    [ label
+        [ style
+            [ ( "color"
+              , if not canStore then
+                  "GrayText"
+                else
+                  ""
+              )
+            ]
+        ]
+        [ input
+            [ type_ "checkbox"
+            , disabled (not canStore)
+            , checked shouldStore
+            , onCheck SetShouldStore
+            ]
+            []
+        , Html.text " Remember my settings"
+        ]
+    ]
