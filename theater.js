@@ -42,7 +42,24 @@ function showScene(scene) {
 }
 
 function initTheater(frame) {
-  theater = document.getElementById("theater");
+  if (theater == null) {
+    theater = document.getElementById("theater");
+  } else {
+    startFocused = document.activeElement === present;
+
+    past = [];
+    present = null;
+    future = [];
+    while (theater.firstChild) {
+      theater.removeChild(theater.firstChild);
+    }
+
+    if (timeout != 0) {
+      clearTimeout(timeout);
+      timeout = 0;
+    }
+  }
+
   present = createScene(0, frame);
   theater.appendChild(present);
   if (startFocused) {

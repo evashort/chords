@@ -261,18 +261,21 @@ update msg model =
         doAction "scale" (Parse.setScale scale) model
 
     TextChanged code ->
-      let parse = Parse.update code model.parse in
-        ( { model
-          | parse = parse
-          , memory = Nothing
-          , buffet =
-              Buffet.update parse.suggestions model.buffet
-          }
-        , Cmd.batch
-            [ clearUrl model.saved
-            , updateTitle model.title parse
-            ]
-        )
+      if code == model.parse.code then
+        ( model, Cmd.none )
+      else
+        let parse = Parse.update code model.parse in
+          ( { model
+            | parse = parse
+            , memory = Nothing
+            , buffet =
+                Buffet.update parse.suggestions model.buffet
+            }
+          , Cmd.batch
+              [ clearUrl model.saved
+              , updateTitle model.title parse
+              ]
+          )
 
     UrlChanged location ->
       let
@@ -322,9 +325,10 @@ update msg model =
                     Task.perform Stop AudioTime.now
                   else
                     Cmd.none
-                , Theater.replace
-                    { old = Substring 0 model.parse.code
-                    , new = text
+                , Theater.init
+                    { text = text
+                    , selectionStart = String.length text
+                    , selectionEnd = String.length text
                     }
                 , Theater.focus
                 , if title == "" then
