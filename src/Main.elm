@@ -82,16 +82,16 @@ type alias Backup =
 init : Flags -> Location -> ( Model, Cmd Msg )
 init flags location =
   let
-    ( storage, shouldStore ) =
+    maybeStorage =
       if flags.storage == "" then
-        ( Storage.default, False )
+        Nothing
       else
         case Storage.deserialize flags.storage of
-          Ok x ->
-            ( x, True )
+          Ok storage ->
+            Just storage
           Err message ->
             always
-              ( Storage.default, False )
+              Nothing
               (Debug.log message flags.storage)
   in let
     title =
@@ -101,6 +101,20 @@ init flags location =
   in let
     maybeText = Url.hashParamValue "text" location
   in let
+    ( model, cmd ) =
+      initHelp maybeStorage flags.canStore title maybeText
+  in
+    ( model
+    , if flags.canStore then
+        Cmd.batch [ cmd, Storage.init ]
+      else
+        cmd
+    )
+
+initHelp :
+  Maybe Storage -> Bool -> String -> Maybe String -> ( Model, Cmd msg )
+initHelp maybeStorage canStore title maybeText =
+  let
     text = Maybe.withDefault defaultText maybeText
   in let
     parse = Parse.init text
@@ -108,13 +122,14 @@ init flags location =
     ( { title = title
       , bpm = Nothing
       , lowestNote = Nothing
-      , canStore = flags.canStore
-      , shouldStore = shouldStore
+      , canStore = canStore
+      , shouldStore = maybeStorage /= Nothing
       , parse = parse
       , memory = Nothing
       , saved = maybeText /= Nothing
       , buffet = Buffet.init parse.suggestions
-      , storage = storage
+      , storage =
+          Maybe.withDefault Storage.default maybeStorage
       , playing = False
       , player = Player.init
       , history = History.init
@@ -126,10 +141,6 @@ init flags location =
             , selectionEnd = String.length text
             }
         , Theater.focus
-        , if flags.canStore then
-            Storage.init
-          else
-            Cmd.none
         , if title == "" then
             Ports.setTitle parse.defaultTitle
           else
@@ -298,44 +309,20 @@ update msg model =
           ( { model | saved = True }, Cmd.none )
         else
           let
-            text = Maybe.withDefault defaultText maybeText
+            maybeStorage =
+              if model.shouldStore then
+                Just model.storage
+              else
+                Nothing
           in let
-            parse = Parse.init text
+            ( newModel, cmd ) =
+              initHelp maybeStorage model.canStore title maybeText
           in
-            ( { title = title
-              , bpm = Nothing
-              , lowestNote = Nothing
-              , canStore = model.canStore
-              , shouldStore = model.shouldStore
-              , parse = parse
-              , memory = Nothing
-              , saved = maybeText /= Nothing
-              , buffet = Buffet.init parse.suggestions
-              , storage =
-                  if model.shouldStore then
-                    model.storage
-                  else
-                    Storage.default
-              , playing = False
-              , player = Player.init
-              , history = History.init
-              }
-            , Cmd.batch
-                [ if model.playing then
-                    Task.perform Stop AudioTime.now
-                  else
-                    Cmd.none
-                , Theater.init
-                    { text = text
-                    , selectionStart = String.length text
-                    , selectionEnd = String.length text
-                    }
-                , Theater.focus
-                , if title == "" then
-                    Ports.setTitle parse.defaultTitle
-                  else
-                    Ports.setTitle title
-                ]
+            ( newModel
+            , if model.playing then
+                Cmd.batch [ cmd, Task.perform Stop AudioTime.now ]
+              else
+                cmd
             )
 
     BuffetMsg (Buffet.LensesChanged lensChange) ->
