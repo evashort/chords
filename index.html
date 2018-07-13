@@ -142,6 +142,14 @@
           document.title = title + " - Chords";
         }
       );
+
+      onbeforeunload = function(event) {
+        let warning = document.getElementById("warning");
+        if (warning != null && warning.attributes.value.value == "true") {
+          event.preventDefault();
+          return "true";
+        }
+      };
     </script>
   </body>
 </html>

@@ -23,6 +23,8 @@ type alias Storage =
   , extendedChords : Bool
   , addedToneChords : Bool
   , shortenSequences : Bool
+  , startEmpty : Bool
+  , unsavedWarning : Bool
   }
 
 default : Storage
@@ -35,6 +37,8 @@ default =
   , extendedChords = False
   , addedToneChords = False
   , shortenSequences = True
+  , startEmpty = False
+  , unsavedWarning = False
   }
 
 serialize : Storage -> String
@@ -45,7 +49,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 1 0))
+      , Encode.string (versionString (Version 0 2 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -63,6 +67,8 @@ encoder storage =
     , ( "extendedChords", Encode.bool storage.extendedChords )
     , ( "addedToneChords", Encode.bool storage.addedToneChords )
     , ( "shortenSequences", Encode.bool storage.shortenSequences )
+    , ( "startEmpty", Encode.bool storage.startEmpty )
+    , ( "unsavedWarning", Encode.bool storage.unsavedWarning )
     ]
 
 deserialize : String -> Result String Storage
@@ -83,10 +89,10 @@ decoderHelp version =
     Decode.fail
       ("Incompatible major version: " ++ toString version.major)
   else
-    v0_1Decoder
+    v0_2Decoder
 
-v0_1Decoder : Decoder Storage
-v0_1Decoder =
+v0_2Decoder : Decoder Storage
+v0_2Decoder =
   Pipeline.decode Storage
     |> Pipeline.required
         "playStyle"
@@ -104,6 +110,8 @@ v0_1Decoder =
     |> Pipeline.required "extendedChords" Decode.bool
     |> Pipeline.required "addedToneChords" Decode.bool
     |> Pipeline.required "shortenSequences" Decode.bool
+    |> Pipeline.required "startEmpty" Decode.bool
+    |> Pipeline.required "unsavedWarning" Decode.bool
 
 parseDecoder : String -> (String -> Maybe a) -> Decoder a
 parseDecoder name parse =

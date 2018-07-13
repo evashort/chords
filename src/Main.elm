@@ -29,7 +29,7 @@ import Theater
 import AnimationFrame
 import Html exposing
   ( Html, Attribute, a, button, div, pre, span, textarea, input
-  , select, option, label
+  , select, option, label, br
   )
 import Html.Attributes as Attributes exposing
   ( attribute, href, style, id, type_, value, selected, checked
@@ -67,6 +67,7 @@ type alias Model =
   , parse : Parse
   , memory : Maybe Backup
   , saved : Bool
+  , shouldWarn : Bool
   , buffet : Buffet
   , storage : Storage
   , playing : Bool
@@ -115,7 +116,17 @@ initHelp :
   Maybe Storage -> Bool -> String -> Maybe String -> ( Model, Cmd msg )
 initHelp maybeStorage canStore title maybeText =
   let
-    text = Maybe.withDefault defaultText maybeText
+    storage =
+      Maybe.withDefault Storage.default maybeStorage
+  in let
+    text =
+      Maybe.withDefault
+        ( if storage.startEmpty then
+            ""
+          else
+            defaultText
+        )
+        maybeText
   in let
     parse = Parse.init text
   in
@@ -127,9 +138,9 @@ initHelp maybeStorage canStore title maybeText =
       , parse = parse
       , memory = Nothing
       , saved = maybeText /= Nothing
+      , shouldWarn = False
       , buffet = Buffet.init parse.suggestions
-      , storage =
-          Maybe.withDefault Storage.default maybeStorage
+      , storage = storage
       , playing = False
       , player = Player.init
       , history = History.init
@@ -279,6 +290,7 @@ update msg model =
           ( { model
             | parse = parse
             , memory = Nothing
+            , shouldWarn = True
             , buffet =
                 Buffet.update parse.suggestions model.buffet
             }
@@ -306,7 +318,12 @@ update msg model =
             title == model.title &&
             maybeText == Just model.parse.code
         then
-          ( { model | saved = True }, Cmd.none )
+          ( { model
+            | saved = True
+            , shouldWarn = False
+            }
+          , Cmd.none
+          )
         else
           let
             maybeStorage =
@@ -470,6 +487,7 @@ replace replacement model =
     ( { model
       | parse = parse
       , memory = Nothing
+      , shouldWarn = True
       , buffet =
           Buffet.update parse.suggestions model.buffet
       }
@@ -610,6 +628,9 @@ view model =
         viewStorage
         model.shouldStore
         model.storage
+    , Html.Lazy.lazy
+        viewBeforeUnload
+        (model.storage.unsavedWarning && model.shouldWarn)
     , viewBrand
     , Html.Lazy.lazy3
         viewTitle
@@ -684,10 +705,11 @@ view model =
                 (Player.sequence model.player)
                 (Player.sequenceFinished model.player)
             )
-    , Html.Lazy.lazy2
+    , Html.Lazy.lazy3
         viewMiscSettings
         model.canStore
         model.shouldStore
+        model.storage
     ]
 
 hasBackup : String -> Model -> Bool
@@ -697,6 +719,21 @@ hasBackup action model =
       False
     Just backup ->
       backup.action == action
+
+viewBeforeUnload : Bool -> Html msg
+viewBeforeUnload shouldWarn =
+  span
+    [ id "warning"
+    , style [ ( "display", "none" ) ]
+    , attribute
+        "value"
+        ( if shouldWarn then
+            "true"
+          else
+            ""
+        )
+    ]
+    []
 
 viewStorage : Bool -> Storage -> Html msg
 viewStorage shouldStore storage =
@@ -1111,15 +1148,17 @@ viewPaneSettings storage =
                 [ type_ "checkbox"
                 , checked storage.shortenSequences
                 , onCheck
-                    (\x -> SetStorage { storage | shortenSequences = x })
+                    ( \x ->
+                        SetStorage { storage | shortenSequences = x }
+                    )
                 ]
                 []
             , Html.text " Show only last 8 chords of each sequence"
             ]
         ]
 
-viewMiscSettings : Bool -> Bool -> Html Msg
-viewMiscSettings canStore shouldStore =
+viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
+viewMiscSettings canStore shouldStore storage =
   span
     [ style
         [ ( "grid-area", "misc" )
@@ -1144,5 +1183,45 @@ viewMiscSettings canStore shouldStore =
             ]
             []
         , Html.text " Remember my settings"
+        ]
+    , Html.br [] []
+    , label
+        [ style
+            [ ( "color"
+              , if not shouldStore then
+                  "GrayText"
+                else
+                  ""
+              )
+            ]
+        ]
+        [ input
+            [ type_ "checkbox"
+            , disabled (not shouldStore)
+            , checked (shouldStore && storage.startEmpty)
+            , onCheck (\x -> SetStorage { storage | startEmpty = x })
+            ]
+            []
+        , Html.text " Start with an empty textbox"
+        ]
+    , Html.br [] []
+    , label
+        [ style
+            [ ( "color"
+              , if not shouldStore then
+                  "GrayText"
+                else
+                  ""
+              )
+            ]
+        ]
+        [ input
+            [ type_ "checkbox"
+            , disabled (not shouldStore)
+            , checked (shouldStore && storage.unsavedWarning)
+            , onCheck (\x -> SetStorage { storage | unsavedWarning = x })
+            ]
+            []
+        , Html.text " Warn me when I close without saving"
         ]
     ]
