@@ -1,5 +1,5 @@
 module Word exposing
-  (Word, init, update, highlight, meaning, suggestion, mapChord)
+  (Word, init, update, highlight, meaning, suggestion, mapChord, code)
 
 import Chord exposing (Chord)
 import Colour
@@ -17,7 +17,7 @@ type alias Word =
 
 type alias Cache =
   { chord : Chord
-  , codeName : String
+  , code : String
   }
 
 init : Int -> Substring -> Word
@@ -31,7 +31,7 @@ init id substring =
         Just chord ->
           Just
             { chord = chord
-            , codeName = Name.code chord
+            , code = Name.code chord
             }
   }
 
@@ -57,7 +57,7 @@ highlight tonic word =
       else
         Nothing
     Just cache ->
-      if word.substring.s == cache.codeName then
+      if word.substring.s == cache.code then
         Just
           { fg = Colour.fg cache.chord
           , bg = Colour.swatchBg tonic cache.chord
@@ -75,7 +75,7 @@ meaning word =
       else
         Nothing
     Just cache ->
-      if word.substring.s == cache.codeName then
+      if word.substring.s == cache.code then
         Just (Just (IdChord word.id cache.chord))
       else
         Nothing
@@ -86,13 +86,13 @@ suggestion tonic word =
     Nothing ->
       Nothing
     Just cache ->
-      if word.substring.s == cache.codeName then
+      if word.substring.s == cache.code then
         Nothing
       else
         Just
           ( [ { fg = Colour.fg cache.chord
               , bg = Colour.swatchBg tonic cache.chord
-              , s = cache.codeName
+              , s = cache.code
               }
             ]
           , word.substring
@@ -108,3 +108,14 @@ mapChord f string =
         Name.code (f chord)
       else
         string
+
+code : Word -> Maybe String
+code word =
+  case word.cache of
+    Nothing ->
+      Nothing
+    Just cache ->
+      if word.substring.s == cache.code then
+        Just cache.code
+      else
+        Nothing

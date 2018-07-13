@@ -121,6 +121,8 @@ init flags location =
             Storage.init
           else
             Cmd.none
+        , Ports.setTitle
+            (Parse.defaultTitle parse ++ " - Chords")
         ]
     )
 
@@ -223,16 +225,20 @@ update msg model =
       )
 
     TextChanged code ->
-      ( let parse = Parse.update code model.parse in
-          { model
+      let parse = Parse.update code model.parse in
+        ( { model
           | parse = parse
           , memory = Nothing
           , saved = False
           , buffet =
               Buffet.update parse.suggestions model.buffet
           }
-      , clearUrl model.saved
-      )
+        , Cmd.batch
+            [ clearUrl model.saved
+            , Ports.setTitle
+                (Parse.defaultTitle parse ++ " - Chords")
+            ]
+        )
 
     UrlChanged location ->
       case Url.hashParamValue "text" location of
@@ -392,24 +398,26 @@ update msg model =
 
 replace : Replacement -> Model -> ( Model, Cmd msg )
 replace replacement model =
-  ( let
-      code = Replacement.apply replacement model.parse.code
-    in let
-      parse = Parse.update code model.parse
-    in
-      { model
+  let
+    code = Replacement.apply replacement model.parse.code
+  in let
+    parse = Parse.update code model.parse
+  in
+    ( { model
       | parse = parse
       , memory = Nothing
       , saved = False
       , buffet =
           Buffet.update parse.suggestions model.buffet
       }
-  , Cmd.batch
-      [ Theater.replace replacement
-      , Theater.focus
-      , clearUrl model.saved
-      ]
-  )
+    , Cmd.batch
+        [ Theater.replace replacement
+        , Theater.focus
+        , clearUrl model.saved
+        , Ports.setTitle
+            (Parse.defaultTitle parse ++ " - Chords")
+        ]
+    )
 
 doAction :
   String -> (String -> Maybe Replacement) -> Model -> ( Model, Cmd msg )
@@ -432,29 +440,36 @@ doAction action f model =
             ( model, Cmd.none )
           Just backup ->
             if backup.action == action then
-              ( let parse = Parse.update oldCode model.parse in
-                  { model
+              let parse = Parse.update oldCode model.parse in
+                ( { model
                   | parse = parse
                   , memory = Nothing
                   , saved = False
                   , buffet =
                       Buffet.update parse.suggestions model.buffet
                   }
-              , Cmd.batch
-                  [ Theater.hardUndo, clearUrl model.saved ]
-              )
+                , Cmd.batch
+                    [ Theater.hardUndo
+                    , clearUrl model.saved
+                    , Ports.setTitle
+                        (Parse.defaultTitle parse ++ " - Chords")
+                    ]
+                )
             else
               ( { model | memory = Nothing }, Cmd.none )
       Just replacement ->
-        let code = Replacement.apply replacement oldCode in
-          ( let parse = Parse.update code model.parse in
-              { model
-              | parse = parse
-              , memory = Just { action = action, code = oldCode }
-              , saved = False
-              , buffet =
-                  Buffet.update parse.suggestions model.buffet
-              }
+        let
+          code = Replacement.apply replacement oldCode
+        in let
+          parse = Parse.update code model.parse
+        in
+          ( { model
+            | parse = parse
+            , memory = Just { action = action, code = oldCode }
+            , saved = False
+            , buffet =
+                Buffet.update parse.suggestions model.buffet
+            }
           , Cmd.batch
               [ case model.memory of
                   Nothing ->
@@ -465,6 +480,8 @@ doAction action f model =
                     else
                       Theater.replace replacement
               , clearUrl model.saved
+              , Ports.setTitle
+                  (Parse.defaultTitle parse ++ " - Chords")
               ]
           )
 

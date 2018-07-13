@@ -3,6 +3,7 @@ port module Ports exposing
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
   , initStorage
+  , setTitle
   )
 
 import Json.Encode as Encode
@@ -19,3 +20,5 @@ port hardUndo : () -> Cmd msg
 port text : (String -> msg) -> Sub msg
 
 port initStorage : () -> Cmd msg
+
+port setTitle : String -> Cmd msg

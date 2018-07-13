@@ -137,6 +137,11 @@
       app.ports.undoAndReplace.subscribe(undoAndReplace);
       app.ports.hardUndo.subscribe(hardUndo);
       app.ports.initStorage.subscribe(initStorage);
+      app.ports.setTitle.subscribe(
+        function(title) {
+          document.title = title;
+        }
+      );
     </script>
   </body>
 </html>

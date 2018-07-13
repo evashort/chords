@@ -1,5 +1,5 @@
 module Parse exposing
-  (Parse, init, update, song, setBpm, setLowestNote, setScale)
+  (Parse, init, update, song, setBpm, setLowestNote, setScale, defaultTitle)
 
 import Bpm
 import Chord
@@ -155,3 +155,11 @@ glue source replacement =
   else
     Debug.crash
       ("Parse.glue: Replacement out of bounds: " ++ toString replacement)
+
+defaultTitle : Parse -> String
+defaultTitle parse =
+  case Paragraph.defaultTitle parse.paragraph of
+    "" ->
+      "Untitled"
+    title ->
+      title

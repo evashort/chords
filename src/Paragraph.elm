@@ -1,5 +1,7 @@
 module Paragraph exposing
-  (Paragraph, init, update, highlights, song, suggestions, mapChords)
+  ( Paragraph, init, update, highlights, song, suggestions, mapChords
+  , defaultTitle
+  )
 
 import Chord exposing (Chord)
 import Highlight exposing (Highlight)
@@ -80,3 +82,44 @@ suggestions tonic paragraph =
 mapChords : (Chord -> Chord) -> List Substring -> List Replacement
 mapChords f lines =
   mapCells (Word.mapChord f) lines
+
+maxLength : Int
+maxLength = 20
+
+defaultTitle : Paragraph -> String
+defaultTitle paragraph =
+  let
+    codes =
+      List.filterMap
+        Word.code
+        (Train.flatten paragraph.words)
+  in let
+    longTitle = String.join " " codes
+  in
+    if String.length longTitle <= maxLength then
+      longTitle
+    else
+      let
+        shortTitle =
+          String.join
+            " "
+            (truncateByLength (maxLength - 3) codes)
+      in
+        shortTitle ++ "..."
+
+truncateByLength : Int -> List String -> List String
+truncateByLength length strings =
+  case strings of
+    [] ->
+      []
+    string :: rest ->
+      let
+        remainingLength = length - String.length string
+      in
+        if remainingLength < 0 then
+          []
+        else if remainingLength == 0 then
+          [ string ]
+        else
+          string ::
+            truncateByLength (remainingLength - 1) rest
