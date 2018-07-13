@@ -610,7 +610,7 @@ view model =
 "paneSettings paneSettings"
 "pane pane"
 "misc misc"
-/ minmax(auto, 37.5em) 1fr
+/ minmax(auto, 60em) 1fr
 """
           )
         ]
