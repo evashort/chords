@@ -7,7 +7,7 @@ var timeoutIsRedo = false;
 var startFocused = false;
 
 function createScene(index, frame) {
-  let scene = document.createElement("textarea");
+  var scene = document.createElement("textarea");
   scene.style.position = "absolute";
   scene.style.top = "0";
   scene.style.left = "0";
@@ -76,9 +76,9 @@ function focusTheater() {
 }
 
 function replace(replacement) {
-  let focused = document.activeElement === present;
+  var focused = document.activeElement === present;
 
-  for (let i = 0; i < future.length; i++) {
+  for (var i = 0; i < future.length; i++) {
     theater.removeChild(future[i]);
   }
   future = [];
@@ -91,8 +91,8 @@ function replace(replacement) {
   hideScene(present);
   past.push(present);
 
-  let cursorPos = replacement.selectionStart + replacement.text.length;
-  let frame = {
+  var cursorPos = replacement.selectionStart + replacement.text.length;
+  var frame = {
     text:
       present.value.substring(0, replacement.selectionStart) +
       replacement.text +
@@ -112,23 +112,23 @@ function replace(replacement) {
 }
 
 function undoAndReplace(replacement) {
-  let focused = document.activeElement === present;
+  var focused = document.activeElement === present;
 
-  for (let i = 0; i < future.length; i++) {
+  for (var i = 0; i < future.length; i++) {
     theater.removeChild(future[i]);
   }
   future = [];
   theater.removeChild(present);
 
-  let previous = past[past.length - 1];
+  var previous = past[past.length - 1];
   previous.lastFrame = {
     text: previous.value,
     selectionStart: replacement.selectionStart,
     selectionEnd: replacement.selectionEnd
   };
 
-  let cursorPos = replacement.selectionStart + replacement.text.length;
-  let frame = {
+  var cursorPos = replacement.selectionStart + replacement.text.length;
+  var frame = {
     text:
       previous.value.substring(0, replacement.selectionStart) +
       replacement.text +
@@ -146,9 +146,9 @@ function undoAndReplace(replacement) {
 }
 
 function hardUndo() {
-  let focused = document.activeElement === present;
+  var focused = document.activeElement === present;
 
-  for (let i = 0; i < future.length; i++) {
+  for (var i = 0; i < future.length; i++) {
     theater.removeChild(future[i]);
   }
   future = [];
@@ -167,7 +167,7 @@ function undo() {
     return;
   }
 
-  let focused = document.activeElement === present;
+  var focused = document.activeElement === present;
 
   hideScene(present);
   future.push(present);
@@ -186,7 +186,7 @@ function redo() {
     return;
   }
 
-  let focused = document.activeElement === present;
+  var focused = document.activeElement === present;
 
   hideScene(present);
   past.push(present);

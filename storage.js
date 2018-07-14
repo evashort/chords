@@ -2,7 +2,7 @@ var storageElement = null;
 
 function initStorage() {
   storageElement = document.getElementById("storage");
-  let observer = new MutationObserver(updateStorage);
+  var observer = new MutationObserver(updateStorage);
   observer.observe(
     storageElement,
     {

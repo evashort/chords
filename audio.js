@@ -9,12 +9,12 @@ reverb.connect(ac.destination);
 var notes = [];
 
 function muteNoteAt(t, note) {
-  let muteTime = ac.currentTime + 0.025;
+  var muteTime = ac.currentTime + 0.025;
   if (t > note.start && muteTime < t) {
     muteTime = t;
   }
 
-  let oldMuteTime =
+  var oldMuteTime =
     note.hasOwnProperty("muteTime") ? note.muteTime : note.expiration;
 
   if (muteTime < oldMuteTime) {
@@ -28,7 +28,7 @@ function muteNoteAt(t, note) {
 
       note.expiration = 0;
     } else {
-      let release = 0.01;
+      var release = 0.01;
       note.fader.gain.cancelScheduledValues(muteTime);
       note.fader.gain.setValueAtTime(1, muteTime);
       note.fader.gain.linearRampToValueAtTime(0, muteTime + release);
@@ -43,7 +43,7 @@ function muteNoteAt(t, note) {
 }
 
 function muteAt(t) {
-  for (let i = 0; i < notes.length; i++) {
+  for (var i = 0; i < notes.length; i++) {
     muteNoteAt(t, notes[i]);
   }
 }
@@ -55,19 +55,19 @@ function cancelNoteAt(t, note) {
     note.fader.gain.cancelScheduledValues(0);
     note.fader.gain.value = 1;
     note.expiration = note.oldExpiration;
-    delete note.oldExpiration;
-    delete note.muteTime;
+    devare note.oldExpiration;
+    devare note.muteTime;
   }
 }
 
 function cancelAt(t) {
-  for (let i = 0; i < notes.length; i++) {
+  for (var i = 0; i < notes.length; i++) {
     cancelNoteAt(t, notes[i]);
   }
 }
 
 function addNote(addInstrumentNote, spec) {
-  for (let i = 0; i < notes.length; i++) {
+  for (var i = 0; i < notes.length; i++) {
     if (notes[i].frequency == spec.f) {
       muteNoteAt(spec.t, notes[i]);
     }
@@ -81,9 +81,9 @@ function addNote(addInstrumentNote, spec) {
 }
 
 function collectNotes() {
-  for (let i = notes.length - 1; i >= 0; i--) {
+  for (var i = notes.length - 1; i >= 0; i--) {
     if (notes[i].expiration <= ac.currentTime) {
-      for (let j = 0; j < notes[i].oscillators.length; j++) {
+      for (var j = 0; j < notes[i].oscillators.length; j++) {
         notes[i].oscillators[j].stop();
       }
       notes[i].fader.disconnect();
@@ -103,11 +103,11 @@ function collectNotes() {
 var noteCollector = 0;
 
 function changeAudio(changes) {
-  for (let i = 0; i < changes.length; i++) {
+  for (var i = 0; i < changes.length; i++) {
     if (changes[i].type == "mute") {
       muteAt(changes[i].t);
     } else if (changes[i].type == "cancel") {
-      for (let j = 0; j < notes.length; j++) {
+      for (var j = 0; j < notes.length; j++) {
         cancelAt(changes[i].t, notes[j]);
       }
     } else if (changes[i].type == "piano") {
