@@ -66,8 +66,7 @@ type alias Model =
   , shouldStore : Bool
   , parse : Parse
   , memory : Maybe Backup
-  , saved : Bool
-  , shouldWarn : Bool
+  , saveState : SaveState
   , buffet : Buffet
   , storage : Storage
   , playing : Bool
@@ -79,6 +78,11 @@ type alias Backup =
   { code : String
   , action : String
   }
+
+type SaveState
+  = Unsaved
+  | Saving
+  | Saved
 
 init : Flags -> Location -> ( Model, Cmd Msg )
 init flags location =
@@ -95,50 +99,33 @@ init flags location =
               Nothing
               (Debug.log message flags.storage)
   in let
+    storage =
+      Maybe.withDefault Storage.default maybeStorage
+  in let
     title =
       Maybe.withDefault
         ""
         (Url.hashParamValue "title" location)
   in let
-    maybeText = Url.hashParamValue "text" location
-  in let
-    ( model, cmd ) =
-      initHelp maybeStorage flags.canStore title maybeText
-  in
-    ( model
-    , if flags.canStore then
-        Cmd.batch [ cmd, Storage.init ]
-      else
-        cmd
-    )
-
-initHelp :
-  Maybe Storage -> Bool -> String -> Maybe String -> ( Model, Cmd msg )
-initHelp maybeStorage canStore title maybeText =
-  let
-    storage =
-      Maybe.withDefault Storage.default maybeStorage
-  in let
-    text =
+    code =
       Maybe.withDefault
         ( if storage.startEmpty then
             ""
           else
-            defaultText
+            defaultCode
         )
-        maybeText
+        (Url.hashParamValue "text" location)
   in let
-    parse = Parse.init text
+    parse = Parse.init code
   in
     ( { title = title
       , bpm = Nothing
       , lowestNote = Nothing
-      , canStore = canStore
+      , canStore = flags.canStore
       , shouldStore = maybeStorage /= Nothing
       , parse = parse
       , memory = Nothing
-      , saved = maybeText /= Nothing
-      , shouldWarn = False
+      , saveState = Saved
       , buffet = Buffet.init parse.suggestions
       , storage = storage
       , playing = False
@@ -147,20 +134,24 @@ initHelp maybeStorage canStore title maybeText =
       }
     , Cmd.batch
         [ Theater.init
-            { text = text
-            , selectionStart = String.length text
-            , selectionEnd = String.length text
+            { text = code
+            , selectionStart = String.length code
+            , selectionEnd = String.length code
             }
         , Theater.focus
         , if title == "" then
             Ports.setTitle parse.defaultTitle
           else
             Ports.setTitle title
+        , if flags.canStore then
+            Storage.init
+          else
+            Cmd.none
         ]
     )
 
-defaultText : String
-defaultText =
+defaultCode : String
+defaultCode =
   """// Type chord names in this box
 // to create play buttons below
 C G  Am F
@@ -198,18 +189,19 @@ update msg model =
     SetTitle title ->
       ( { model
         | title = title
+        , saveState = Unsaved
         }
       , Cmd.batch
-          [ clearUrl model.saved
+          [ Navigation.newUrl "#"
           , if title == "" then
-              Ports.setTitle model.parse.defaultTitle
+              Ports.setTitle ("*" ++ model.parse.defaultTitle)
             else
-              Ports.setTitle title
+              Ports.setTitle ("*" ++ title)
           ]
       )
 
     Save ->
-      ( model
+      ( { model | saveState = Saving }
       , if model.title == "" then
           Navigation.modifyUrl
             ("#text=" ++ Url.percentEncode model.parse.code)
@@ -290,57 +282,28 @@ update msg model =
           ( { model
             | parse = parse
             , memory = Nothing
-            , shouldWarn = True
+            , saveState = Unsaved
             , buffet =
                 Buffet.update parse.suggestions model.buffet
             }
-          , Cmd.batch
-              [ clearUrl model.saved
-              , updateTitle model.title parse
-              ]
+          , codeChanged model parse
           )
 
     UrlChanged location ->
-      let
-        title =
-          Maybe.withDefault
-            ""
-            (Url.hashParamValue "title" location)
-      in let
-        maybeText = Url.hashParamValue "text" location
-      in
-        if
-          model.saved && title == "" && maybeText == Nothing
-        then
-          ( { model | saved = False }, Cmd.none )
-        else if
-          not model.saved &&
-            title == model.title &&
-            maybeText == Just model.parse.code
-        then
-          ( { model
-            | saved = True
-            , shouldWarn = False
-            }
-          , Cmd.none
-          )
-        else
-          let
-            maybeStorage =
-              if model.shouldStore then
-                Just model.storage
-              else
-                Nothing
-          in let
-            ( newModel, cmd ) =
-              initHelp maybeStorage model.canStore title maybeText
-          in
-            ( newModel
-            , if model.playing then
-                Cmd.batch [ cmd, Task.perform Stop AudioTime.now ]
-              else
-                cmd
-            )
+      if model.saveState == Saving then
+        ( { model | saveState = Saved }
+        , if model.title == "" then
+            Ports.setTitle model.parse.defaultTitle
+          else
+            Ports.setTitle model.title
+        )
+      else if
+        model.saveState == Unsaved &&
+          location.hash == ""
+      then
+        ( model, Cmd.none )
+      else
+        ( model, Navigation.reload )
 
     BuffetMsg (Buffet.LensesChanged lensChange) ->
       ( { model
@@ -487,15 +450,14 @@ replace replacement model =
     ( { model
       | parse = parse
       , memory = Nothing
-      , shouldWarn = True
+      , saveState = Unsaved
       , buffet =
           Buffet.update parse.suggestions model.buffet
       }
     , Cmd.batch
         [ Theater.replace replacement
         , Theater.focus
-        , clearUrl model.saved
-        , updateTitle model.title parse
+        , codeChanged model parse
         ]
     )
 
@@ -524,13 +486,13 @@ doAction action f model =
                 ( { model
                   | parse = parse
                   , memory = Nothing
+                  , saveState = Unsaved
                   , buffet =
                       Buffet.update parse.suggestions model.buffet
                   }
                 , Cmd.batch
                     [ Theater.hardUndo
-                    , clearUrl model.saved
-                    , updateTitle model.title parse
+                    , codeChanged model parse
                     ]
                 )
             else
@@ -544,6 +506,7 @@ doAction action f model =
           ( { model
             | parse = parse
             , memory = Just { action = action, code = oldCode }
+            , saveState = Unsaved
             , buffet =
                 Buffet.update parse.suggestions model.buffet
             }
@@ -556,24 +519,26 @@ doAction action f model =
                       Theater.undoAndReplace replacement
                     else
                       Theater.replace replacement
-              , clearUrl model.saved
-              , updateTitle model.title parse
+              , codeChanged model parse
               ]
           )
 
-clearUrl : Bool -> Cmd msg
-clearUrl saved =
-  if saved then
-    Navigation.newUrl "#"
-  else
-    Cmd.none
-
-updateTitle : String -> Parse -> Cmd msg
-updateTitle title parse =
-  if title == "" then
-    Ports.setTitle parse.defaultTitle
-  else
-    Cmd.none
+codeChanged : Model -> Parse -> Cmd msg
+codeChanged model parse =
+  Cmd.batch
+    [ Navigation.newUrl "#"
+    , if model.saveState == Saved then
+        if model.title == "" then
+          Ports.setTitle ("*" ++ parse.defaultTitle)
+        else
+          Ports.setTitle ("*" ++ model.title)
+      else if
+        parse.defaultTitle /= model.parse.defaultTitle
+      then
+        Ports.setTitle ("*" ++ parse.defaultTitle)
+      else
+        Cmd.none
+    ]
 
 -- SUBSCRIPTIONS
 
@@ -629,9 +594,9 @@ view model =
         model.shouldStore
         model.storage
     , Html.Lazy.lazy
-        viewBeforeUnload
+        viewShouldWarn
         ( model.storage.unsavedWarning &&
-            model.shouldWarn &&
+            model.saveState /= Saved &&
             model.parse.code /= ""
         )
     , viewBrand
@@ -639,7 +604,7 @@ view model =
         viewTitle
         model.parse.defaultTitle
         model.title
-        model.saved
+        model.saveState
     , Html.Lazy.lazy2
         viewBpm
         (hasBackup "bpm" model)
@@ -723,8 +688,8 @@ hasBackup action model =
     Just backup ->
       backup.action == action
 
-viewBeforeUnload : Bool -> Html msg
-viewBeforeUnload shouldWarn =
+viewShouldWarn : Bool -> Html msg
+viewShouldWarn shouldWarn =
   span
     [ id "warning"
     , style [ ( "display", "none" ) ]
@@ -779,8 +744,8 @@ viewBrand =
         ]
     ]
 
-viewTitle : String -> String -> Bool -> Html Msg
-viewTitle defaultTitle title saved =
+viewTitle : String -> String -> SaveState -> Html Msg
+viewTitle defaultTitle title saveState =
   span
     [ style
         [ ( "grid-area", "title" )
@@ -797,7 +762,7 @@ viewTitle defaultTitle title saved =
     , Html.text " "
     , button
         [ onClick Save
-        , disabled saved
+        , disabled (saveState /= Unsaved)
         ]
         [ Html.text "Save in URL"
         ]
