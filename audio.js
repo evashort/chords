@@ -1,4 +1,4 @@
-var ac = new (window.AudioContext || window.webkitAudioContext)();
+var ac = new AudioContext();
 
 var reverb = Freeverb(ac);
 reverb.roomSize = 0.2;
