@@ -115,8 +115,8 @@
   </head>
   <body>
     <script>
-      let storage = "";
-      let canStore = typeof(Storage) !== "undefined";
+      var storage = "";
+      var canStore = typeof(Storage) !== "undefined";
       if (canStore) {
         storage = localStorage.getItem("storage");
         if (storage == null) {
@@ -145,7 +145,7 @@
       );
 
       onbeforeunload = function(event) {
-        let warning = document.getElementById("warning");
+        var warning = document.getElementById("warning");
         if (warning != null && warning.attributes.value.value == "true") {
           event.preventDefault();
           return "true";

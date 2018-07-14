@@ -55,8 +55,8 @@ function cancelNoteAt(t, note) {
     note.fader.gain.cancelScheduledValues(0);
     note.fader.gain.value = 1;
     note.expiration = note.oldExpiration;
-    devare note.oldExpiration;
-    devare note.muteTime;
+    delete note.oldExpiration;
+    delete note.muteTime;
   }
 }
 
