@@ -27,7 +27,7 @@ view
           , ( "grid-auto-columns", "75px" )
           , ( "grid-row-gap", "5px" )
           , ( "grid-column-gap", "5px" )
-          , ( "place-items", "center" )
+          , ( "justify-items", "center" )
           , ( "font-size", "150%" )
           ]
       ]
@@ -161,6 +161,7 @@ viewCategory y name =
         , ( "grid-row", toString (y + 1) )
         , ( "font-size", "initial" )
         , ( "display", "inline-block" )
+        , ( "align-self", "center" )
         ]
     ]
     ( if String.endsWith "th" name then
