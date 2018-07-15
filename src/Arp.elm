@@ -1,9 +1,12 @@
-module Arp exposing (pad, strum, intro, continuation)
+module Arp exposing (defaultBpm, pad, strum, intro, continuation)
 
 import Chord exposing (Chord)
 import Note exposing (Note)
 
 import Dict exposing (Dict)
+
+defaultBpm : Float
+defaultBpm = 85
 
 pad : Int -> Chord -> List Note
 pad lowestNote chord =

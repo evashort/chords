@@ -2,18 +2,29 @@ module Bpm exposing (flag)
 
 import Flag exposing (Flag)
 
-flag : Flag Float
+flag : Flag (Maybe Float)
 flag =
   { key = "bpm"
   , fromCode = fromCode
-  , code = toString
-  , default = 85
+  , code = code
+  , default = Nothing
   }
 
-fromCode : String -> Maybe Float
+fromCode : String -> Maybe (Maybe Float)
 fromCode code =
-  case String.toFloat code of
-    Err _ ->
-      Nothing
-    Ok bpm ->
-      Just (max 20 bpm)
+  if code == "default" then
+    Just Nothing
+  else
+    case String.toFloat code of
+      Err _ ->
+        Nothing
+      Ok bpm ->
+        Just (Just (max 20 bpm))
+
+code : Maybe Float -> String
+code maybeBpm =
+  case maybeBpm of
+    Nothing ->
+      "default"
+    Just bpm ->
+      toString bpm

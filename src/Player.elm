@@ -237,12 +237,13 @@ strumPattern pattern beatInterval lowestNote { id, chord } now player =
         (Cliff.nextHold now player.cliff)
   in let
     beatCount =
-      if pattern == StrumPattern.Indie then
-        4
-      else if highStart then
-        6
-      else
-        8
+      case pattern of
+        StrumPattern.Basic ->
+          8
+        StrumPattern.Indie ->
+          4
+        StrumPattern.Modern ->
+          if highStart then 6 else 4
   in let
     truncatedSchedule =
       truncateAfter startTime player.schedule
@@ -271,13 +272,21 @@ strumPattern pattern beatInterval lowestNote { id, chord } now player =
     ( { cliff =
           Cliff.addHolds
             startTime
-            (2 * beatInterval)
-            ( if pattern == StrumPattern.Indie then
-                [ False, False ]
-              else if highStart then
-                [ False, True, False ]
+            ( if pattern == StrumPattern.Basic then
+                4 * beatInterval
               else
-                [ True, False, True, False ]
+                2 * beatInterval
+            )
+            ( case pattern of
+                StrumPattern.Basic ->
+                  [ False, False ]
+                StrumPattern.Indie ->
+                  [ False, False ]
+                StrumPattern.Modern ->
+                  if highStart then
+                    [ False, True, False ]
+                  else
+                    [ True, False ]
             )
             player.cliff
       , schedule = schedule

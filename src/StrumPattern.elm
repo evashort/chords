@@ -1,4 +1,4 @@
-module StrumPattern exposing (StrumPattern(..), StrumNote, notes)
+module StrumPattern exposing (StrumPattern(..), defaultBpm, StrumNote, notes)
 
 import Chord exposing (Chord)
 
@@ -8,6 +8,16 @@ type StrumPattern
   = Basic
   | Indie
   | Modern
+
+defaultBpm : StrumPattern -> Float
+defaultBpm strumPattern =
+  case strumPattern of
+    Basic ->
+      125
+    Indie ->
+      85
+    Modern ->
+      95
 
 type alias StrumNote =
   { t : Float
@@ -54,10 +64,16 @@ notes pattern highStart lowestNote chord =
           modern
   in let
     strums =
-      if highStart && pattern /= Indie then
-        List.drop 8 patternStrums ++ patternStrums
-      else
-        patternStrums ++ patternStrums
+      case pattern of
+        Basic ->
+          patternStrums ++ patternStrums
+        Indie ->
+          patternStrums ++ patternStrums
+        Modern ->
+          if highStart then
+            List.drop 8 patternStrums ++ patternStrums
+          else
+            patternStrums
   in
     List.concat
       ( List.indexedMap

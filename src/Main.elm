@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+import Arp
 import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
@@ -21,7 +22,7 @@ import Replacement exposing (Replacement)
 import Scale exposing (Scale)
 import Song
 import Storage exposing (Storage)
-import StrumPattern exposing (StrumPattern)
+import StrumPattern
 import Substring exposing (Substring)
 import Swatch
 import Theater
@@ -60,7 +61,8 @@ main =
 
 type alias Model =
   { title : String
-  , bpm : Maybe Float
+  , dragBpm : Maybe Float
+  , customBpm : Float
   , lowestNote : Maybe Int
   , canStore : Bool
   , shouldStore : Bool
@@ -119,7 +121,8 @@ init flags location =
     parse = Parse.init code
   in
     ( { title = title
-      , bpm = Nothing
+      , dragBpm = Nothing
+      , customBpm = 100
       , lowestNote = Nothing
       , canStore = flags.canStore
       , shouldStore = maybeStorage /= Nothing
@@ -163,9 +166,10 @@ _ G7
 type Msg
   = SetTitle String
   | Save
-  | PreviewBpm String
+  | DragBpm String
   | SetBpm String
-  | PreviewLowestNote String
+  | UseDefaultBpm Bool
+  | DragLowestNote String
   | SetLowestNote String
   | SetTonic String
   | SetMinor Bool
@@ -216,10 +220,10 @@ update msg model =
             )
       )
 
-    PreviewBpm bpmString ->
+    DragBpm bpmString ->
       ( case String.toFloat bpmString of
           Ok bpm ->
-            { model | bpm = Just bpm }
+            { model | dragBpm = Just bpm }
           Err _ ->
             model
       , Cmd.none
@@ -230,12 +234,27 @@ update msg model =
         Ok bpm ->
           doAction
             "bpm"
-            (Parse.setBpm bpm)
-            { model | bpm = Nothing }
+            (Parse.setBpm (Just bpm))
+            { model | dragBpm = Nothing }
         Err _ ->
           ( model, Cmd.none )
 
-    PreviewLowestNote lowestNoteString ->
+    UseDefaultBpm True ->
+      doAction
+        "bpm"
+        (Parse.setBpm Nothing)
+        { model
+        | customBpm =
+            Maybe.withDefault model.customBpm model.parse.bpm
+        }
+
+    UseDefaultBpm False ->
+      doAction
+        "bpm"
+        (Parse.setBpm (Just model.customBpm))
+        model
+
+    DragLowestNote lowestNoteString ->
       ( case String.toInt lowestNoteString of
           Ok lowestNote ->
             { model | lowestNote = Just lowestNote }
@@ -374,20 +393,28 @@ update msg model =
       in let
         lowestNote = model.parse.lowestNote
       in let
-        beatInterval = 60 / model.parse.bpm
-      in let
         ( newPlayer, changes ) =
           case model.storage.playStyle of
             PlayStyle.Arpeggio ->
-              Player.arp beatInterval lowestNote idChord now player
+              let
+                bpm =
+                  Maybe.withDefault Arp.defaultBpm model.parse.bpm
+              in
+                Player.arp (60 / bpm) lowestNote idChord now player
             PlayStyle.StrumPattern ->
-              Player.strumPattern
-                model.storage.strumPattern
-                beatInterval
-                lowestNote
-                idChord
-                now
-                player
+              let
+                bpm =
+                  Maybe.withDefault
+                    (StrumPattern.defaultBpm model.storage.strumPattern)
+                    model.parse.bpm
+              in
+                Player.strumPattern
+                  model.storage.strumPattern
+                  (60 / bpm)
+                  lowestNote
+                  idChord
+                  now
+                  player
             PlayStyle.Strum ->
               Player.strum
                 model.storage.strumInterval
@@ -605,10 +632,24 @@ view model =
         model.parse.defaultTitle
         model.title
         model.saveState
-    , Html.Lazy.lazy2
-        viewBpm
+    , viewBpm
         (hasBackup "bpm" model)
-        (Maybe.withDefault model.parse.bpm model.bpm)
+        ( Maybe.withDefault
+            (Maybe.withDefault model.customBpm model.parse.bpm)
+            model.dragBpm
+        )
+        ( case model.storage.playStyle of
+            PlayStyle.Arpeggio ->
+              Just Arp.defaultBpm
+            PlayStyle.StrumPattern ->
+              Just
+                ( StrumPattern.defaultBpm
+                    model.storage.strumPattern
+                )
+            _ ->
+              Nothing
+        )
+        (model.parse.bpm == Nothing)
     , Html.Lazy.lazy2
         viewScale
         (hasBackup "scale" model)
@@ -768,8 +809,8 @@ viewTitle defaultTitle title saveState =
         ]
     ]
 
-viewBpm : Bool -> Float -> Html Msg
-viewBpm hasBackup bpm =
+viewBpm : Bool -> Float -> Maybe Float -> Bool -> Html Msg
+viewBpm hasBackup bpm maybeDefaultBpm useDefault =
   span
     [ style
         [ ( "grid-area", "bpm" )
@@ -782,7 +823,8 @@ viewBpm hasBackup bpm =
         [ Html.text "Tempo\xA0" ]
     , input
         [ type_ "range"
-        , onInput PreviewBpm
+        , disabled useDefault
+        , onInput DragBpm
         , onChange SetBpm
         , value (toString bpm)
         , Attributes.size 3
@@ -794,8 +836,39 @@ viewBpm hasBackup bpm =
             ]
         ]
         []
-    , span []
+    , span
+        [ style
+            [ ( "min-width", "15ch" )
+            , ( "color"
+              , if useDefault then
+                  "GrayText"
+                else
+                  ""
+              )
+            ]
+        ]
         [ Html.text ("\xA0" ++ toString bpm ++ " BPM") ]
+    , Html.text "\xA0"
+    , label
+        []
+        [ input
+            [ type_ "checkbox"
+            , checked useDefault
+            , onCheck UseDefaultBpm
+            ]
+            []
+        , Html.text
+            ( case ( maybeDefaultBpm, useDefault ) of
+                ( Just defaultBpm, True ) ->
+                  String.concat
+                    [ " Default ("
+                    , toString defaultBpm
+                    , " BPM)"
+                    ]
+                _ ->
+                  " Default"
+            )
+        ]
     ]
 
 viewScale : Bool -> Scale -> Html Msg
@@ -862,7 +935,7 @@ viewLowestNote hasBackup lowestNote =
         [ Html.text "Lowest note\xA0" ]
     , input
         [ type_ "range"
-        , onInput PreviewLowestNote
+        , onInput DragLowestNote
         , onChange SetLowestNote
         , value (toString lowestNote)
         , Attributes.min "35"

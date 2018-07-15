@@ -21,7 +21,7 @@ type alias Parse =
   , paragraph : Paragraph
   , highlights : List Highlight
   , suggestions : List Suggestion
-  , bpm : Float
+  , bpm : Maybe Float
   , lowestNote : Int
   , scale : Scale
   , defaultTitle : String
@@ -77,7 +77,7 @@ song : Parse -> Song
 song parse =
   Paragraph.song parse.paragraph
 
-setBpm : Float -> String -> Maybe Replacement
+setBpm : Maybe Float -> String -> Maybe Replacement
 setBpm bpm code =
   let
     unindented =
