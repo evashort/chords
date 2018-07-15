@@ -10,7 +10,7 @@ import CustomEvents exposing (onChange)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
-import LowestNote
+import Lowest
 import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
@@ -63,7 +63,8 @@ type alias Model =
   { title : String
   , dragBpm : Maybe Float
   , customBpm : Float
-  , lowestNote : Maybe Int
+  , dragLowest : Maybe Int
+  , customLowest : Int
   , canStore : Bool
   , shouldStore : Bool
   , parse : Parse
@@ -123,7 +124,8 @@ init flags location =
     ( { title = title
       , dragBpm = Nothing
       , customBpm = 100
-      , lowestNote = Nothing
+      , dragLowest = Nothing
+      , customLowest = 9
       , canStore = flags.canStore
       , shouldStore = maybeStorage /= Nothing
       , parse = parse
@@ -169,10 +171,11 @@ type Msg
   | DragBpm String
   | SetBpm String
   | UseDefaultBpm Bool
-  | DragLowestNote String
-  | SetLowestNote String
   | SetTonic String
   | SetMinor Bool
+  | DragLowest String
+  | SetLowest String
+  | UseDefaultLowest Bool
   | TextChanged String
   | UrlChanged Location
   | BuffetMsg Buffet.Msg
@@ -254,25 +257,6 @@ update msg model =
         (Parse.setBpm (Just model.customBpm))
         model
 
-    DragLowestNote lowestNoteString ->
-      ( case String.toInt lowestNoteString of
-          Ok lowestNote ->
-            { model | lowestNote = Just lowestNote }
-          Err _ ->
-            model
-      , Cmd.none
-      )
-
-    SetLowestNote lowestNoteString ->
-      case String.toInt lowestNoteString of
-        Ok lowestNote ->
-          doAction
-            "lowestNote"
-            (Parse.setLowestNote lowestNote)
-            { model | lowestNote = Nothing }
-        Err _ ->
-          ( model, Cmd.none )
-
     SetTonic tonicString ->
       case String.toInt tonicString of
         Ok tonic ->
@@ -292,6 +276,48 @@ update msg model =
         scale = { oldScale | minor = minor }
       in
         doAction "scale" (Parse.setScale scale) model
+
+    DragLowest pitchString ->
+      ( case String.toInt pitchString of
+          Ok pitch ->
+            let
+              lowest =
+                Lowest.fromPitch model.parse.scale.tonic pitch
+            in
+              { model | dragLowest = Just lowest }
+          Err _ ->
+            model
+      , Cmd.none
+      )
+
+    SetLowest pitchString ->
+      case String.toInt pitchString of
+        Ok pitch ->
+          let
+            lowest =
+              Lowest.fromPitch model.parse.scale.tonic pitch
+          in
+            doAction
+              "lowest"
+              (Parse.setLowest (Just lowest))
+              { model | dragLowest = Nothing }
+        Err _ ->
+          ( model, Cmd.none )
+
+    UseDefaultLowest True ->
+      doAction
+        "lowest"
+        (Parse.setLowest Nothing)
+        { model
+        | customLowest =
+            Maybe.withDefault model.customLowest model.parse.lowest
+        }
+
+    UseDefaultLowest False ->
+      doAction
+        "lowest"
+        (Parse.setLowest (Just model.customLowest))
+        model
 
     TextChanged code ->
       if code == model.parse.code then
@@ -391,7 +417,8 @@ update msg model =
             ( model.player, [] )
             (Player.setTime now model.player)
       in let
-        lowestNote = model.parse.lowestNote
+        lowestPitch =
+          Lowest.pitch model.parse.scale.tonic model.parse.lowest
       in let
         ( newPlayer, changes ) =
           case model.storage.playStyle of
@@ -400,7 +427,7 @@ update msg model =
                 bpm =
                   Maybe.withDefault Arp.defaultBpm model.parse.bpm
               in
-                Player.arp (60 / bpm) lowestNote idChord now player
+                Player.arp (60 / bpm) lowestPitch idChord now player
             PlayStyle.StrumPattern ->
               let
                 bpm =
@@ -411,19 +438,19 @@ update msg model =
                 Player.strumPattern
                   model.storage.strumPattern
                   (60 / bpm)
-                  lowestNote
+                  lowestPitch
                   idChord
                   now
                   player
             PlayStyle.Strum ->
               Player.strum
                 model.storage.strumInterval
-                lowestNote
+                lowestPitch
                 idChord
                 now
                 player
             PlayStyle.Pad ->
-              Player.pad lowestNote idChord now player
+              Player.pad lowestPitch idChord now player
       in
         ( { model
           | playing = True
@@ -601,7 +628,7 @@ view model =
 "title ."
 "bpm ."
 "scale ."
-"lowestNote ."
+"lowest ."
 "theater ."
 "buffet buffet"
 "playStyle playStyle"
@@ -654,10 +681,14 @@ view model =
         viewScale
         (hasBackup "scale" model)
         model.parse.scale
-    , Html.Lazy.lazy2
-        viewLowestNote
-        (hasBackup "lowestNote" model)
-        (Maybe.withDefault model.parse.lowestNote model.lowestNote)
+    , Html.Lazy.lazy3
+        viewLowest
+        (hasBackup "lowest" model)
+        ( Maybe.withDefault
+            (Maybe.withDefault model.customLowest model.parse.lowest)
+            model.dragLowest
+        )
+        model.parse
     , div
         [ id "theater"
         , style
@@ -921,25 +952,29 @@ viewTonicOption scale namesake =
       [ Html.text scaleName
       ]
 
-viewLowestNote : Bool -> Int -> Html Msg
-viewLowestNote hasBackup lowestNote =
+viewLowest : Bool -> Int -> Parse -> Html Msg
+viewLowest hasBackup lowest parse =
   span
     [ style
-        [ ( "grid-area", "lowestNote" )
+        [ ( "grid-area", "lowest" )
         , yellowIf hasBackup
         , ( "display", "flex" )
         , ( "align-items", "center" )
         ]
     ]
     [ span []
-        [ Html.text "Lowest note\xA0" ]
+        [ Html.text "Lowest scale degree\xA0" ]
     , input
         [ type_ "range"
-        , onInput DragLowestNote
-        , onChange SetLowestNote
-        , value (toString lowestNote)
-        , Attributes.min "35"
-        , Attributes.max "53"
+        , disabled (parse.lowest == Nothing)
+        , onInput DragLowest
+        , onChange SetLowest
+        , value
+            ( toString
+                (Lowest.pitch parse.scale.tonic (Just lowest))
+            )
+        , Attributes.min (toString Lowest.rangeStart)
+        , Attributes.max (toString (Lowest.rangeStart + 11))
         , style
             [ ( "width", "10em" )
             ]
@@ -947,12 +982,37 @@ viewLowestNote hasBackup lowestNote =
         []
     , span
         [ style
-            [ ( "min-width", "4ch" )
+            [ ( "min-width", "9ch" )
+            , ( "color"
+              , if parse.lowest == Nothing then
+                  "GrayText"
+                else
+                  ""
+              )
             ]
         ]
-        [ Html.text ("\xA0" ++ LowestNote.view lowestNote) ]
-    , span []
-        [ Html.text ("\xA0(MIDI note " ++ toString lowestNote ++ ")") ]
+        ( Html.text "\xA0" :: Lowest.view parse.scale lowest )
+    , Html.text "\xA0"
+    , label
+        []
+        ( (::)
+            ( input
+                [ type_ "checkbox"
+                , checked (parse.lowest == Nothing)
+                , onCheck UseDefaultLowest
+                ]
+                []
+            )
+            ( if parse.lowest == Nothing then
+                List.concat
+                  [ [ Html.text " Default (" ]
+                  , Lowest.viewDefault parse.scale
+                  , [ Html.text ")" ]
+                  ]
+              else
+                [ Html.text " Default" ]
+            )
+        )
     ]
 
 yellowIf : Bool -> (String, String)

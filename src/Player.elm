@@ -135,7 +135,7 @@ stop now player =
   )
 
 pad : Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
-pad lowestNote { id, chord } now player =
+pad lowestPitch { id, chord } now player =
   let
     truncatedSchedule =
       truncateAfter now player.schedule
@@ -154,13 +154,13 @@ pad lowestNote { id, chord } now player =
         (Mute now)
         ( List.map
             (AddPadNote << Note.mapTime (always now))
-            (Arp.pad lowestNote chord)
+            (Arp.pad lowestPitch chord)
         )
     )
 
 strum :
   Float -> Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
-strum strumInterval lowestNote { id, chord } now player =
+strum strumInterval lowestPitch { id, chord } now player =
   let
     truncatedSchedule =
       truncateAfter now player.schedule
@@ -181,13 +181,13 @@ strum strumInterval lowestNote { id, chord } now player =
             ( AddGuitarNote <<
                 Note.mapTime ((+) now << (*) strumInterval)
             )
-            (Arp.strum lowestNote chord)
+            (Arp.strum lowestPitch chord)
         )
     )
 
 arp :
   Float -> Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
-arp beatInterval lowestNote { id, chord } now player =
+arp beatInterval lowestPitch { id, chord } now player =
   let
     ( startTime, highStart ) =
       Maybe.withDefault
@@ -219,9 +219,9 @@ arp beatInterval lowestNote { id, chord } now player =
                   ((+) startTime << (*) beatInterval)
             )
             ( if highStart then
-                Arp.continuation lowestNote chord
+                Arp.continuation lowestPitch chord
               else
-                Arp.intro lowestNote chord
+                Arp.intro lowestPitch chord
             )
         )
     )
@@ -229,7 +229,7 @@ arp beatInterval lowestNote { id, chord } now player =
 strumPattern :
   StrumPattern -> Float -> Int -> IdChord -> Float -> Player ->
     (Player, List AudioChange)
-strumPattern pattern beatInterval lowestNote { id, chord } now player =
+strumPattern pattern beatInterval lowestPitch { id, chord } now player =
   let
     ( startTime, highStart ) =
       Maybe.withDefault
@@ -256,7 +256,7 @@ strumPattern pattern beatInterval lowestNote { id, chord } now player =
     notes =
       ( List.map
           (processStrumNote startTime beatInterval)
-          (StrumPattern.notes pattern highStart lowestNote chord)
+          (StrumPattern.notes pattern highStart lowestPitch chord)
       )
   in let
     otherChanges =

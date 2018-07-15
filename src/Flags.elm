@@ -2,7 +2,7 @@ module Flags exposing (highlights, suggestions)
 
 import Bpm
 import Highlight exposing (Highlight)
-import LowestNote
+import Lowest
 import Rule
 import Rulebook exposing (Rulebook)
 import Scale
@@ -14,7 +14,7 @@ book =
   Rulebook.init
     [ Rule.fromFlag Bpm.flag
     , Rule.fromFlag Scale.flag
-    , Rule.fromFlag LowestNote.flag
+    , Rule.fromFlag Lowest.flag
     ]
 
 highlights : List Substring -> List Highlight

@@ -1,5 +1,5 @@
 module Parse exposing
-  (Parse, init, update, song, setBpm, setLowestNote, setScale)
+  (Parse, init, update, song, setBpm, setScale, setLowest)
 
 import Bpm
 import Chord
@@ -8,7 +8,7 @@ import Flag
 import Flags
 import Highlight exposing (Highlight)
 import Indent
-import LowestNote
+import Lowest
 import Paragraph exposing (Paragraph)
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
@@ -22,8 +22,8 @@ type alias Parse =
   , highlights : List Highlight
   , suggestions : List Suggestion
   , bpm : Maybe Float
-  , lowestNote : Int
   , scale : Scale
+  , lowest : Maybe Int
   , defaultTitle : String
   }
 
@@ -63,8 +63,8 @@ initHelp getParagraph code =
               ]
           )
     , bpm = Flag.parse Bpm.flag unindented
-    , lowestNote = Flag.parse LowestNote.flag unindented
     , scale = scale
+    , lowest = Flag.parse Lowest.flag unindented
     , defaultTitle =
         case Paragraph.defaultTitle paragraph of
           "" ->
@@ -87,16 +87,6 @@ setBpm bpm code =
       (glue code)
       (Flag.insert Bpm.flag bpm unindented)
 
-setLowestNote : Int -> String -> Maybe Replacement
-setLowestNote lowestNote code =
-  let
-    unindented =
-      Indent.remove (Comment.remove (Substring 0 code))
-  in
-    Maybe.map
-      (glue code)
-      (Flag.insert LowestNote.flag lowestNote unindented)
-
 setScale : Scale -> String -> Maybe Replacement
 setScale scale code =
   let
@@ -111,39 +101,34 @@ setScale scale code =
           oldScale = Flag.parse Scale.flag unindented
         in let
           offset = (scale.tonic - oldScale.tonic) % 12
-        in let
-          oldLowestNote =
-            Flag.parse LowestNote.flag unindented
-        in let
-          lowestNote =
-            (oldLowestNote + offset - 39) % 12 + 39
         in
-          case
-            Flag.insert LowestNote.flag lowestNote unindented
-          of
-            Nothing ->
-              Just (glue code scaleReplacement)
-            Just lowestNoteReplacement ->
-              let
-                flagReplacements =
-                  if lowestNoteReplacement.old.i < scaleReplacement.old.i then
-                    [ lowestNoteReplacement, scaleReplacement ]
-                  else
-                    [ scaleReplacement, lowestNoteReplacement ]
-              in let
-                chordReplacements =
-                  Paragraph.mapChords
-                    (Chord.transpose offset)
-                    (Flag.remove unindented)
-              in
-                Just
-                  ( glue
-                      code
-                      ( Replacement.combine
-                          (flagReplacements ++ chordReplacements)
-                          (Substring 0 code)
-                      )
-                  )
+          if offset == 0 then
+            Just (glue code scaleReplacement)
+          else
+            let
+              chordReplacements =
+                Paragraph.mapChords
+                  (Chord.transpose offset)
+                  (Flag.remove unindented)
+            in
+              Just
+                ( glue
+                    code
+                    ( Replacement.combine
+                        (scaleReplacement :: chordReplacements)
+                        (Substring 0 code)
+                    )
+                )
+
+setLowest : Maybe Int -> String -> Maybe Replacement
+setLowest lowest code =
+  let
+    unindented =
+      Indent.remove (Comment.remove (Substring 0 code))
+  in
+    Maybe.map
+      (glue code)
+      (Flag.insert Lowest.flag lowest unindented)
 
 glue : String -> Replacement -> Replacement
 glue source replacement =

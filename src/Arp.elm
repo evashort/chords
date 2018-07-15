@@ -9,15 +9,15 @@ defaultBpm : Float
 defaultBpm = 85
 
 pad : Int -> Chord -> List Note
-pad lowestNote chord =
+pad lowestPitch chord =
   templateNotes
     1
-    lowestNote
+    lowestPitch
     chord
     (List.range 0 (List.length chord.flavor))
 
 strum : Int -> Chord -> List Note
-strum lowestNote chord =
+strum lowestPitch chord =
   let
     strumChord =
       if List.length chord.flavor <= 2 then
@@ -25,29 +25,29 @@ strum lowestNote chord =
       else
         chord
   in
-    pad lowestNote strumChord
+    pad lowestPitch strumChord
 
 intro : Int -> Chord -> List Note
-intro lowestNote chord =
+intro lowestPitch chord =
   case Dict.get chord.flavor schemes of
     Nothing ->
-      default lowestNote chord
+      default lowestPitch chord
     Just scheme ->
-      templateNotes 0.25 lowestNote chord scheme.intro
+      templateNotes 0.25 lowestPitch chord scheme.intro
 
 continuation : Int -> Chord -> List Note
-continuation lowestNote chord =
+continuation lowestPitch chord =
   case Dict.get chord.flavor schemes of
     Nothing ->
-      default lowestNote chord
+      default lowestPitch chord
     Just scheme ->
-      templateNotes 0.25 lowestNote chord scheme.continuation
+      templateNotes 0.25 lowestPitch chord scheme.continuation
 
 default : Int -> Chord -> List Note
-default lowestNote chord =
+default lowestPitch chord =
   templateNotes
     0.25
-    lowestNote
+    lowestPitch
     chord
     ( List.map
         (\i -> i % (1 + List.length chord.flavor))
@@ -55,10 +55,10 @@ default lowestNote chord =
     )
 
 templateNotes : Float -> Int -> Chord -> List Int -> List Note
-templateNotes interval lowestNote chord codes =
+templateNotes interval lowestPitch chord codes =
   let
     rootPitch =
-      (chord.root - lowestNote) % 12 + lowestNote
+      (chord.root - lowestPitch) % 12 + lowestPitch
   in let
     chordFrequencies =
       List.map

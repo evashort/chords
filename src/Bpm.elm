@@ -12,7 +12,7 @@ flag =
 
 fromCode : String -> Maybe (Maybe Float)
 fromCode code =
-  if code == "default" then
+  if String.toLower code == "default" then
     Just Nothing
   else
     case String.toFloat code of

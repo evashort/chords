@@ -27,10 +27,10 @@ type alias StrumNote =
   }
 
 notes : StrumPattern -> Bool -> Int -> Chord -> List StrumNote
-notes pattern highStart lowestNote chord =
+notes pattern highStart lowestPitch chord =
   let
     rootPitch =
-      (chord.root - lowestNote) % 12 + lowestNote
+      (chord.root - lowestPitch) % 12 + lowestPitch
   in let
     chordFrequencies =
       List.map
