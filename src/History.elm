@@ -31,6 +31,26 @@ add sequence history =
 
 view : String -> Int -> Bool -> History -> List Chord -> Bool -> Html String
 view gridArea tonic shorten history sequence finished =
+  if List.length sequence >= 2 || history.sequences /= [] then
+    viewNonEmpty gridArea tonic shorten history sequence finished
+  else
+    span
+      [ style
+          [ ( "grid-area", gridArea )
+          , ( "color", "GrayText" )
+          , ( "background", indexBackground 0 )
+          , ( "padding", "calc(0.22em + 5px) 10px" )
+          , ( "white-space", "initial" )
+          , ( "line-height", "initial" )
+          ]
+      ]
+      [ text
+          "Sequences of two or more chords played consecutively will appear here."
+      ]
+
+viewNonEmpty :
+  String -> Int -> Bool -> History -> List Chord -> Bool -> Html String
+viewNonEmpty gridArea tonic shorten history sequence finished =
   span
     [ style
         [ ( "grid-area", gridArea )
@@ -50,11 +70,8 @@ view gridArea tonic shorten history sequence finished =
             []
         , List.concat
             ( List.indexedMap
-                ( viewSequence
-                    shorten
-                    True
-                    tonic <<
-                  (-) (history.length - 1)
+                ( viewSequence shorten True tonic <<
+                    (-) (history.length - 1)
                 )
                 history.sequences
             )
