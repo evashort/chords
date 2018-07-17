@@ -4,8 +4,8 @@ import Html exposing (Html, span, button, text)
 import Html.Attributes as Attributes exposing (style, class, classList)
 import Html.Events exposing (onClick)
 
-view : a -> List (String, a) -> Html a
-view chosen options =
+view : Bool -> a -> List (String, a) -> Html a
+view disabled chosen options =
   span
     [ class "radio"
     , style
@@ -21,14 +21,15 @@ view chosen options =
         ]
     ]
     ( List.indexedMap
-        (viewOption chosen (List.length options))
+        (viewOption disabled chosen (List.length options))
         options
     )
 
-viewOption : a -> Int -> Int -> (String, a) -> Html a
-viewOption chosen length i ( label, value ) =
+viewOption : Bool -> a -> Int -> Int -> (String, a) -> Html a
+viewOption disabled chosen length i ( label, value ) =
   button
-    [ onClick value
+    [ Attributes.disabled (disabled && chosen /= value)
+    , onClick value
     , classList [ ( "chosen", chosen == value ) ]
     , style
         [ ( "grid-column-start", toString (max 1 (2 * i)) )

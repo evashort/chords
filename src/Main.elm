@@ -26,8 +26,10 @@ import StrumPattern
 import Substring exposing (Substring)
 import Swatch
 import Theater
+import Tour exposing (Tour)
 
 import AnimationFrame
+import Dom
 import Html exposing
   ( Html, Attribute, a, button, div, pre, span, textarea, input
   , select, option, label, br
@@ -45,6 +47,7 @@ import Url
 type alias Flags =
   { storage : String
   , canStore : Bool
+  , mac : Bool
   }
 
 main : Program Flags Model Msg
@@ -60,7 +63,9 @@ main =
 -- MODEL
 
 type alias Model =
-  { title : String
+  { tour : Tour
+  , mac : Bool
+  , title : String
   , dragBpm : Maybe Float
   , customBpm : Float
   , dragLowest : Maybe Int
@@ -121,7 +126,9 @@ init flags location =
   in let
     parse = Parse.init code
   in
-    ( { title = title
+    ( { tour = Tour.init
+      , mac = flags.mac
+      , title = title
       , dragBpm = Nothing
       , customBpm = 100
       , dragLowest = Nothing
@@ -166,7 +173,11 @@ _ G7
 -- UPDATE
 
 type Msg
-  = SetTitle String
+  = NoOp
+  | SetTour Tour
+  | SetPageNumber String
+  | CloseTour
+  | SetTitle String
   | Save
   | DragBpm String
   | SetBpm String
@@ -193,6 +204,46 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
   case msg of
+    NoOp ->
+      ( model, Cmd.none )
+
+    SetTour tour ->
+      ( { model | tour = tour }
+      , if tour.visible then
+          Cmd.batch
+            [ Tour.scrollIntoView tour.pageNumber
+            , if not model.tour.visible then
+                Task.attempt
+                  (always NoOp)
+                  (Dom.focus "tourNext")
+              else
+                Cmd.none
+            ]
+        else
+          Cmd.none
+      )
+
+    SetPageNumber pageNumberString ->
+      case String.toInt pageNumberString of
+        Ok pageNumber ->
+          let tour = model.tour in
+            ( { model
+              | tour = { tour | pageNumber = pageNumber}
+              }
+            , Cmd.none
+            )
+        Err _ ->
+          Debug.crash
+            ("Main.update: Bad page number: " ++ pageNumberString)
+
+    CloseTour ->
+      ( let tour = model.tour in
+          { model
+          | tour = { tour | visible = False }
+          }
+      , Cmd.none
+      )
+
     SetTitle title ->
       ( { model
         | title = title
@@ -228,7 +279,8 @@ update msg model =
           Ok bpm ->
             { model | dragBpm = Just bpm }
           Err _ ->
-            model
+            Debug.crash
+              ("Main.update: Bad BPM while dragging: " ++ bpmString)
       , Cmd.none
       )
 
@@ -240,7 +292,8 @@ update msg model =
             (Parse.setBpm (Just bpm))
             { model | dragBpm = Nothing }
         Err _ ->
-          ( model, Cmd.none )
+          Debug.crash
+            ("Main.update: Bad BPM: " ++ bpmString)
 
     UseDefaultBpm True ->
       doAction
@@ -267,7 +320,8 @@ update msg model =
           in
             doAction "scale" (Parse.setScale scale) model
         Err _ ->
-          ( model, Cmd.none )
+          Debug.crash
+            ("Main.update: Bad tonic: " ++ tonicString)
 
     SetMinor minor ->
       let
@@ -286,7 +340,8 @@ update msg model =
             in
               { model | dragLowest = Just lowest }
           Err _ ->
-            model
+            Debug.crash
+              ("Main.update: Bad pitch while dragging: " ++ pitchString)
       , Cmd.none
       )
 
@@ -302,7 +357,8 @@ update msg model =
               (Parse.setLowest (Just lowest))
               { model | dragLowest = Nothing }
         Err _ ->
-          ( model, Cmd.none )
+          Debug.crash
+            ("Main.update: Bad pitch: " ++ pitchString)
 
     UseDefaultLowest True ->
       doAction
@@ -384,7 +440,8 @@ update msg model =
                   }
               }
           Err _ ->
-            model
+            Debug.crash
+              ("Main.update: Bad strum interval: " ++ strumIntervalString)
       , Cmd.none
       )
 
@@ -608,6 +665,10 @@ subscriptions model =
         AnimationFrame.times (always RequestTime)
       else
         Sub.none
+    , if model.tour.visible then
+        Ports.escape (always CloseTour)
+      else
+        Sub.none
     ]
 
 -- VIEW
@@ -653,7 +714,10 @@ view model =
             model.saveState /= Saved &&
             model.parse.code /= ""
         )
-    , viewBrand
+    , Html.map
+        SetTour
+        (Html.Lazy.lazy2 Tour.view model.mac model.tour)
+    , Html.Lazy.lazy viewBrand model.tour
     , Html.Lazy.lazy3
         viewTitle
         model.parse.defaultTitle
@@ -707,22 +771,27 @@ view model =
         ]
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
-    , Html.Lazy.lazy viewBuffet model.buffet
+    , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
     , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
     , Html.Lazy.lazy viewPlaySettings model.storage
-    , Html.Lazy.lazy2 viewSong model.player model.parse
-    , Html.Lazy.lazy2
+    , Html.Lazy.lazy3 viewSong model.tour model.player model.parse
+    , Html.Lazy.lazy3
         viewPaneSelector
+        model.tour
         model.parse.scale
         model.storage
-    , Html.Lazy.lazy viewPaneSettings model.storage
-    , case model.storage.pane of
+    , Html.Lazy.lazy2 viewPaneSettings model.tour model.storage
+    , case
+        Maybe.withDefault
+          model.storage.pane
+          (Tour.paneShadow model.tour)
+      of
         Pane.ChordsInKey ->
           Html.map
             IdChordMsg
             ( ChordsInKey.view
                 "pane"
-                model.storage
+                (Tour.shadowStorage model.tour model.storage)
                 model.parse.scale
                 (Player.status model.player)
             )
@@ -790,31 +859,62 @@ viewStorage shouldStore storage =
     ]
     []
 
-viewBrand : Html msg
-viewBrand =
+viewBrand : Tour -> Html Msg
+viewBrand tour =
   span
     [ style
         [ ( "grid-area", "brand" )
         , ( "display", "flex" )
         , ( "align-items", "center" )
-        , ( "justify-content", "space-between" )
         , ( "margin-bottom", "8px" )
         ]
     ]
-    [ span
-        [ style
-            [ ( "font-size", "150%" )
-            , ( "line-height", "initial" )
+    ( List.concat
+        [ [ span
+              [ style
+                  [ ( "font-size", "150%" )
+                  , ( "line-height", "initial" )
+                  ]
+              ]
+              [ Html.text "Chord progression editor\xA0"
+              ]
+          ]
+        , if tour.visible then
+            [ select
+                [ onInput SetPageNumber
+                ]
+                (Tour.viewPageOptions tour.pageNumber)
+            , Html.text "\xA0"
+            , button
+                [ onClick CloseTour
+                ]
+                [ Html.text "Close tour"
+                ]
             ]
+          else
+            [ button
+                [ onClick (SetTour { tour | visible = True })
+                ]
+                [ if tour.pageNumber == 1 then
+                    Html.text "Start tour"
+                  else
+                    Html.text "Resume tour"
+                ]
+            ]
+        , [ span
+              [ style
+                  [ ( "flex", "1" )
+                  ]
+              ]
+              []
+          , a
+              [ href "https://github.com/evanshort73/chords"
+              ]
+              [ Html.text "View on GitHub"
+              ]
+          ]
         ]
-        [ Html.text "Chord progression editor"
-        ]
-    , a
-        [ href "https://github.com/evanshort73/chords"
-        ]
-        [ Html.text "View on GitHub"
-        ]
-    ]
+    )
 
 viewTitle : String -> String -> SaveState -> Html Msg
 viewTitle defaultTitle title saveState =
@@ -919,6 +1019,7 @@ viewScale hasBackup scale =
     , Html.map
         SetMinor
         ( Radio.view
+            False
             scale.minor
             [ ( Pitch.view 0 scale.tonic ++ " Major"
               , False
@@ -1049,9 +1150,11 @@ viewHighlights parse buffet =
         )
     )
 
-viewBuffet : Buffet -> Html Msg
-viewBuffet buffet =
-  Html.map BuffetMsg (Buffet.view buffet)
+viewBuffet : Tour -> Buffet -> Html Msg
+viewBuffet tour buffet =
+  Html.map
+    BuffetMsg
+    (Buffet.view (Tour.shadowBuffet tour buffet))
 
 viewPlayStyle : Storage -> Bool -> Html Msg
 viewPlayStyle storage playing =
@@ -1065,6 +1168,7 @@ viewPlayStyle storage playing =
     , Html.map
         (\x -> SetStorage { storage | playStyle = x })
         ( Radio.view
+            False
             storage.playStyle
             [ ( "Arpeggio", PlayStyle.Arpeggio )
             , ( "Strum pattern", PlayStyle.StrumPattern )
@@ -1104,6 +1208,7 @@ viewPlaySettings storage =
         , Html.map
             (\x -> SetStorage { storage | strumPattern = x })
             ( Radio.view
+                False
                 storage.strumPattern
                 [ ( "Basic", StrumPattern.Basic )
                 , ( "Indie", StrumPattern.Indie )
@@ -1148,25 +1253,27 @@ viewPlaySettings storage =
         ]
         []
 
-viewSong : Player -> Parse -> Html Msg
-viewSong player parse =
+viewSong : Tour -> Player -> Parse -> Html Msg
+viewSong tour player parse =
   Html.map
     IdChordMsg
     ( Song.view
         "song"
         parse.scale.tonic
         (Player.status player)
-        (Parse.song parse)
+        (Tour.padSong tour (Parse.song parse))
     )
 
-viewPaneSelector : Scale -> Storage -> Html Msg
-viewPaneSelector scale storage =
+viewPaneSelector : Tour -> Scale -> Storage -> Html Msg
+viewPaneSelector tour scale storage =
   let
     scaleName =
       if scale.minor then
         Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor"
       else
         Pitch.view 0 scale.tonic ++ " Major"
+  in let
+    paneShadow = Tour.paneShadow tour
   in
     span
       [ style
@@ -1177,7 +1284,8 @@ viewPaneSelector scale storage =
       [ Html.map
           (\x -> SetStorage { storage | pane = x })
           ( Radio.view
-              storage.pane
+              (paneShadow /= Nothing)
+              (Maybe.withDefault storage.pane paneShadow)
               [ ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
               , ( "Recently played", Pane.History )
@@ -1185,9 +1293,9 @@ viewPaneSelector scale storage =
           )
       ]
 
-viewPaneSettings : Storage -> Html Msg
-viewPaneSettings storage =
-  case storage.pane of
+viewPaneSettings : Tour -> Storage -> Html Msg
+viewPaneSettings tour storage =
+  case Maybe.withDefault storage.pane (Tour.paneShadow tour) of
     Pane.ChordsInKey ->
       span
         [ style
@@ -1207,10 +1315,22 @@ viewPaneSettings storage =
             ]
         , Html.text " "
         , label
-            []
+            [ style
+                [ ( "color"
+                  , if Tour.extendedChords tour then
+                      "GrayText"
+                    else
+                      ""
+                  )
+                ]
+            ]
             [ input
                 [ type_ "checkbox"
-                , checked storage.extendedChords
+                , disabled (Tour.extendedChords tour)
+                , checked
+                    ( storage.extendedChords ||
+                        Tour.extendedChords tour
+                    )
                 , onCheck
                     (\x -> SetStorage { storage | extendedChords = x })
                 ]

@@ -4,6 +4,8 @@ port module Ports exposing
   , text
   , initStorage
   , setTitle
+  , scrollIntoView
+  , escape
   )
 
 import Json.Encode as Encode
@@ -22,3 +24,6 @@ port text : (String -> msg) -> Sub msg
 port initStorage : () -> Cmd msg
 
 port setTitle : String -> Cmd msg
+
+port scrollIntoView : String -> Cmd msg
+port escape : (() -> msg) -> Sub msg

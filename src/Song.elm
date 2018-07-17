@@ -34,5 +34,5 @@ viewCell :
   Int -> PlayStatus -> Int -> Int -> Maybe IdChord -> List (Html IdChord.Msg)
 viewCell tonic playStatus y x cell =
   Maybe.withDefault
-    []
+    [ span [] [] ]
     (Maybe.map (IdChord.view tonic playStatus y x) cell)

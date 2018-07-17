@@ -111,6 +111,34 @@
     .radio > button:active > .active { opacity: 1; }
     .radio > button.chosen > .hover { opacity: 0; }
     .radio > button.chosen > .active { opacity: 1; }
+    .radio > button:disabled {
+      background: #e0e0e0;
+      box-shadow: inset 0.2em 1.2em 0.7em -0.7em rgba(255, 255, 255, 1);
+    }
+    .radio > button:disabled > .hover { opacity: 0; }
+    .radio > button:disabled > .active { opacity: 0; }
+
+    .close {
+      background-color: transparent;
+    }
+    .close:hover {
+      background-color: #e0e0e0;
+    }
+    .close:active {
+      background-color: #cccccc;
+    }
+    .colorLegend {
+      width: 0.75em;
+      height: 0.75em;
+      display: inline-block;
+    }
+    code {
+      font-family: "Lucida Console", Monaco, monospace;
+      background-color: #eeeeee;
+      padding: 0.2em 0.3em 0.1em 0.3em;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
     </style>
   </head>
   <body>
@@ -124,10 +152,13 @@
         }
       }
 
+      var mac = navigator.userAgent.indexOf("Mac OS X") != -1;
+
       var app = Elm.Main.fullscreen(
         {
           storage: storage,
-          canStore: canStore
+          canStore: canStore,
+          mac: mac
         }
       );
 
@@ -144,11 +175,41 @@
         }
       );
 
+      function scrollIntoView(id, expiration, now) {
+        if (typeof expiration === "undefined") {
+          expiration = performance.now() + 100;
+        } else if (expiration <= now) {
+          return;
+        }
+
+        let x = document.getElementById(id);
+        if (x == null) {
+          requestAnimationFrame(
+            function(now) {
+              scrollIntoView(id, expiration, now);
+            }
+          );
+        } else {
+          x.scrollIntoView(
+            { block: "start"
+            }
+          );
+        }
+      }
+
+      app.ports.scrollIntoView.subscribe(scrollIntoView);
+
       onbeforeunload = function(event) {
         var warning = document.getElementById("warning");
         if (warning != null && warning.attributes.value.value == "true") {
           event.preventDefault();
           return "true";
+        }
+      };
+
+      window.onkeydown = function(event) {
+        if (event.keyCode == 27) {
+          app.ports.escape.send(null);
         }
       };
     </script>
