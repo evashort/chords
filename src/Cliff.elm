@@ -1,31 +1,63 @@
-module Cliff exposing (Cliff, nextHold, dropAfter, addHolds)
+module Cliff exposing (Hold, Region, Cliff, nextHold, addRegion)
 
 holdLength : Float
 holdLength = 0.05
 
 type alias Hold a =
-  { origin : Float
-  , interval : Float
-  , beat : Int
+  { beat : Int
   , blob : a
   }
 
-holdStart : Hold a -> Float
-holdStart hold =
-  hold.origin + hold.interval * toFloat hold.beat
+type alias Region a =
+  { origin : Float
+  , interval : Float
+  , holds : List (Hold a)
+  }
 
-type alias Cliff a = List (Hold a)
+holdStart : Region a -> Hold a -> Float
+holdStart region hold =
+  region.origin + region.interval * toFloat hold.beat
 
+type alias Cliff a = List (Region a)
+
+-- Going back in time, look for the first hold that's not in the future.
+-- If such a hold exists and is not more than holdLength in the past,
+-- return it. Otherwise return the earliest hold in the future, if any.
 nextHold : Float -> Cliff a -> Maybe (Float, a)
 nextHold time cliff =
   case cliff of
     [] ->
       Nothing
-    hold :: rest ->
-      let start = holdStart hold in
-        if start > time then
-          case nextHold time rest of
-            Nothing ->
+    region :: past ->
+      if region.origin > time then -- region fully in future
+        case nextHold time past of
+          Nothing -> -- no earlier holds are acceptable
+            case List.reverse region.holds of
+              [] ->
+                Nothing
+              hold :: _ -> -- return earliest hold in region
+                Just ( holdStart region hold, hold.blob )
+          x ->
+            x
+      else if List.isEmpty region.holds then
+        nextHold time past
+      else -- region contains latest non-future hold
+        nextHoldInRegion time region
+
+nextHoldInRegion : Float -> Region a -> Maybe (Float, a)
+nextHoldInRegion time region =
+  case region.holds of
+    [] ->
+      Nothing
+    hold :: past ->
+      let start = holdStart region hold in
+        if start > time then -- hold in future
+          case
+            nextHoldInRegion
+              time
+              { region | holds = past }
+          of
+            Nothing -> -- no earlier holds are acceptable
               Just ( start, hold.blob )
             x ->
               x
@@ -34,37 +66,45 @@ nextHold time cliff =
         else
           Nothing
 
-dropAfter : Float -> Cliff a -> Cliff a
-dropAfter time cliff =
+addRegion : Region a -> Cliff a -> Cliff a
+addRegion region cliff =
   case cliff of
     [] ->
-      cliff
-    hold :: rest ->
-      if holdStart hold > time then
-        dropAfter time rest
+      [ { region | holds = List.reverse region.holds } ]
+    currentRegion :: past ->
+      if currentRegion.origin > region.origin then
+        addRegion region past -- overwrite region that has same origin
       else
-        cliff
+        addRegionHelp
+          { region | holds = List.reverse region.holds }
+          currentRegion
+          past
 
-addHolds : Float -> Float -> List a -> Cliff a -> Cliff a
-addHolds origin interval blobs cliff =
-  case cliff of
+addRegionHelp : Region a -> Region a -> Cliff a -> Cliff a
+addRegionHelp region currentRegion pastRegions =
+  case currentRegion.holds of
     [] ->
-      addHoldsHelp origin interval 1 blobs
-    hold :: rest ->
-      let start = holdStart hold in
-        if start > origin then
-          addHolds origin interval blobs rest
-        else if start == origin && hold.interval == interval then
-          addHoldsHelp hold.origin interval (hold.beat + 1) blobs ++
-            cliff
-        else
-          addHoldsHelp origin interval 1 blobs ++
-            cliff
+      region :: currentRegion :: pastRegions
+    hold :: past ->
+      let start = holdStart currentRegion hold in
+        if start > region.origin then -- hold in future
+          addRegionHelp
+            region
+            { currentRegion | holds = past }
+            pastRegions
+        else if
+          start == region.origin &&
+            currentRegion.interval == region.interval
+        then
+          { currentRegion
+          | holds =
+              List.map (addToBeat hold.beat) region.holds ++
+                currentRegion.holds
+          } ::
+            pastRegions
+        else -- hold in past or at origin but with different interval
+          region :: currentRegion :: pastRegions
 
-addHoldsHelp : Float -> Float -> Int -> List a -> Cliff a
-addHoldsHelp origin interval firstBeat blobs =
-  List.reverse
-    ( List.indexedMap
-        (Hold origin interval << (+) firstBeat)
-        blobs
-    )
+addToBeat : Int -> Hold a -> Hold a
+addToBeat offset { beat, blob } =
+  Hold (beat + offset) blob

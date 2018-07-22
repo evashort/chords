@@ -6,7 +6,7 @@ module Player exposing
 import Arp
 import AudioChange exposing (AudioChange(..))
 import Chord exposing (Chord)
-import Cliff exposing (Cliff)
+import Cliff exposing (Hold, Region, Cliff)
 import IdChord exposing (IdChord, PlayStatus)
 import Note exposing (Note)
 import StrumPattern exposing (StrumPattern, StrumNote)
@@ -14,7 +14,7 @@ import StrumPattern exposing (StrumPattern, StrumNote)
 type alias Player =
   { cliff : Cliff Bool
   , schedule : List Segment
-  , pastLength : Int
+  , unfinishedCount : Int
   }
 
 type alias Segment =
@@ -27,81 +27,65 @@ init : Player
 init =
   { cliff = []
   , schedule = []
-  , pastLength = 0
+  , unfinishedCount = 0
   }
 
 setTime : Float -> Player -> Maybe (Player, List Chord)
 setTime now player =
   let
-    pastLength =
-      List.length (dropAfter now player.schedule)
+    unfinishedCount = countUnfinished now player.schedule
   in
     if
-      pastLength >= List.length player.schedule &&
+      unfinishedCount <= 0 &&
         Cliff.nextHold now player.cliff == Nothing
     then
       Just
         ( init
-        , List.reverse (List.map .chord player.schedule)
+        , sequence { player | unfinishedCount = 0 }
         )
-    else if pastLength == player.pastLength then
+    else if unfinishedCount == player.unfinishedCount then
       Nothing
     else
       Just
-        ( { player | pastLength = pastLength }
+        ( { player | unfinishedCount = unfinishedCount }
         , []
         )
 
-dropAfter : Float -> List Segment -> List Segment
-dropAfter time schedule =
-  case schedule of
-    [] ->
-      schedule
-    segment :: rest ->
-      if segment.stop > time then
-        dropAfter time rest
-      else
-        schedule
-
 status : Player -> PlayStatus
 status player =
-  let
-    futureLength =
-      List.length player.schedule - player.pastLength - 1
-  in
-    if futureLength < 0 then
-      { active = -1
-      , next = -1
-      , stoppable = False
-      }
-    else if futureLength == 0 then
-      case player.schedule of
-        [] ->
-          Debug.crash
-            ("Player.status: Negative pastLength: " ++ toString player)
-        current :: _ ->
-          { active = current.id
-          , next = -1
-          , stoppable = current.stop == infinity
-          }
-    else
-      case List.drop (futureLength - 1) player.schedule of
-        future :: current :: _ ->
-          { active = current.id
-          , next = future.id
-          , stoppable = False
-          }
-        _ ->
-          Debug.crash
-            ("Player.status: Negative pastLength: " ++ toString player)
-
-willChange : Player -> Bool
-willChange player =
-  if List.length player.schedule == player.pastLength + 1 then
+  if player.unfinishedCount <= 0 then
+    { active = -1
+    , next = -1
+    , stoppable = False
+    }
+  else if player.unfinishedCount == 1 then
     case player.schedule of
       [] ->
         Debug.crash
-          ("Player.willChange: Negative pastLength: " ++ toString player)
+          ("Player.status: Inconsistent state: " ++ toString player)
+      current :: _ ->
+        { active = current.id
+        , next = -1
+        , stoppable = current.stop == infinity
+        }
+  else
+    case List.drop (player.unfinishedCount - 2) player.schedule of
+      future :: current :: _ ->
+        { active = current.id
+        , next = future.id
+        , stoppable = False
+        }
+      _ ->
+        Debug.crash
+          ("Player.status: Inconsistent state: " ++ toString player)
+
+willChange : Player -> Bool
+willChange player =
+  if player.unfinishedCount == 1 then
+    case player.schedule of
+      [] ->
+        Debug.crash
+          ("Player.willChange: Inconsistent state: " ++ toString player)
       current :: _ ->
         current.stop < infinity
   else
@@ -110,80 +94,70 @@ willChange player =
 sequence : Player -> List Chord
 sequence player =
   let
-    futureLength =
-      List.length player.schedule - player.pastLength - 1
+    startedSegments =
+      List.drop (player.unfinishedCount - 1) player.schedule
   in
-    List.reverse
-      ( List.map
-          .chord
-          (List.drop futureLength player.schedule)
-      )
+    removeDuplicates
+      (List.reverse (List.map .chord startedSegments))
+
+removeDuplicates : List a -> List a
+removeDuplicates xs =
+  case xs of
+    x :: y :: rest ->
+      if x == y then
+        removeDuplicates (y :: rest)
+      else
+        x :: removeDuplicates (y :: rest)
+    other ->
+      other
 
 sequenceFinished : Player -> Bool
 sequenceFinished player =
-  player.pastLength >= List.length player.schedule
+  player.unfinishedCount <= 0
 
 stop : Float -> Player -> (Player, List Chord, List AudioChange)
 stop now player =
   ( init
   , sequence
       { player
-      | pastLength =
-          List.length (dropAfter now player.schedule)
+      | unfinishedCount =
+          countUnfinished now player.schedule
       }
   , [ Mute now ]
   )
 
 pad : Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
 pad lowestPitch { id, chord } now player =
-  let
-    truncatedSchedule =
-      truncateAfter now player.schedule
-  in let
-    schedule =
-      addSegment
-        (Segment id chord infinity)
-        truncatedSchedule
-  in
-    ( { player
-      | cliff = Cliff.dropAfter now player.cliff
-      , schedule = schedule
-      , pastLength = List.length (dropAfter now schedule)
-      }
-    , (::)
-        (Mute now)
-        ( List.map
-            (AddPadNote << Note.mapTime (always now))
-            (Arp.pad lowestPitch chord)
-        )
-    )
+  ( addSegment
+      now
+      (Region now 0 [])
+      (Segment id chord infinity)
+      player
+  , (::)
+      (Mute now)
+      ( List.map
+          (AddPadNote << Note.mapTime (always now))
+          (Arp.pad lowestPitch chord)
+      )
+  )
 
 strum :
   Float -> Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
 strum strumInterval lowestPitch { id, chord } now player =
-  let
-    truncatedSchedule =
-      truncateAfter now player.schedule
-  in let
-    schedule =
-      addSegment
-        (Segment id chord (now + 2.25))
-        truncatedSchedule
-  in
-    ( { player
-      | cliff = Cliff.dropAfter now player.cliff
-      , schedule = schedule
-      , pastLength = List.length (dropAfter now schedule)
-      }
-    , (::)
-        (Mute now)
-        ( List.map
-            ( AddGuitarNote <<
-                Note.mapTime ((+) now << (*) strumInterval)
-            )
-            (Arp.strum lowestPitch chord)
-        )
-    )
+  ( addSegment
+      now
+      (Region now 0 [])
+      (Segment id chord (now + 2.25))
+      player
+  , (::)
+      (Mute now)
+      ( List.map
+          ( AddGuitarNote <<
+              Note.mapTime ((+) now << (*) strumInterval)
+          )
+          (Arp.strum lowestPitch chord)
+      )
+  )
 
 arp :
   Float -> Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
@@ -193,24 +167,16 @@ arp beatInterval lowestPitch { id, chord } now player =
       Maybe.withDefault
         ( now, False )
         (Cliff.nextHold now player.cliff)
-  in let
-    truncatedSchedule =
-      truncateAfter startTime player.schedule
-  in let
-    schedule =
-      addSegment
-        (Segment id chord (startTime + 4 * beatInterval))
-        truncatedSchedule
   in
-    ( { cliff =
-          Cliff.addHolds
+    ( addSegment
+        now
+        ( Region
             startTime
             (2 * beatInterval)
-            [ True, False ]
-            player.cliff
-      , schedule = schedule
-      , pastLength = List.length (dropAfter now schedule)
-      }
+            [ Hold 1 True, Hold 2 False ]
+        )
+        (Segment id chord (startTime + 4 * beatInterval))
+        player
     , (::)
         (Mute startTime)
         ( List.map
@@ -245,54 +211,35 @@ strumPattern pattern beatInterval lowestPitch { id, chord } now player =
         StrumPattern.Modern ->
           if highStart then 6 else 4
   in let
-    truncatedSchedule =
-      truncateAfter startTime player.schedule
-  in let
-    schedule =
-      addSegment
-        (Segment id chord (startTime + beatCount * beatInterval))
-        truncatedSchedule
-  in let
-    notes =
-      ( List.map
-          (processStrumNote startTime beatInterval)
-          (StrumPattern.notes pattern highStart lowestPitch chord)
-      )
-  in let
-    otherChanges =
-      case notes of
-        [] ->
-          [ Mute startTime ]
-        firstNote :: _ ->
-          if firstNote.t > startTime then
-            [ Cancel startTime, Mute firstNote.t ]
+    holds =
+      case pattern of
+        StrumPattern.Basic ->
+          [ Hold 2 False, Hold 4 False ]
+        StrumPattern.Indie ->
+          [ Hold 1 False, Hold 2 False ]
+        StrumPattern.Modern ->
+          if highStart then
+            [ Hold 1 False, Hold 2 True, Hold 3 False ]
           else
-            [ Mute startTime ]
+            [ Hold 1 True, Hold 2 False ]
   in
-    ( { cliff =
-          Cliff.addHolds
-            startTime
-            ( if pattern == StrumPattern.Basic then
-                4 * beatInterval
-              else
-                2 * beatInterval
+    ( addSegment
+        now
+        (Region startTime (2 * beatInterval) holds)
+        ( Segment
+            id
+            chord
+            (startTime + beatCount * beatInterval)
+        )
+        player
+    , (::)
+        (Mute startTime)
+        ( List.map
+            ( AddGuitarNote <<
+                processStrumNote startTime beatInterval
             )
-            ( case pattern of
-                StrumPattern.Basic ->
-                  [ False, False ]
-                StrumPattern.Indie ->
-                  [ False, False ]
-                StrumPattern.Modern ->
-                  if highStart then
-                    [ False, True, False ]
-                  else
-                    [ True, False ]
-            )
-            player.cliff
-      , schedule = schedule
-      , pastLength = List.length (dropAfter now schedule)
-      }
-    , otherChanges ++ List.map AddGuitarNote notes
+            (StrumPattern.notes pattern highStart lowestPitch chord)
+        )
     )
 
 processStrumNote : Float -> Float -> StrumNote -> Note
@@ -305,35 +252,47 @@ processStrumNote startTime beatInterval strumNote =
   , f = strumNote.f
   }
 
-truncateAfter : Float -> List Segment -> List Segment
-truncateAfter time schedule =
+addSegment : Float -> Region Bool -> Segment -> Player -> Player
+addSegment now region segment player =
+  let
+    newSchedule =
+      segment ::
+        stopScheduleAt region.origin player.schedule
+  in
+    { cliff = Cliff.addRegion region player.cliff
+    , schedule = newSchedule
+    , unfinishedCount = countUnfinished now newSchedule
+    }
+
+stopScheduleAt : Float -> List Segment -> List Segment
+stopScheduleAt stop schedule =
   case schedule of
     [] ->
       schedule
     [ segment ] ->
-      if segment.stop > time then
-        [ { segment | stop = time } ]
+      if segment.stop > stop then
+        [ { segment | stop = stop } ]
       else
         schedule
     segment :: previous :: rest ->
-      if previous.stop < time then
-        if segment.stop > time then
-          { segment | stop = time } :: previous :: rest
+      if previous.stop < stop then
+        if segment.stop > stop then
+          { segment | stop = stop } :: previous :: rest
         else
           schedule
       else
-        truncateAfter time (previous :: rest)
+        stopScheduleAt stop (previous :: rest)
 
-addSegment : Segment -> List Segment -> List Segment
-addSegment segment schedule =
+countUnfinished : Float -> List Segment -> Int
+countUnfinished now schedule =
   case schedule of
     [] ->
-      [ segment ]
-    current :: rest ->
-      if current.id == segment.id then
-        segment :: rest
+      0
+    segment :: rest ->
+      if segment.stop > now then
+        1 + countUnfinished now rest
       else
-        segment :: schedule
+        0
 
 infinity : Float
 infinity = 1/0
