@@ -80,91 +80,82 @@ schemes =
 major : Scheme
 major =
   { fg = black
-  , f = green
-  , c = blue
-  , g = red
+  , f = teal
+  , c = purple
+  , g = orange
   }
 
 sus4 : Scheme
 sus4 =
   { fg = black
-  , f = mix red yellow
-  , c = mix green cyan
-  , g = mix blue purple
+  , f = yellow
+  , c = cyan
+  , g = pink
   }
 
 minor : Scheme
 minor =
   { fg = black
-  , f = yellow
-  , c = cyan
-  , g = purple
+  , f = lime
+  , c = sky
+  , g = rose
   }
 
 major7 : Scheme
 major7 =
   { fg = black
-  , f = mix green cyan
-  , c = mix blue purple
-  , g = mix red yellow
+  , f = cyan
+  , c = pink
+  , g = yellow
   }
 
 minor7 : Scheme
 minor7 =
   { fg = black
-  , f = mix yellow green
-  , c = mix cyan blue
-  , g = mix purple red
+  , f = green
+  , c = blue
+  , g = red
   }
 
 dominant7 : Scheme
 dominant7 =
   { fg = white
-  , f = darkGreen
-  , c = darkBlue
-  , g = darkRed
+  , f = darkTeal
+  , c = darkPurple
+  , g = darkOrange
   }
 
 minor6 : Scheme
 minor6 =
   { fg = white
-  , f = darkYellow
-  , c = darkCyan
-  , g = darkPurple
+  , f = darkLime
+  , c = darkSky
+  , g = darkRose
   }
 
 diminished : Scheme
 diminished =
   { fg = white
-  , f = mix darkRed darkYellow
-  , c = mix darkGreen darkCyan
-  , g = mix darkBlue darkPurple
+  , f = darkYellow
+  , c = darkCyan
+  , g = darkPink
   }
 
 major9 : Scheme
 major9 =
   { fg = black
-  , f = cyan
-  , c = purple
-  , g = yellow
+  , f = sky
+  , c = rose
+  , g = lime
   }
 
 dominant9 : Scheme
 dominant9 =
   { fg = white
-  , f = mix darkGreen darkCyan
-  , c = mix darkBlue darkPurple
-  , g = mix darkRed darkYellow
+  , f = darkCyan
+  , c = darkPink
+  , g = darkYellow
   }
-
-mix : String -> String -> String
-mix x y =
-  String.concat
-    [ "#"
-    , toHexPair ((parseHexPair 1 x + parseHexPair 1 y) // 2)
-    , toHexPair ((parseHexPair 3 x + parseHexPair 3 y) // 2)
-    , toHexPair ((parseHexPair 5 x + parseHexPair 5 y) // 2)
-    ]
 
 toHexPair : Int -> String
 toHexPair n =
@@ -213,40 +204,54 @@ gray : String
 gray = "#cfcfcf"
 
 red : String
-red = "#ff8c93"
-
+red = "#ff997f"
+orange : String
+orange = "#ffad4c"
 yellow : String
-yellow = "#f5cb00"
-
+yellow = "#e9de28"
+lime : String
+lime = "#d6f446"
 green : String
-green = "#c9ff5c"
-
+green = "#bdff8e"
+teal : String
+teal = "#9effd3"
 cyan : String
 cyan = "#7dfcff"
-
+sky : String
+sky = "#a2e1ff"
 blue : String
-blue = "#bdc2ff"
-
+blue = "#b7caff"
 purple : String
-purple = "#ea4ff9"
+purple = "#d0a0ff"
+pink : String
+pink = "#e86af3"
+rose : String
+rose = "#ff7da5"
 
 darkRed : String
-darkRed = "#830026"
-
+darkRed = "#822600"
+darkOrange : String
+darkOrange = "#784c00"
 darkYellow : String
-darkYellow = "#715c00"
-
+darkYellow = "#6b6600"
+darkLime : String
+darkLime = "#617400"
 darkGreen : String
-darkGreen = "#577e00"
-
+darkGreen = "#4a8525"
+darkTeal : String
+darkTeal = "#268662"
 darkCyan : String
 darkCyan = "#007d80"
-
+darkSky : String
+darkSky = "#007191"
 darkBlue : String
-darkBlue = "#004baf"
-
+darkBlue = "#0059a7"
 darkPurple : String
-darkPurple = "#6d0077"
+darkPurple = "#4f139d"
+darkPink : String
+darkPink = "#6d0077"
+darkRose : String
+darkRose = "#800038"
 
 swatchOpacity : Float
 swatchOpacity = 0.7

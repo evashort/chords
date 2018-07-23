@@ -457,9 +457,9 @@ pages =
               ]
           , li
               []
-              [ text "Starting a line with "
+              [ text "Two slashes "
               , code [] [ text "//" ]
-              , text " creates a comment."
+              , text " begin a comment."
               ]
           ]
       , p
@@ -477,15 +477,7 @@ pages =
               [ span
                   [ class "colorLegend"
                   , style
-                      [ ( "background", "#bdc2ff" )
-                      ]
-                  ]
-                  []
-              , text " "
-              , span
-                  [ class "colorLegend"
-                  , style
-                      [ ( "background", "#7dfcff" )
+                      [ ( "background", "linear-gradient(to right, #d0a0ff, #b7caff, #a2e1ff)" )
                       ]
                   ]
                   []
@@ -496,15 +488,7 @@ pages =
               [ span
                   [ class "colorLegend"
                   , style
-                      [ ( "background", "#c9ff5c" )
-                      ]
-                  ]
-                  []
-              , text " "
-              , span
-                  [ class "colorLegend"
-                  , style
-                      [ ( "background", "#f5cb00" )
+                      [ ( "background", "linear-gradient(to right, #9effd3, #bdff8e, #d6f446)" )
                       ]
                   ]
                   []
@@ -515,15 +499,7 @@ pages =
               [ span
                   [ class "colorLegend"
                   , style
-                      [ ( "background", "#ff8c93" )
-                      ]
-                  ]
-                  []
-              , text " "
-              , span
-                  [ class "colorLegend"
-                  , style
-                      [ ( "background", "#ea4ff9" )
+                      [ ( "background", "linear-gradient(to right, #ffad4c, #ff997f, #ff7da5)" )
                       ]
                   ]
                   []
@@ -533,7 +509,7 @@ pages =
               []
               [ mark
                   [ style
-                      [ ( "background", "rgb(122, 46, 19)" )
+                      [ ( "background", "#784c00" )
                       , ( "color", "white" )
                       , ( "border-radius", "3px" )
                       ]
