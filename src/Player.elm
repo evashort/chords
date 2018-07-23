@@ -136,7 +136,7 @@ pad lowestPitch { id, chord } now player =
   , (::)
       (Mute now)
       ( List.map
-          (AddPadNote << Note.mapTime (always now))
+          (AddPadNote << Note.mapTime ((+) now << (*) 0.009))
           (Arp.pad lowestPitch chord)
       )
   )
