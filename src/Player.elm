@@ -1,5 +1,6 @@
 module Player exposing
-  ( Player, init, setTime, status, willChange, sequence, sequenceFinished
+  ( Player, init, setTime, status, silentStatus, willChange, sequence
+  , sequenceFinished, lastPlayed, silent
   , stop, pad, strum, arp, strumPattern
   )
 
@@ -30,26 +31,15 @@ init =
   , unfinishedCount = 0
   }
 
-setTime : Float -> Player -> Maybe (Player, List Chord)
+setTime : Float -> Player -> Maybe Player
 setTime now player =
   let
     unfinishedCount = countUnfinished now player.schedule
   in
-    if
-      unfinishedCount <= 0 &&
-        Cliff.nextHold now player.cliff == Nothing
-    then
-      Just
-        ( init
-        , sequence { player | unfinishedCount = 0 }
-        )
-    else if unfinishedCount == player.unfinishedCount then
+    if unfinishedCount == player.unfinishedCount then
       Nothing
     else
-      Just
-        ( { player | unfinishedCount = unfinishedCount }
-        , []
-        )
+      Just { player | unfinishedCount = unfinishedCount }
 
 status : Player -> PlayStatus
 status player =
@@ -79,6 +69,17 @@ status player =
         Debug.crash
           ("Player.status: Inconsistent state: " ++ toString player)
 
+silentStatus : Player -> PlayStatus
+silentStatus player =
+  case ( player.unfinishedCount, player.schedule ) of
+    ( 0, segment :: _ ) ->
+      { active = segment.id
+      , next = -1
+      , stoppable = False
+      }
+    _ ->
+      status player
+
 willChange : Player -> Bool
 willChange player =
   if player.unfinishedCount == 1 then
@@ -89,7 +90,7 @@ willChange player =
       current :: _ ->
         current.stop < infinity
   else
-    player.schedule /= []
+    player.unfinishedCount > 0
 
 sequence : Player -> List Chord
 sequence player =
@@ -115,58 +116,97 @@ sequenceFinished : Player -> Bool
 sequenceFinished player =
   player.unfinishedCount <= 0
 
-stop : Float -> Player -> (Player, List Chord, List AudioChange)
+lastPlayed : Player -> Maybe IdChord
+lastPlayed player =
+  case
+    List.drop (player.unfinishedCount - 1) player.schedule
+  of
+    segment :: _ ->
+      Just (IdChord segment.id segment.chord)
+    [] ->
+      Nothing
+
+silent : IdChord -> Player
+silent idChord =
+  { cliff = []
+  , schedule = [ Segment idChord.id idChord.chord 0 ]
+  , unfinishedCount = 0
+  }
+
+stop : Float -> Player -> (Player, List AudioChange)
 stop now player =
-  ( init
-  , sequence
-      { player
-      | unfinishedCount =
-          countUnfinished now player.schedule
-      }
+  ( { cliff = []
+    , schedule =
+        List.drop
+          (countUnfinished now player.schedule - 1)
+          player.schedule
+    , unfinishedCount = 0
+    }
   , [ Mute now ]
   )
 
-pad : Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
+pad :
+  Int -> IdChord -> Float -> Player -> (Player, List Chord, List AudioChange)
 pad lowestPitch { id, chord } now player =
-  ( addSegment
-      now
-      (Region now 0 [])
-      (Segment id chord infinity)
-      player
-  , (::)
-      (Mute now)
-      ( List.map
-          (AddPadNote << Note.mapTime ((+) now << (*) 0.009))
-          (Arp.pad lowestPitch chord)
-      )
-  )
+  let
+    shouldInit = countUnfinished now player.schedule <= 0
+  in
+    ( addSegment
+        now
+        (Region now 0 [])
+        (Segment id chord infinity)
+        (if shouldInit then init else player)
+    , if shouldInit then
+        sequence { player | unfinishedCount = 0 }
+      else
+        []
+    , (::)
+        (Mute now)
+        ( List.map
+            (AddPadNote << Note.mapTime ((+) now << (*) 0.009))
+            (Arp.pad lowestPitch chord)
+        )
+    )
 
 strum :
-  Float -> Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
+  Float -> Int -> IdChord -> Float -> Player ->
+    (Player, List Chord, List AudioChange)
 strum strumInterval lowestPitch { id, chord } now player =
-  ( addSegment
-      now
-      (Region now 0 [])
-      (Segment id chord (now + 2.25))
-      player
-  , (::)
-      (Mute now)
-      ( List.map
-          ( AddGuitarNote <<
-              Note.mapTime ((+) now << (*) strumInterval)
-          )
-          (Arp.strum lowestPitch chord)
-      )
-  )
+  let
+    shouldInit = countUnfinished now player.schedule <= 0
+  in
+    ( addSegment
+        now
+        (Region now 0 [])
+        (Segment id chord (now + 2.25))
+        (if shouldInit then init else player)
+    , if shouldInit then
+        sequence { player | unfinishedCount = 0 }
+      else
+        []
+    , (::)
+        (Mute now)
+        ( List.map
+            ( AddGuitarNote <<
+                Note.mapTime ((+) now << (*) strumInterval)
+            )
+            (Arp.strum lowestPitch chord)
+        )
+    )
 
 arp :
-  Float -> Int -> IdChord -> Float -> Player -> (Player, List AudioChange)
+  Float -> Int -> IdChord -> Float -> Player ->
+    (Player, List Chord, List AudioChange)
 arp beatInterval lowestPitch { id, chord } now player =
   let
+    nextHold = Cliff.nextHold now player.cliff
+  in let
+    shouldInit =
+      nextHold == Nothing &&
+        countUnfinished now player.schedule <= 0
+  in let
     ( startTime, highStart ) =
-      Maybe.withDefault
-        ( now, False )
-        (Cliff.nextHold now player.cliff)
+      Maybe.withDefault ( now, False ) nextHold
   in
     ( addSegment
         now
@@ -176,7 +216,11 @@ arp beatInterval lowestPitch { id, chord } now player =
             [ Hold 1 True, Hold 2 False ]
         )
         (Segment id chord (startTime + 4 * beatInterval))
-        player
+        (if shouldInit then init else player)
+    , if shouldInit then
+        sequence { player | unfinishedCount = 0 }
+      else
+        []
     , (::)
         (Mute startTime)
         ( List.map
@@ -194,13 +238,17 @@ arp beatInterval lowestPitch { id, chord } now player =
 
 strumPattern :
   StrumPattern -> Float -> Int -> IdChord -> Float -> Player ->
-    (Player, List AudioChange)
+    (Player, List Chord, List AudioChange)
 strumPattern pattern beatInterval lowestPitch { id, chord } now player =
   let
+    nextHold = Cliff.nextHold now player.cliff
+  in let
+    shouldInit =
+      nextHold == Nothing &&
+        countUnfinished now player.schedule <= 0
+  in let
     ( startTime, highStart ) =
-      Maybe.withDefault
-        ( now, False )
-        (Cliff.nextHold now player.cliff)
+      Maybe.withDefault ( now, False ) nextHold
   in let
     beatCount =
       case pattern of
@@ -231,7 +279,11 @@ strumPattern pattern beatInterval lowestPitch { id, chord } now player =
             chord
             (startTime + beatCount * beatInterval)
         )
-        player
+        (if shouldInit then init else player)
+    , if shouldInit then
+        sequence { player | unfinishedCount = 0 }
+      else
+        []
     , (::)
         (Mute startTime)
         ( List.map

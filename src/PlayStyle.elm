@@ -5,3 +5,4 @@ type PlayStyle
   | StrumPattern
   | Strum
   | Pad
+  | Silent

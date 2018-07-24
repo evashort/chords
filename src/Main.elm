@@ -9,7 +9,7 @@ import Circle
 import CustomEvents exposing (onChange)
 import Highlight exposing (Highlight)
 import History exposing (History)
-import IdChord exposing (IdChord)
+import IdChord exposing (IdChord, PlayStatus)
 import Lowest
 import Pane exposing (Pane)
 import Parse exposing (Parse)
@@ -450,17 +450,44 @@ update msg model =
 
     CurrentTime now ->
       ( case Player.setTime now model.player of
-          Nothing -> model
-          Just ( player, sequence ) ->
-            { model
-            | player = player
-            , history = History.add sequence model.history
-            }
+          Nothing ->
+            model
+          Just player ->
+            { model | player = player }
       , Cmd.none
       )
 
     IdChordMsg (IdChord.Play idChord) ->
-      ( model, Task.perform (Play << (,) idChord) AudioTime.now )
+      if model.storage.playStyle == PlayStyle.Silent then
+        ( let
+            shouldInit =
+              case Player.lastPlayed model.player of
+                Nothing ->
+                  False
+                Just lastPlayed ->
+                  idChord.id == lastPlayed.id
+          in
+            { model
+            | playing = False
+            , player =
+                if shouldInit then
+                  Player.init
+                else
+                  Player.silent idChord
+            , history =
+                History.add
+                  (Player.sequence model.player)
+                  model.history
+            }
+        , if model.playing then
+            Task.perform Stop AudioTime.now
+          else
+            Cmd.none
+        )
+      else
+        ( model
+        , Task.perform (Play << (,) idChord) AudioTime.now
+        )
 
     IdChordMsg IdChord.Stop ->
       ( { model | playing = False }
@@ -469,22 +496,17 @@ update msg model =
 
     Play ( idChord, now ) ->
       let
-        ( player, sequence ) =
-          Maybe.withDefault
-            ( model.player, [] )
-            (Player.setTime now model.player)
-      in let
         lowestPitch =
           Lowest.pitch model.parse.scale.tonic model.parse.lowest
       in let
-        ( newPlayer, changes ) =
+        ( player, sequence, changes ) =
           case model.storage.playStyle of
             PlayStyle.Arpeggio ->
               let
                 bpm =
                   Maybe.withDefault Arp.defaultBpm model.parse.bpm
               in
-                Player.arp (60 / bpm) lowestPitch idChord now player
+                Player.arp (60 / bpm) lowestPitch idChord now model.player
             PlayStyle.StrumPattern ->
               let
                 bpm =
@@ -498,20 +520,22 @@ update msg model =
                   lowestPitch
                   idChord
                   now
-                  player
+                  model.player
             PlayStyle.Strum ->
               Player.strum
                 model.storage.strumInterval
                 lowestPitch
                 idChord
                 now
-                player
+                model.player
             PlayStyle.Pad ->
-              Player.pad lowestPitch idChord now player
+              Player.pad lowestPitch idChord now model.player
+            PlayStyle.Silent ->
+              Debug.crash "Main.update: PlayStyle.Silent got through"
       in
         ( { model
           | playing = True
-          , player = newPlayer
+          , player = player
           , history = History.add sequence model.history
           }
         , AudioChange.perform changes
@@ -519,13 +543,10 @@ update msg model =
 
     Stop now ->
       let
-        ( player, sequence, changes ) =
+        ( player, changes ) =
           Player.stop now model.player
       in
-        ( { model
-          | player = player
-          , history = History.add sequence model.history
-          }
+        ( { model | player = player }
         , AudioChange.perform changes
         )
 
@@ -774,7 +795,7 @@ view model =
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
     , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
     , Html.Lazy.lazy viewPlaySettings model.storage
-    , Html.Lazy.lazy3 viewSong model.tour model.player model.parse
+    , viewSong model.tour (getPlayStatus model) model.parse
     , Html.Lazy.lazy3
         viewPaneSelector
         model.tour
@@ -793,7 +814,7 @@ view model =
                 "pane"
                 (Tour.shadowStorage model.tour model.storage)
                 model.parse.scale
-                (Player.status model.player)
+                (getPlayStatus model)
             )
         Pane.Circle ->
           Html.map
@@ -801,7 +822,7 @@ view model =
             ( Circle.view
                 "pane"
                 model.parse.scale.tonic
-                (Player.status model.player)
+                (getPlayStatus model)
             )
         Pane.History ->
           Html.map
@@ -828,6 +849,13 @@ hasBackup action model =
       False
     Just backup ->
       backup.action == action
+
+getPlayStatus : Model -> PlayStatus
+getPlayStatus model =
+  if model.storage.playStyle == PlayStyle.Silent then
+    Player.silentStatus model.player
+  else
+    Player.status model.player
 
 viewShouldWarn : Bool -> Html msg
 viewShouldWarn shouldWarn =
@@ -1174,6 +1202,7 @@ viewPlayStyle storage playing =
             , ( "Strum pattern", PlayStyle.StrumPattern )
             , ( "Strum", PlayStyle.Strum )
             , ( "Pad", PlayStyle.Pad )
+            , ( "Silent", PlayStyle.Silent )
             ]
         )
     , Html.text " "
@@ -1253,14 +1282,14 @@ viewPlaySettings storage =
         ]
         []
 
-viewSong : Tour -> Player -> Parse -> Html Msg
-viewSong tour player parse =
+viewSong : Tour -> PlayStatus -> Parse -> Html Msg
+viewSong tour playStatus parse =
   Html.map
     IdChordMsg
     ( Song.view
         "song"
         parse.scale.tonic
-        (Player.status player)
+        playStatus
         (Tour.padSong tour (Parse.song parse))
     )
 

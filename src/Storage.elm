@@ -49,7 +49,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 2 0))
+      , Encode.string (versionString (Version 0 3 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -89,10 +89,10 @@ decoderHelp version =
     Decode.fail
       ("Incompatible major version: " ++ toString version.major)
   else
-    v0_2Decoder
+    v0_3Decoder
 
-v0_2Decoder : Decoder Storage
-v0_2Decoder =
+v0_3Decoder : Decoder Storage
+v0_3Decoder =
   Pipeline.decode Storage
     |> Pipeline.required
         "playStyle"
@@ -173,6 +173,8 @@ parsePlayStyle string =
       Just PlayStyle.Strum
     "Pad" ->
       Just PlayStyle.Pad
+    "Silent" ->
+      Just PlayStyle.Silent
     _ ->
       Nothing
 
@@ -187,6 +189,8 @@ playStyleString playStyle =
       "Strum"
     PlayStyle.Pad ->
       "Pad"
+    PlayStyle.Silent ->
+      "Silent"
 
 strumPatternString : StrumPattern -> String
 strumPatternString strumPattern =
