@@ -49,7 +49,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 3 0))
+      , Encode.string (versionString (Version 0 4 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -89,10 +89,10 @@ decoderHelp version =
     Decode.fail
       ("Incompatible major version: " ++ toString version.major)
   else
-    v0_3Decoder
+    v0_4Decoder
 
-v0_3Decoder : Decoder Storage
-v0_3Decoder =
+v0_4Decoder : Decoder Storage
+v0_4Decoder =
   Pipeline.decode Storage
     |> Pipeline.required
         "playStyle"
@@ -221,6 +221,8 @@ paneString pane =
       "ChordsInKey"
     Pane.Circle ->
       "Circle"
+    Pane.Keyboard ->
+      "Keyboard"
     Pane.History ->
       "History"
 
@@ -231,6 +233,8 @@ parsePane string =
       Just Pane.ChordsInKey
     "Circle" ->
       Just Pane.Circle
+    "Keyboard" ->
+      Just Pane.Keyboard
     "History" ->
       Just Pane.History
     _ ->

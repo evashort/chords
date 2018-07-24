@@ -10,6 +10,7 @@ import CustomEvents exposing (onChange)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord, PlayStatus)
+import Keyboard
 import Lowest
 import Pane exposing (Pane)
 import Parse exposing (Parse)
@@ -824,6 +825,12 @@ view model =
                 model.parse.scale.tonic
                 (getPlayStatus model)
             )
+        Pane.Keyboard ->
+          let
+            lowestPitch =
+              Lowest.pitch model.parse.scale.tonic model.parse.lowest
+          in
+            Keyboard.view "pane" lowestPitch (lowestPitch + 32)
         Pane.History ->
           Html.map
             AddLine
@@ -1317,6 +1324,7 @@ viewPaneSelector tour scale storage =
               (Maybe.withDefault storage.pane paneShadow)
               [ ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
+              , ( "Keyboard", Pane.Keyboard )
               , ( "Recently played", Pane.History )
               ]
           )
@@ -1379,13 +1387,6 @@ viewPaneSettings tour storage =
             , Html.text " Added tone chords"
             ]
         ]
-    Pane.Circle ->
-      span
-        [ style
-            [ ( "grid-area", "paneSettings" )
-            ]
-        ]
-        []
     Pane.History ->
       span
         [ style
@@ -1406,6 +1407,13 @@ viewPaneSettings tour storage =
             , Html.text " Show only last 8 chords of each sequence"
             ]
         ]
+    _ ->
+      span
+        [ style
+            [ ( "grid-area", "paneSettings" )
+            ]
+        ]
+        []
 
 viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
 viewMiscSettings canStore shouldStore storage =
