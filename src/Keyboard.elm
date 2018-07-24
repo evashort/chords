@@ -3,7 +3,7 @@ module Keyboard exposing (view)
 import Path
 
 import Html exposing (Html)
-import Html.Attributes exposing (style)
+import Html.Attributes exposing (attribute, style)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 
@@ -22,8 +22,8 @@ view gridArea lowestPitch highestPitch =
       [ style
           [ ( "grid-area", gridArea )
           ]
-      , SA.width (toString (width * scale))
-      , SA.height (toString (height * scale))
+      , SA.width (toString width)
+      , SA.height (toString height)
       , SA.viewBox
           ( String.join
               " "
@@ -47,18 +47,22 @@ view gridArea lowestPitch highestPitch =
           , List.filterMap
               (viewWhiteKey lowestPitch highestPitch)
               (List.range lowestPitch highestPitch)
-          , [ Svg.circle
+          , [ Svg.text_
                 [ style
                     [ ( "pointer-events", "none" )
                     ]
-                , SA.cx
+                , SA.textAnchor "middle"
+                , SA.x
                     (toString (0.5 * (headWidth - borderWidth)))
-                , SA.cy
-                    (toString (fullHeight - 0.5 * (headWidth + borderWidth)))
-                , SA.r "1"
-                , SA.fill "red"
+                , SA.y
+                    ( toString
+                        ( fullHeight - borderWidth -
+                            0.25 * (headWidth - borderWidth)
+                        )
+                    )
                 ]
-                []
+                [ Svg.text "C4"
+                ]
             ]
           ]
       )
@@ -77,9 +81,6 @@ viewBoxRight highestPitch =
   else
     neckLeft (highestPitch + 1)
 
-scale : Float
-scale = 6
-
 viewWhiteKey : Int -> Int -> Int -> Maybe (Svg msg)
 viewWhiteKey lowestPitch highestPitch pitch =
   if isWhiteKey pitch then
@@ -88,6 +89,7 @@ viewWhiteKey lowestPitch highestPitch pitch =
           [ style
               [ ( "cursor", "pointer" )
               ]
+          , attribute "tabindex" "0"
           , SA.fill "white"
           , SA.d (whitePath lowestPitch highestPitch pitch)
           ]
@@ -162,19 +164,22 @@ headLeft pitch =
     headWidth * toFloat (letterIndex + 7 * octave)
 
 borderWidth : Float
-borderWidth = 0.5
+borderWidth = 0.5 * scale
 
 -- white keys have rounded corners at the bottom
 -- the radius is measured at the edge of the white area, inside the border
 borderRadius : Float
-borderRadius = 0.75
+borderRadius = 0.75 * scale
 
 -- all widths and heights include one border width
 headWidth : Float
-headWidth = 7
+headWidth = 7 * scale
 
 blackHeight : Float
-blackHeight = 20
+blackHeight = 20 * scale
 
 fullHeight : Float
-fullHeight = 32
+fullHeight = 31 * scale
+
+scale : Float
+scale = 6
