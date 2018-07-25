@@ -830,7 +830,7 @@ view model =
             lowestPitch =
               Lowest.pitch model.parse.scale.tonic model.parse.lowest
           in
-            Keyboard.view "pane" lowestPitch (lowestPitch + 32)
+            Html.Lazy.lazy viewKeyboard lowestPitch
         Pane.History ->
           Html.map
             AddLine
@@ -1414,6 +1414,10 @@ viewPaneSettings tour storage =
             ]
         ]
         []
+
+viewKeyboard : Int -> Html msg
+viewKeyboard lowestPitch =
+  Keyboard.view "pane" lowestPitch (lowestPitch + 32)
 
 viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
 viewMiscSettings canStore shouldStore storage =

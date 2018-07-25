@@ -7,6 +7,8 @@ import Html.Attributes exposing (attribute, style)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 
+-- the origin is the top left corner of middle C,
+-- not including its border
 view : String -> Int -> Int -> Html msg
 view gridArea lowestPitch highestPitch =
   let
@@ -35,7 +37,12 @@ view gridArea lowestPitch highestPitch =
           )
       ]
       ( List.concat
-          [ [ Svg.rect
+          [ [ Svg.defs
+                []
+                [ shineGradient
+                , specularGradient
+                ]
+            , Svg.rect
                 [ SA.x (toString left)
                 , SA.y (toString -borderWidth)
                 , SA.width (toString width)
@@ -44,8 +51,8 @@ view gridArea lowestPitch highestPitch =
                 ]
                 []
             ]
-          , List.filterMap
-              (viewWhiteKey lowestPitch highestPitch)
+          , List.concatMap
+              (viewKey lowestPitch highestPitch)
               (List.range lowestPitch highestPitch)
           , [ Svg.text_
                 [ style
@@ -81,22 +88,67 @@ viewBoxRight highestPitch =
   else
     neckLeft (highestPitch + 1)
 
-viewWhiteKey : Int -> Int -> Int -> Maybe (Svg msg)
-viewWhiteKey lowestPitch highestPitch pitch =
+viewKey : Int -> Int -> Int -> List (Svg msg)
+viewKey lowestPitch highestPitch pitch =
   if isWhiteKey pitch then
-    Just
-      ( Svg.path
-          [ style
-              [ ( "cursor", "pointer" )
-              ]
-          , attribute "tabindex" "0"
-          , SA.fill "white"
-          , SA.d (whitePath lowestPitch highestPitch pitch)
-          ]
-          []
-      )
+    [ Svg.path
+        [ style
+            [ ( "cursor", "pointer" )
+            ]
+        , attribute "tabindex" "0"
+        , SA.fill "white"
+        , SA.d (whitePath lowestPitch highestPitch pitch)
+        ]
+        []
+    ]
   else
-    Nothing
+    [ Svg.rect
+        [ style
+            [ ( "cursor", "pointer" )
+            ]
+        , SA.x (toString (neckLeft pitch))
+        , SA.y "0"
+        , SA.width (toString blackWidth)
+        , SA.height (toString (blackHeight - borderWidth))
+        ]
+        []
+    , Svg.path
+        [ style
+            [ ( "pointer-events", "none" )
+            ]
+        , SA.fill "url(#shineGradient)"
+        , SA.opacity (toString leftSideOpacity)
+        , SA.d (leftSidePath pitch)
+        ]
+        []
+    , Svg.path
+        [ style
+            [ ( "pointer-events", "none" )
+            ]
+        , SA.fill "url(#specularGradient)"
+        , SA.opacity (toString specularOpacity)
+        , SA.d (specularPath pitch)
+        ]
+        []
+    , Svg.path
+        [ style
+            [ ( "pointer-events", "none" )
+            ]
+        , SA.fill "url(#shineGradient)"
+        , SA.opacity (toString fingerOpacity)
+        , SA.d (fingerPath pitch)
+        ]
+        []
+    , Svg.path
+        [ style
+            [ ( "pointer-events", "none" )
+            ]
+        , SA.fill "url(#shineGradient)"
+        , SA.opacity (toString hillOpacity)
+        , SA.d (hillPath pitch)
+        ]
+        []
+    ]
 
 isWhiteKey : Int -> Bool
 isWhiteKey pitch =
@@ -136,7 +188,77 @@ whitePath lowestPitch highestPitch pitch =
     , Path.bigZ
     ]
 
--- the origin is the top left corner of middle C, not including its border
+fingerPath : Int -> String
+fingerPath pitch =
+  String.join
+    " "
+    [ Path.bigM (neckLeft pitch + sideWidth) 0
+    , Path.bigV
+        (blackHeight - borderWidth - hillHeight - nailHeight)
+    , Path.c
+        0 (nailHeight / 0.75)
+        (blackWidth - 2 * sideWidth) (nailHeight / 0.75)
+        (blackWidth - 2 * sideWidth) 0
+    , Path.bigV 0
+    , Path.bigZ
+    ]
+
+leftSidePath : Int -> String
+leftSidePath pitch =
+  String.join
+    " "
+    [ Path.bigM (neckLeft pitch) 0
+    , Path.bigV (blackHeight - borderWidth)
+    , Path.c
+        (hillHeight / 1.5 / hillSlope) (-hillHeight / 1.5)
+        (0.25 * blackWidth + hillHeight / 3 / hillSlope) (-hillHeight)
+        (0.5 * blackWidth) (-hillHeight)
+    , Path.c
+        (-0.25 * blackWidth + 0.5 * sideWidth) 0
+        (-0.5 * blackWidth + sideWidth) (-nailHeight / 3)
+        (-0.5 * blackWidth + sideWidth) (-nailHeight)
+    , Path.bigV 0
+    , Path.bigZ
+    ]
+
+specularPath : Int -> String
+specularPath pitch =
+  String.join
+    " "
+    [ Path.bigM (neckLeft pitch) (blackHeight - borderWidth - specularHeight)
+    , Path.bigV (blackHeight - borderWidth)
+    , Path.c
+        (hillHeight / 1.5 / hillSlope) (-hillHeight / 1.5)
+        (0.25 * blackWidth + hillHeight / 3 / hillSlope) (-hillHeight)
+        (0.5 * blackWidth) (-hillHeight)
+    , Path.c
+        (-0.25 * blackWidth + 0.5 * sideWidth) 0
+        (-0.5 * blackWidth + sideWidth) (-nailHeight / 3)
+        (-0.5 * blackWidth + sideWidth) (-nailHeight)
+    , Path.bigV (blackHeight - borderWidth - specularHeight)
+    , Path.bigZ
+    ]
+
+hillPath : Int -> String
+hillPath pitch =
+  String.join
+    " "
+    [ Path.bigM (neckLeft pitch + blackWidth) 0
+    , Path.bigV (blackHeight - borderWidth)
+    , Path.h -blackWidth
+    , Path.c
+        (hillHeight / 0.75 / hillSlope * t) (-hillHeight / 0.75 * t)
+        ( ( ( blackWidth - 4 * hillHeight / hillSlope
+            ) * t +
+              8 * hillHeight / 3 / hillSlope
+          ) * t
+        )
+        ((t - 2) * hillHeight / 0.75 * t)
+        (blackWidth - rightShineWidth) (-rightShineHeight)
+    , Path.bigV 0
+    , Path.bigZ
+    ]
+
 neckLeft : Int -> Float
 neckLeft pitch =
   let
@@ -183,3 +305,107 @@ fullHeight = 31 * scale
 
 scale : Float
 scale = 6
+
+-- black key lighting parameters (these don't include any border width)
+blackWidth : Float
+blackWidth = 4 * headWidth / 7 - borderWidth
+
+nailHeight : Float
+nailHeight = 0.27 * blackWidth
+
+hillHeight : Float
+hillHeight = 0.44 * blackWidth
+
+hillSlope : Float
+hillSlope = 7
+
+sideWidth : Float
+sideWidth = 0.07 * blackWidth
+
+t : Float
+t = 1 - 0.12
+
+rightShineWidth : Float
+rightShineWidth =
+  ( ( ( 2 * blackWidth - 8 * hillHeight / hillSlope
+      ) * t +
+        12 * hillHeight / hillSlope - 3 * blackWidth
+    ) * t -
+      4 * hillHeight / hillSlope
+  ) * t +
+    blackWidth
+
+rightShineHeight : Float
+rightShineHeight =
+  4 * hillHeight * t * (1 - t)
+
+specularHeight : Float
+specularHeight = 2 * blackWidth
+
+fingerOpacity : Float
+fingerOpacity = 0.28
+
+hillOpacity : Float
+hillOpacity = 0.46
+
+leftSideOpacity : Float
+leftSideOpacity = 0.67
+
+specularOpacity : Float
+specularOpacity = 0.4
+
+shineGradient : Svg msg
+shineGradient =
+  Svg.linearGradient
+    [ SA.id "shineGradient"
+    , SA.y1 "0%"
+    , SA.y2 "100%"
+    , SA.x1 "50%"
+    , SA.x2 "50%"
+    ]
+    [ Svg.stop
+        [ SA.offset "0%"
+        , style
+            [ ( "stop-color", "white" )
+            , ( "stop-opacity", "0.30" )
+            ]
+        ]
+        []
+    , Svg.stop
+        [ SA.offset "100%"
+        , style
+            [ ( "stop-color", "white" )
+            , ( "stop-opacity", "1" )
+            ]
+        ]
+        []
+    ]
+
+specularGradient : Svg msg
+specularGradient =
+  Svg.radialGradient
+    [ SA.id "specularGradient"
+    , SA.cx "7.1%"
+    , SA.cy "76%"
+    , SA.r "7%"
+    , SA.fx "7.1%"
+    , SA.fy "76%"
+    , SA.gradientTransform "scale(4 1)"
+    ]
+    [ Svg.stop
+        [ SA.offset "0%"
+        , style
+            [ ( "stop-color", "white" )
+            , ( "stop-opacity", "1" )
+            ]
+        ]
+        []
+    , Svg.stop
+        [ SA.offset "100%"
+        , style
+            [ ( "stop-color", "white" )
+            , ( "stop-opacity", "0" )
+            ]
+        ]
+        []
+    ]
