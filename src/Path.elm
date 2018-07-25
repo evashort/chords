@@ -1,4 +1,4 @@
-module Path exposing (m, bigM, h, bigH, v, bigV, c, a, bigZ)
+module Path exposing (m, bigM, h, bigH, v, bigV, partialC, c, a, bigZ)
 
 m : Float -> Float -> String
 m dx dy =
@@ -23,6 +23,27 @@ v dy =
 bigV : Float -> String
 bigV y =
   "V" ++ toString y
+
+partialC :
+  Float -> Float -> Float -> Float -> Float -> Float -> Float -> String
+partialC t xB yB xC yC xD yD =
+  let
+    xE = t * xB
+    yE = t * yB
+    xF = (1 - t) * xB + t * xC
+    yF = (1 - t) * yB + t * yC
+    xG = (1 - t) * xC + t * xD
+    yG = (1 - t) * yC + t * yD
+  in let
+    xH = (1 - t) * xE + t * xF
+    yH = (1 - t) * yE + t * yF
+    xI = (1 - t) * xF + t * xG
+    yI = (1 - t) * yF + t * yG
+  in let
+    xJ = (1 - t) * xH + t * xI
+    yJ = (1 - t) * yH + t * yI
+  in
+    c xE yE xH yH xJ yJ
 
 c : Float -> Float -> Float -> Float -> Float -> Float -> String
 c dx1 dy1 dx2 dy2 dx dy =

@@ -246,15 +246,11 @@ hillPath pitch =
     [ Path.bigM (neckLeft pitch + blackWidth) 0
     , Path.bigV (blackHeight - borderWidth)
     , Path.h -blackWidth
-    , Path.c
-        (hillHeight / 0.75 / hillSlope * t) (-hillHeight / 0.75 * t)
-        ( ( ( blackWidth - 4 * hillHeight / hillSlope
-            ) * t +
-              8 * hillHeight / 3 / hillSlope
-          ) * t
-        )
-        ((t - 2) * hillHeight / 0.75 * t)
-        (blackWidth - rightShineWidth) (-rightShineHeight)
+    , Path.partialC
+        rightShineT
+        (hillHeight / 0.75 / hillSlope) (-hillHeight / 0.75)
+        (blackWidth - hillHeight / 0.75 / hillSlope) (-hillHeight / 0.75)
+        blackWidth 0
     , Path.bigV 0
     , Path.bigZ
     ]
@@ -322,22 +318,8 @@ hillSlope = 7
 sideWidth : Float
 sideWidth = 0.07 * blackWidth
 
-t : Float
-t = 1 - 0.12
-
-rightShineWidth : Float
-rightShineWidth =
-  ( ( ( 2 * blackWidth - 8 * hillHeight / hillSlope
-      ) * t +
-        12 * hillHeight / hillSlope - 3 * blackWidth
-    ) * t -
-      4 * hillHeight / hillSlope
-  ) * t +
-    blackWidth
-
-rightShineHeight : Float
-rightShineHeight =
-  4 * hillHeight * t * (1 - t)
+rightShineT : Float
+rightShineT = 1 - 0.12
 
 specularHeight : Float
 specularHeight = 2 * blackWidth
