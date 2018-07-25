@@ -563,7 +563,10 @@ update msg model =
         { old =
             Substring (String.length model.parse.code) ""
         , new =
-            if String.endsWith "\n" model.parse.code then
+            if
+              String.endsWith "\n" model.parse.code ||
+                String.isEmpty model.parse.code
+            then
               line ++ "\n"
             else
               "\n" ++ line ++ "\n"
