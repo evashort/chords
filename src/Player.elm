@@ -137,9 +137,7 @@ stop : Float -> Player -> (Player, List AudioChange)
 stop now player =
   ( { cliff = []
     , schedule =
-        List.drop
-          (countUnfinished now player.schedule - 1)
-          player.schedule
+        stopScheduleAt now player.schedule
     , unfinishedCount = 0
     }
   , [ Mute now ]

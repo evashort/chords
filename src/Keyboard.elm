@@ -1,16 +1,18 @@
 module Keyboard exposing (view)
 
+import Colour
 import Path
 
 import Html exposing (Html)
 import Html.Attributes exposing (attribute, style)
+import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 
 -- the origin is the top left corner of middle C,
 -- not including its border
-view : String -> Int -> Int -> Html msg
-view gridArea lowestPitch highestPitch =
+view : String -> Int -> Int -> Int -> Set Int -> Html msg
+view gridArea tonic lowestPitch highestPitch pitchSet =
   let
     left = viewBoxLeft lowestPitch
   in let
@@ -39,7 +41,8 @@ view gridArea lowestPitch highestPitch =
       ( List.concat
           [ [ Svg.defs
                 []
-                [ shineGradient
+                [ blackKeyGradient
+                , whiteKeyGradient
                 , specularGradient
                 ]
             , Svg.rect
@@ -52,7 +55,7 @@ view gridArea lowestPitch highestPitch =
                 []
             ]
           , List.concatMap
-              (viewKey lowestPitch highestPitch)
+              (viewKey tonic lowestPitch highestPitch pitchSet)
               (List.range lowestPitch highestPitch)
           , [ Svg.text_
                 [ style
@@ -88,67 +91,97 @@ viewBoxRight highestPitch =
   else
     neckLeft (highestPitch + 1)
 
-viewKey : Int -> Int -> Int -> List (Svg msg)
-viewKey lowestPitch highestPitch pitch =
-  if isWhiteKey pitch then
-    [ Svg.path
-        [ style
-            [ ( "cursor", "pointer" )
+viewKey : Int -> Int -> Int -> Set Int -> Int -> List (Svg msg)
+viewKey tonic lowestPitch highestPitch pitchSet pitch =
+  let selected = Set.member pitch pitchSet in
+    if isWhiteKey pitch then
+      let
+        path = whitePath lowestPitch highestPitch pitch
+      in
+        [ Svg.path
+            [ style
+                [ ( "cursor", "pointer" )
+                ]
+            , attribute "tabindex" "0"
+            , SA.fill
+                ( if selected then
+                    Colour.pitchBg tonic pitch
+                  else
+                    "white"
+                )
+            , SA.d path
             ]
-        , attribute "tabindex" "0"
-        , SA.fill "white"
-        , SA.d (whitePath lowestPitch highestPitch pitch)
-        ]
-        []
-    ]
-  else
-    [ Svg.rect
-        [ style
-            [ ( "cursor", "pointer" )
-            ]
-        , SA.x (toString (neckLeft pitch))
-        , SA.y "0"
-        , SA.width (toString blackWidth)
-        , SA.height (toString (blackHeight - borderWidth))
-        ]
-        []
-    , Svg.path
-        [ style
-            [ ( "pointer-events", "none" )
-            ]
-        , SA.fill "url(#shineGradient)"
-        , SA.opacity (toString leftSideOpacity)
-        , SA.d (leftSidePath pitch)
-        ]
-        []
-    , Svg.path
-        [ style
-            [ ( "pointer-events", "none" )
-            ]
-        , SA.fill "url(#specularGradient)"
-        , SA.opacity (toString specularOpacity)
-        , SA.d (specularPath pitch)
-        ]
-        []
-    , Svg.path
-        [ style
-            [ ( "pointer-events", "none" )
-            ]
-        , SA.fill "url(#shineGradient)"
-        , SA.opacity (toString fingerOpacity)
-        , SA.d (fingerPath pitch)
-        ]
-        []
-    , Svg.path
-        [ style
-            [ ( "pointer-events", "none" )
-            ]
-        , SA.fill "url(#shineGradient)"
-        , SA.opacity (toString hillOpacity)
-        , SA.d (hillPath pitch)
-        ]
-        []
-    ]
+            []
+        ] ++
+          ( if selected then
+              [ Svg.path
+                  [ style
+                      [ ( "pointer-events", "none" )
+                      ]
+                  , SA.fill "url(#whiteKeyGradient)"
+                  , SA.d path
+                  ]
+                  []
+              ]
+            else
+              []
+          )
+    else
+      [ Svg.rect
+          [ style
+              [ ( "cursor", "pointer" )
+              ]
+          , SA.fill
+              ( if Set.member pitch pitchSet then
+                  Colour.pitchBg tonic pitch
+                else
+                  ""
+              )
+          , SA.strokeWidth (toString borderWidth)
+          , SA.strokeLinejoin "round"
+          , SA.x (toString (neckLeft pitch))
+          , SA.y "0"
+          , SA.width (toString blackWidth)
+          , SA.height (toString (blackHeight - borderWidth))
+          ]
+          []
+      , Svg.path
+          [ style
+              [ ( "pointer-events", "none" )
+              ]
+          , SA.fill "url(#blackKeyGradient)"
+          , SA.opacity (toString (leftSideOpacity selected))
+          , SA.d (leftSidePath pitch)
+          ]
+          []
+      , Svg.path
+          [ style
+              [ ( "pointer-events", "none" )
+              ]
+          , SA.fill "url(#specularGradient)"
+          , SA.opacity (toString (specularOpacity selected))
+          , SA.d (specularPath pitch)
+          ]
+          []
+      , Svg.path
+          [ style
+              [ ( "pointer-events", "none" )
+              ]
+          , SA.fill "url(#blackKeyGradient)"
+          , SA.opacity (toString fingerOpacity)
+          , SA.d (fingerPath pitch)
+          ]
+          []
+      , Svg.path
+          [ style
+              [ ( "pointer-events", "none" )
+              ]
+          , SA.fill "url(#blackKeyGradient)"
+          , SA.opacity (toString (hillOpacity selected))
+          , SA.d (hillPath pitch)
+          ]
+          []
+      ]
 
 isWhiteKey : Int -> Bool
 isWhiteKey pitch =
@@ -327,19 +360,25 @@ specularHeight = 2 * blackWidth
 fingerOpacity : Float
 fingerOpacity = 0.28
 
-hillOpacity : Float
-hillOpacity = 0.46
+hillOpacity : Bool -> Float
+hillOpacity selected =
+  if selected then 0.6 else 0.46
 
-leftSideOpacity : Float
-leftSideOpacity = 0.67
+leftSideOpacity : Bool -> Float
+leftSideOpacity selected =
+  if selected then 1 else 0.67
 
-specularOpacity : Float
-specularOpacity = 0.4
+specularOpacity : Bool -> Float
+specularOpacity selected =
+  if selected then 1 else 0.4
 
-shineGradient : Svg msg
-shineGradient =
+blackKeyStartOpacity : Float
+blackKeyStartOpacity = 0.3
+
+blackKeyGradient : Svg msg
+blackKeyGradient =
   Svg.linearGradient
-    [ SA.id "shineGradient"
+    [ SA.id "blackKeyGradient"
     , SA.y1 "0%"
     , SA.y2 "100%"
     , SA.x1 "50%"
@@ -349,7 +388,7 @@ shineGradient =
         [ SA.offset "0%"
         , style
             [ ( "stop-color", "white" )
-            , ( "stop-opacity", "0.30" )
+            , ( "stop-opacity", toString blackKeyStartOpacity )
             ]
         ]
         []
@@ -362,6 +401,42 @@ shineGradient =
         ]
         []
     ]
+
+whiteKeyGradient : Svg msg
+whiteKeyGradient =
+  let
+    startOpacity = blackKeyStartOpacity * fingerOpacity
+    slope =
+      (1 - blackKeyStartOpacity) * fingerOpacity /
+        (blackHeight - borderWidth - hillHeight)
+  in let
+    endOpacity =
+      startOpacity + slope * (fullHeight - borderWidth)
+  in
+    Svg.linearGradient
+      [ SA.id "whiteKeyGradient"
+      , SA.y1 "0%"
+      , SA.y2 "100%"
+      , SA.x1 "50%"
+      , SA.x2 "50%"
+      ]
+      [ Svg.stop
+          [ SA.offset "0%"
+          , style
+              [ ( "stop-color", "white" )
+              , ( "stop-opacity", toString startOpacity )
+              ]
+          ]
+          []
+      , Svg.stop
+          [ SA.offset "100%"
+          , style
+              [ ( "stop-color", "white" )
+              , ( "stop-opacity", toString endOpacity )
+              ]
+          ]
+          []
+      ]
 
 specularGradient : Svg msg
 specularGradient =

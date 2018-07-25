@@ -4,6 +4,7 @@ import Arp
 import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
+import Chord
 import ChordsInKey
 import Circle
 import CustomEvents exposing (onChange)
@@ -42,6 +43,7 @@ import Html.Attributes as Attributes exposing
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
 import Navigation exposing (Location)
+import Set
 import Task
 import Url
 
@@ -830,7 +832,11 @@ view model =
             lowestPitch =
               Lowest.pitch model.parse.scale.tonic model.parse.lowest
           in
-            Html.Lazy.lazy viewKeyboard lowestPitch
+            Html.Lazy.lazy3
+              viewKeyboard
+              model.parse.scale.tonic
+              lowestPitch
+              model.player
         Pane.History ->
           Html.map
             AddLine
@@ -1415,9 +1421,20 @@ viewPaneSettings tour storage =
         ]
         []
 
-viewKeyboard : Int -> Html msg
-viewKeyboard lowestPitch =
-  Keyboard.view "pane" lowestPitch (lowestPitch + 32)
+viewKeyboard : Int -> Int -> Player -> Html msg
+viewKeyboard tonic lowestPitch player =
+  let
+    lastPlayed = Player.lastPlayed player
+  in let
+    pitchSet =
+      Maybe.withDefault
+        Set.empty
+        ( Maybe.map
+            (Chord.pitchSet lowestPitch << .chord)
+            lastPlayed
+        )
+  in
+    Keyboard.view "pane" tonic lowestPitch (lowestPitch + 32) pitchSet
 
 viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
 viewMiscSettings canStore shouldStore storage =

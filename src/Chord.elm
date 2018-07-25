@@ -1,10 +1,11 @@
-module Chord exposing (Chord, fromCode, transpose, flavors)
+module Chord exposing (Chord, fromCode, transpose, pitchSet, flavors)
 
 import Pitch
 import Submatches exposing (submatches)
 
 import Dict exposing (Dict)
 import Regex exposing (Regex)
+import Set exposing (Set)
 
 type alias Chord =
   { flavor : List Int
@@ -60,3 +61,12 @@ flavors =
 transpose : Int -> Chord -> Chord
 transpose offset chord =
   { chord | root = (chord.root + offset) % 12 }
+
+pitchSet : Int -> Chord -> Set Int
+pitchSet lowestPitch chord =
+  let
+    rootPitch =
+      (chord.root - lowestPitch) % 12 + lowestPitch
+  in
+    Set.fromList
+      (List.map ((+) rootPitch) (0 :: chord.flavor))

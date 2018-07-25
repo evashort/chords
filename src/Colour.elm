@@ -1,4 +1,5 @@
-module Colour exposing (borderOpacity, shineOpacity, fg, bg, swatchBg)
+module Colour exposing
+  (borderOpacity, shineOpacity, fg, bg, swatchBg, pitchBg)
 
 import Chord exposing (Chord)
 
@@ -41,6 +42,13 @@ swatchBg tonic chord =
         0 -> scheme.c
         1 -> scheme.g
         _ -> scheme.f
+
+pitchBg : Int -> Int -> String
+pitchBg tonic pitch =
+  case (pitch - tonic) % 3 of
+    0 -> cyan
+    1 -> pink
+    _ -> yellow
 
 type alias Scheme =
   { fg : String
