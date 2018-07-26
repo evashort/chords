@@ -1,6 +1,7 @@
-module Keyboard exposing (view)
+module Keyboard exposing (Msg(..), view)
 
 import Colour
+import CustomEvents exposing (onLeftDown, onKeyDown)
 import Path
 
 import Html exposing (Html)
@@ -9,9 +10,13 @@ import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 
+type Msg
+  = AddPitch Int
+  | RemovePitch Int
+
 -- the origin is the top left corner of middle C,
 -- not including its border
-view : String -> Int -> Int -> Int -> Set Int -> Html msg
+view : String -> Int -> Int -> Int -> Set Int -> Html Msg
 view gridArea tonic lowestPitch highestPitch pitchSet =
   let
     left = viewBoxLeft lowestPitch
@@ -91,9 +96,17 @@ viewBoxRight highestPitch =
   else
     neckLeft (highestPitch + 1)
 
-viewKey : Int -> Int -> Int -> Set Int -> Int -> List (Svg msg)
+viewKey : Int -> Int -> Int -> Set Int -> Int -> List (Svg Msg)
 viewKey tonic lowestPitch highestPitch pitchSet pitch =
-  let selected = Set.member pitch pitchSet in
+  let
+    selected = Set.member pitch pitchSet
+  in let
+    action =
+      if selected then
+        RemovePitch pitch
+      else
+        AddPitch pitch
+  in
     if isWhiteKey pitch then
       let
         path = whitePath lowestPitch highestPitch pitch
@@ -101,6 +114,11 @@ viewKey tonic lowestPitch highestPitch pitchSet pitch =
         [ Svg.path
             [ style
                 [ ( "cursor", "pointer" )
+                ]
+            , onLeftDown action
+            , onKeyDown
+                [ ( 13, action )
+                , ( 32, action )
                 ]
             , attribute "tabindex" "0"
             , SA.fill
@@ -130,6 +148,11 @@ viewKey tonic lowestPitch highestPitch pitchSet pitch =
       [ Svg.rect
           [ style
               [ ( "cursor", "pointer" )
+              ]
+          , onLeftDown action
+          , onKeyDown
+              [ ( 13, action )
+              , ( 32, action )
               ]
           , SA.fill
               ( if Set.member pitch pitchSet then

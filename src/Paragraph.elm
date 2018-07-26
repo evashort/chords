@@ -25,7 +25,7 @@ type alias Paragraph =
 init : List Substring -> Paragraph
 init lines =
   let
-    firstId = IdChord.count
+    firstId = IdChord.count + 1 -- add one to account for id of custom chord
   in let
     substrings = split lines
   in

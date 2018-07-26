@@ -201,6 +201,7 @@ type Msg
   | Play (IdChord, Float)
   | Stop Float
   | Stopped
+  | KeyboardMsg Keyboard.Msg
   | AddLine String
   | SetShouldStore Bool
 
@@ -556,6 +557,66 @@ update msg model =
     Stopped ->
       ( { model | playing = False }
       , Cmd.none
+      )
+
+    KeyboardMsg (Keyboard.AddPitch pitch) ->
+      ( { model
+        | playing = False
+        , player =
+            Player.silent
+              { id = IdChord.count
+              , chord =
+                  Chord.addPitch
+                    ( Lowest.pitch
+                        model.parse.scale.tonic
+                        model.parse.lowest
+                    )
+                    pitch
+                    ( Maybe.map
+                        .chord
+                        (Player.lastPlayed model.player)
+                    )
+              }
+        , history =
+            History.add
+              (Player.sequence model.player)
+              model.history
+        }
+      , if model.playing then
+          Task.perform Stop AudioTime.now
+        else
+          Cmd.none
+      )
+
+    KeyboardMsg (Keyboard.RemovePitch pitch) ->
+      ( { model
+        | playing = False
+        , player =
+            let
+              lowestPitch =
+                Lowest.pitch model.parse.scale.tonic model.parse.lowest
+            in
+              case
+                Maybe.andThen
+                  (Chord.removePitch lowestPitch pitch << .chord)
+                  (Player.lastPlayed model.player)
+              of
+                Nothing ->
+                  Player.init
+                Just newChord ->
+                  Player.silent
+                    { id = IdChord.count
+                    , chord = newChord
+                    }
+        , history =
+            History.add
+              (Player.sequence model.player)
+              model.history
+        }
+      , if model.playing then
+          Task.perform Stop AudioTime.now
+        else
+          Cmd.none
       )
 
     AddLine line ->
@@ -1424,7 +1485,7 @@ viewPaneSettings tour storage =
         ]
         []
 
-viewKeyboard : Int -> Int -> Player -> Html msg
+viewKeyboard : Int -> Int -> Player -> Html Msg
 viewKeyboard tonic lowestPitch player =
   let
     lastPlayed = Player.lastPlayed player
@@ -1433,11 +1494,19 @@ viewKeyboard tonic lowestPitch player =
       Maybe.withDefault
         Set.empty
         ( Maybe.map
-            (Chord.pitchSet lowestPitch << .chord)
+            (Chord.toPitchSet lowestPitch << .chord)
             lastPlayed
         )
   in
-    Keyboard.view "pane" tonic lowestPitch (lowestPitch + 32) pitchSet
+    Html.map
+      KeyboardMsg
+      ( Keyboard.view
+          "pane"
+          tonic
+          lowestPitch
+          (lowestPitch + 32)
+          pitchSet
+      )
 
 viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
 viewMiscSettings canStore shouldStore storage =

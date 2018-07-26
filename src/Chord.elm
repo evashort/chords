@@ -1,4 +1,5 @@
-module Chord exposing (Chord, fromCode, transpose, pitchSet, flavors)
+module Chord exposing
+  (Chord, fromCode, transpose, toPitchSet, addPitch, removePitch, flavors)
 
 import Pitch
 import Submatches exposing (submatches)
@@ -62,11 +63,44 @@ transpose : Int -> Chord -> Chord
 transpose offset chord =
   { chord | root = (chord.root + offset) % 12 }
 
-pitchSet : Int -> Chord -> Set Int
-pitchSet lowestPitch chord =
+toPitchSet : Int -> Chord -> Set Int
+toPitchSet lowestPitch chord =
   let
     rootPitch =
       (chord.root - lowestPitch) % 12 + lowestPitch
   in
     Set.fromList
       (List.map ((+) rootPitch) (0 :: chord.flavor))
+
+fromPitchSet : Set Int -> Maybe Chord
+fromPitchSet pitchSet =
+  case Set.toList pitchSet of
+    [] ->
+      Nothing
+    rootPitch :: flavorPitches ->
+      Just
+        ( Chord
+            (List.map ((+) -rootPitch) flavorPitches)
+            (rootPitch % 12)
+        )
+
+addPitch : Int -> Int -> Maybe Chord -> Chord
+addPitch lowestPitch pitch maybeChord =
+  case maybeChord of
+    Nothing ->
+      Chord [] (pitch % 12)
+    Just chord ->
+      case
+        fromPitchSet
+          (Set.insert pitch (toPitchSet lowestPitch chord))
+      of
+        Nothing ->
+          Debug.crash
+            "Chord.addPitch: Pitch set empty after inserting pitch"
+        Just newChord ->
+          newChord
+
+removePitch : Int -> Int -> Chord -> Maybe Chord
+removePitch lowestPitch pitch chord =
+  fromPitchSet
+    (Set.remove pitch (toPitchSet lowestPitch chord))
