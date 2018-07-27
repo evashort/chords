@@ -168,6 +168,14 @@ glue source replacement =
     Replacement
       (Substring (replacement.old.i - 1) "")
       ("\n" ++ replacement.new)
+  else if
+    replacement.old.i >= 0 &&
+      Substring.stop replacement.old == String.length source + 1 &&
+      String.endsWith "\n" replacement.old.s
+  then
+    { replacement
+    | old = Substring.dropRight 1 replacement.old
+    }
   else
     Debug.crash
       ("Parse.glue: Replacement out of bounds: " ++ toString replacement)
