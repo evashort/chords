@@ -1,4 +1,5 @@
-module IdChord exposing (IdChord, PlayStatus, Msg(..), fromChord, count, view)
+module IdChord exposing
+  (IdChord, PlayStatus, Msg(..), fromChord, customId, view)
 
 import Chord exposing (Chord)
 import Colour
@@ -33,8 +34,8 @@ fromChord chord =
     Just i ->
       IdChord (12 * i + chord.root) chord
 
-count : Int
-count = 12 * Dict.size schemes
+customId : Int
+customId = 12 * Dict.size schemes
 
 schemes : Dict (List Int) Int
 schemes =
