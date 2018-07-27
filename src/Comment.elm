@@ -33,10 +33,13 @@ highlight = Highlight "#008000" "#ffffff"
 
 remove : Substring -> List Substring
 remove whole =
-  List.map
-    removeFromLine
-    (Substring.regexSplit All lineBreak whole)
-  ++ [ Substring (String.length whole.s + 1) "" ] -- Needed by Flag.insert
+  let
+    wholeAndNewline = -- let Flag.insert know where the string ends
+      { whole | s = whole.s ++ "\n" }
+  in
+    List.map
+      removeFromLine
+      (Substring.regexSplit All lineBreak wholeAndNewline)
 
 removeFromLine : Substring -> Substring
 removeFromLine line =
