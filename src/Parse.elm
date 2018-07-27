@@ -29,22 +29,34 @@ type alias Parse =
 
 init : String -> Parse
 init code =
-  initHelp Paragraph.init code
+  update code initHelp
+
+initHelp : Parse
+initHelp =
+  { code = ""
+  , paragraph = Paragraph.init []
+  , highlights = []
+  , suggestions = []
+  , bpm = .default Bpm.flag
+  , scale = .default Scale.flag
+  , lowest = .default Lowest.flag
+  , defaultTitle = "Untitled"
+  }
 
 update : String -> Parse -> Parse
 update code parse =
-  initHelp ((flip Paragraph.update) parse.paragraph) code
-
-initHelp : (List Substring -> Paragraph) -> String -> Parse
-initHelp getParagraph code =
   let
     lines = Comment.remove (Substring 0 code)
   in let
     unindented = Indent.remove lines
   in let
-    paragraph = getParagraph (Flag.remove unindented)
-  in let
+    paragraph =
+      Paragraph.update
+        (Flag.remove unindented)
+        parse.paragraph
+    bpm = Flag.parse Bpm.flag unindented
     scale = Flag.parse Scale.flag unindented
+    lowest = Flag.parse Lowest.flag unindented
   in
     { code = code
     , paragraph = paragraph
@@ -62,9 +74,21 @@ initHelp getParagraph code =
               , Paragraph.suggestions scale.tonic paragraph
               ]
           )
-    , bpm = Flag.parse Bpm.flag unindented
-    , scale = scale
-    , lowest = Flag.parse Lowest.flag unindented
+    , bpm =
+        if bpm == parse.bpm then
+          parse.bpm
+        else
+          bpm
+    , scale =
+        if scale == parse.scale then
+          parse.scale
+        else
+          scale
+    , lowest =
+        if lowest == parse.lowest then
+          parse.lowest
+        else
+          lowest
     , defaultTitle =
         case Paragraph.defaultTitle paragraph of
           "" ->
