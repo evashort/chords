@@ -81,7 +81,7 @@ type alias Model =
   , buffet : Buffet
   , storage : Storage
   , playing : Bool
-  , player : Player
+  , keyboard : Keyboard
   , history : History
   }
 
@@ -94,6 +94,14 @@ type SaveState
   = Unsaved
   | Saving
   | Saved
+
+-- Extreme measures so we can still render keyboard with lazy3.
+-- Don't want to redraw all the specular highlights on the black keys
+-- every time the user types a letter in the text box.
+type alias Keyboard =
+  { player : Player
+  , octave : Int
+  }
 
 init : Flags -> Location -> ( Model, Cmd Msg )
 init flags location =
@@ -144,7 +152,10 @@ init flags location =
       , buffet = Buffet.init parse.suggestions
       , storage = storage
       , playing = False
-      , player = Player.init
+      , keyboard =
+          { player = Player.init
+          , octave = 0
+          }
       , history = History.init
       }
     , Cmd.batch
@@ -201,6 +212,7 @@ type Msg
   | Play (IdChord, Float)
   | Stop Float
   | Stopped
+  | SetKeyboardOctave String
   | KeyboardMsg Keyboard.Msg
   | AddLine String
   | SetShouldStore Bool
@@ -453,11 +465,15 @@ update msg model =
       ( model, Task.perform CurrentTime AudioTime.now )
 
     CurrentTime now ->
-      ( case Player.setTime now model.player of
+      ( case Player.setTime now model.keyboard.player of
           Nothing ->
             model
           Just player ->
-            { model | player = player }
+            let keyboard = model.keyboard in
+              { model
+              | keyboard =
+                  { keyboard | player = player}
+              }
       , Cmd.none
       )
 
@@ -465,22 +481,26 @@ update msg model =
       if model.storage.playStyle == PlayStyle.Silent then
         ( let
             shouldInit =
-              case Player.lastPlayed model.player of
+              case Player.lastPlayed model.keyboard.player of
                 Nothing ->
                   False
                 Just lastPlayed ->
                   idChord.id == lastPlayed.id
+            keyboard = model.keyboard
           in
             { model
             | playing = False
-            , player =
-                if shouldInit then
-                  Player.init
-                else
-                  Player.silent idChord
+            , keyboard =
+                { keyboard
+                | player =
+                    if shouldInit then
+                      Player.init
+                    else
+                      Player.silent idChord
+                }
             , history =
                 History.add
-                  (Player.sequence model.player)
+                  (Player.sequence model.keyboard.player)
                   model.history
             }
         , if model.playing then
@@ -502,6 +522,7 @@ update msg model =
       let
         lowestPitch =
           Lowest.pitch model.parse.scale.tonic model.parse.lowest
+        keyboard = model.keyboard
       in let
         ( player, sequence, changes ) =
           case model.storage.playStyle of
@@ -510,7 +531,12 @@ update msg model =
                 bpm =
                   Maybe.withDefault Arp.defaultBpm model.parse.bpm
               in
-                Player.arp (60 / bpm) lowestPitch idChord now model.player
+                Player.arp
+                  (60 / bpm)
+                  lowestPitch
+                  idChord
+                  now
+                  keyboard.player
             PlayStyle.StrumPattern ->
               let
                 bpm =
@@ -524,22 +550,22 @@ update msg model =
                   lowestPitch
                   idChord
                   now
-                  model.player
+                  keyboard.player
             PlayStyle.Strum ->
               Player.strum
                 model.storage.strumInterval
                 lowestPitch
                 idChord
                 now
-                model.player
+                keyboard.player
             PlayStyle.Pad ->
-              Player.pad lowestPitch idChord now model.player
+              Player.pad lowestPitch idChord now keyboard.player
             PlayStyle.Silent ->
               Debug.crash "Main.update: PlayStyle.Silent got through"
       in
         ( { model
           | playing = True
-          , player = player
+          , keyboard = { keyboard | player = player }
           , history = History.add sequence model.history
           }
         , AudioChange.perform changes
@@ -548,9 +574,12 @@ update msg model =
     Stop now ->
       let
         ( player, changes ) =
-          Player.stop now model.player
+          Player.stop now model.keyboard.player
+        keyboard = model.keyboard
       in
-        ( { model | player = player }
+        ( { model
+          | keyboard = {keyboard | player = player }
+          }
         , AudioChange.perform changes
         )
 
@@ -559,27 +588,59 @@ update msg model =
       , Cmd.none
       )
 
+    SetKeyboardOctave octaveString ->
+      case String.toInt octaveString of
+        Ok octave ->
+          let keyboard = model.keyboard in
+            ( { model
+              | keyboard =
+                  { keyboard | octave = octave }
+              }
+            , Cmd.none
+            )
+        Err _ ->
+          Debug.crash
+            ("Main.update: Bad keyboard octave: " ++ octaveString)
+
     KeyboardMsg (Keyboard.AddPitch pitch) ->
-      ( { model
-        | playing = False
-        , player =
-            Player.silent
-              { id = IdChord.count
-              , chord =
-                  Chord.addPitch
-                    ( Lowest.pitch
-                        model.parse.scale.tonic
-                        model.parse.lowest
-                    )
-                    pitch
-                    ( Maybe.map
-                        .chord
-                        (Player.lastPlayed model.player)
-                    )
+      ( let
+          lowestPitch =
+            Lowest.pitch model.parse.scale.tonic model.parse.lowest
+        in let
+          pitchSet =
+            case Player.lastPlayed model.keyboard.player of
+              Nothing ->
+                Set.empty
+              Just idChord ->
+                Chord.toPitchSet
+                  lowestPitch
+                  model.keyboard.octave
+                  idChord.chord
+        in let
+          newPitchSet =
+            Set.insert pitch pitchSet
+        in let
+          ( newChord, newOctave ) =
+            case Chord.fromPitchSet lowestPitch newPitchSet of
+              Just x ->
+                x
+              Nothing ->
+                Debug.crash
+                  "Main.update: Pitch set empty after inserting pitch"
+        in
+          { model
+          | playing = False
+          , keyboard =
+              { player =
+                  Player.silent
+                    { id = IdChord.count
+                    , chord = newChord
+                    }
+              , octave = newOctave
               }
         , history =
             History.add
-              (Player.sequence model.player)
+              (Player.sequence model.keyboard.player)
               model.history
         }
       , if model.playing then
@@ -589,30 +650,44 @@ update msg model =
       )
 
     KeyboardMsg (Keyboard.RemovePitch pitch) ->
-      ( { model
-        | playing = False
-        , player =
-            let
-              lowestPitch =
-                Lowest.pitch model.parse.scale.tonic model.parse.lowest
-            in
-              case
-                Maybe.andThen
-                  (Chord.removePitch lowestPitch pitch << .chord)
-                  (Player.lastPlayed model.player)
-              of
-                Nothing ->
-                  Player.init
-                Just newChord ->
-                  Player.silent
-                    { id = IdChord.count
-                    , chord = newChord
-                    }
-        , history =
-            History.add
-              (Player.sequence model.player)
-              model.history
-        }
+      ( let
+          lowestPitch =
+            Lowest.pitch model.parse.scale.tonic model.parse.lowest
+        in let
+          pitchSet =
+            case Player.lastPlayed model.keyboard.player of
+              Nothing ->
+                Set.empty
+              Just idChord ->
+                Chord.toPitchSet
+                  lowestPitch
+                  model.keyboard.octave
+                  idChord.chord
+        in let
+          newPitchSet =
+            Set.remove pitch pitchSet
+        in let
+          newKeyboard =
+            case Chord.fromPitchSet lowestPitch newPitchSet of
+              Just ( newChord, o ) ->
+                { player =
+                    Player.silent
+                      { id = IdChord.count
+                      , chord = newChord
+                      }
+                , octave = o
+                }
+              Nothing ->
+                { player = Player.init, octave = 0 }
+        in
+          { model
+          | playing = False
+          , keyboard = newKeyboard
+          , history =
+              History.add
+                (Player.sequence model.keyboard.player)
+                model.history
+          }
       , if model.playing then
           Task.perform Stop AudioTime.now
         else
@@ -749,7 +824,7 @@ subscriptions model =
         Ports.stopped (always Stopped)
       else
         Sub.none
-    , if Player.willChange model.player then
+    , if Player.willChange model.keyboard.player then
         AnimationFrame.times (always RequestTime)
       else
         Sub.none
@@ -786,6 +861,7 @@ view model =
 "paneSelector paneSelector"
 "paneSettings paneSettings"
 "pane pane"
+"keyboard keyboard"
 "misc misc"
 / minmax(auto, 60em) 1fr
 """
@@ -892,15 +968,9 @@ view model =
                 (getPlayStatus model)
             )
         Pane.Keyboard ->
-          let
-            lowestPitch =
-              Lowest.pitch model.parse.scale.tonic model.parse.lowest
-          in
-            Html.Lazy.lazy3
-              viewKeyboard
-              model.parse.scale.tonic
-              lowestPitch
-              model.player
+          Html.Lazy.lazy
+            viewSearchResults
+            model.keyboard
         Pane.History ->
           Html.map
             AddLine
@@ -909,9 +979,26 @@ view model =
                 model.parse.scale.tonic
                 model.storage.shortenSequences
                 model.history
-                (Player.sequence model.player)
-                (Player.sequenceFinished model.player)
+                (Player.sequence model.keyboard.player)
+                (Player.sequenceFinished model.keyboard.player)
             )
+    , if model.storage.pane == Pane.Keyboard then
+        let
+          lowestPitch =
+            Lowest.pitch model.parse.scale.tonic model.parse.lowest
+        in
+          Html.Lazy.lazy3
+            viewKeyboard
+            model.parse.scale.tonic
+            lowestPitch
+            model.keyboard
+      else
+        span
+          [ style
+              [ ( "grid-area", "keyboard" )
+              ]
+          ]
+          []
     , Html.Lazy.lazy3
         viewMiscSettings
         model.canStore
@@ -930,9 +1017,9 @@ hasBackup action model =
 getPlayStatus : Model -> PlayStatus
 getPlayStatus model =
   if model.storage.playStyle == PlayStyle.Silent then
-    Player.silentStatus model.player
+    Player.silentStatus model.keyboard.player
   else
-    Player.status model.player
+    Player.status model.keyboard.player
 
 viewShouldWarn : Bool -> Html msg
 viewShouldWarn shouldWarn =
@@ -1485,23 +1572,38 @@ viewPaneSettings tour storage =
         ]
         []
 
-viewKeyboard : Int -> Int -> Player -> Html Msg
-viewKeyboard tonic lowestPitch player =
+viewSearchResults : Keyboard -> Html Msg
+viewSearchResults keyboard =
+  span
+    [ style
+        [ ( "grid-area", "pane" )
+        ]
+    ]
+    [ input
+        [ type_ "number"
+        , value (toString keyboard.octave)
+        , onInput SetKeyboardOctave
+        ]
+        []
+    ]
+
+viewKeyboard : Int -> Int -> Keyboard -> Html Msg
+viewKeyboard tonic lowestPitch keyboard =
   let
-    lastPlayed = Player.lastPlayed player
+    lastPlayed = Player.lastPlayed keyboard.player
   in let
     pitchSet =
       Maybe.withDefault
         Set.empty
         ( Maybe.map
-            (Chord.toPitchSet lowestPitch << .chord)
+            (Chord.toPitchSet lowestPitch keyboard.octave << .chord)
             lastPlayed
         )
   in
     Html.map
       KeyboardMsg
       ( Keyboard.view
-          "pane"
+          "keyboard"
           tonic
           lowestPitch
           (lowestPitch + 32)
