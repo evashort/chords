@@ -832,7 +832,10 @@ doAction action f model =
 codeChanged : Model -> Parse -> Cmd msg
 codeChanged model parse =
   Cmd.batch
-    [ Navigation.newUrl "#"
+    [ if model.saveState == Saved then
+        Navigation.newUrl "#"
+      else
+        Cmd.none
     , if model.saveState == Saved then
         if model.title == "" then
           Ports.setTitle ("*" ++ parse.defaultTitle)
