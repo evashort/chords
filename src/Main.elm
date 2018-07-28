@@ -4,10 +4,11 @@ import Arp
 import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
-import Chord
+import Chord exposing (Chord)
 import ChordsInKey
 import Circle
-import CustomEvents exposing (onChange)
+import Colour
+import CustomEvents exposing (onChange, onLeftDown, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord, PlayStatus)
@@ -100,7 +101,9 @@ type SaveState
 -- every time the user types a letter in the text box.
 type alias Keyboard =
   { player : Player
-  , octave : Int
+  , customChord : Maybe Chord
+  , customOctave : Int
+  , showCustomChord : Bool
   }
 
 init : Flags -> Location -> ( Model, Cmd Msg )
@@ -154,7 +157,9 @@ init flags location =
       , playing = False
       , keyboard =
           { player = Player.init
-          , octave = 0
+          , customChord = Nothing
+          , customOctave = 0
+          , showCustomChord = False
           }
       , history = History.init
       }
@@ -212,6 +217,7 @@ type Msg
   | Play (IdChord, Float)
   | Stop Float
   | Stopped
+  | ToggleCustomChord
   | SetKeyboardOctave String
   | KeyboardMsg Keyboard.Msg
   | AddLine String
@@ -497,10 +503,11 @@ update msg model =
                       Player.init
                     else
                       Player.silent idChord
+                , showCustomChord = False
                 }
             , history =
                 History.add
-                  (Player.sequence model.keyboard.player)
+                  (Player.sequence keyboard.player)
                   model.history
             }
         , if model.playing then
@@ -565,7 +572,11 @@ update msg model =
       in
         ( { model
           | playing = True
-          , keyboard = { keyboard | player = player }
+          , keyboard =
+              { keyboard
+              | player = player
+              , showCustomChord = False
+              }
           , history = History.add sequence model.history
           }
         , AudioChange.perform changes
@@ -578,7 +589,7 @@ update msg model =
         keyboard = model.keyboard
       in
         ( { model
-          | keyboard = {keyboard | player = player }
+          | keyboard = { keyboard | player = player }
           }
         , AudioChange.perform changes
         )
@@ -588,22 +599,44 @@ update msg model =
       , Cmd.none
       )
 
+    ToggleCustomChord ->
+      ( let
+          keyboard = model.keyboard
+        in
+          { model
+          | playing = False
+          , keyboard =
+              { keyboard
+              | player = Player.init
+              , showCustomChord =
+                  not keyboard.showCustomChord
+              }
+          , history =
+              History.add
+                (Player.sequence keyboard.player)
+                model.history
+          }
+      , if model.playing then
+          Task.perform Stop AudioTime.now
+        else
+          Cmd.none
+      )
+
     SetKeyboardOctave octaveString ->
       case String.toInt octaveString of
         Ok octave ->
           let keyboard = model.keyboard in
             ( { model
               | keyboard =
-                  { player =
+                  { player = Player.init
+                  , customChord =
                       case Player.lastPlayed keyboard.player of
                         Nothing ->
-                          Player.init
+                          keyboard.customChord
                         Just idChord ->
-                          Player.silent
-                            { id = IdChord.customId
-                            , chord = idChord.chord
-                            }
-                  , octave = octave
+                          Just idChord.chord
+                  , customOctave = octave
+                  , showCustomChord = True
                   }
               }
             , if model.playing then
@@ -621,21 +654,19 @@ update msg model =
             Lowest.pitch model.parse.scale.tonic model.parse.lowest
         in let
           pitchSet =
-            case Player.lastPlayed model.keyboard.player of
-              Nothing ->
-                Set.empty
-              Just idChord ->
-                let
-                  octave =
-                    if idChord.id == IdChord.customId then
-                      model.keyboard.octave
-                    else
-                      0
-                in
-                  Chord.toPitchSet
-                    lowestPitch
-                    octave
-                    idChord.chord
+            if model.keyboard.showCustomChord then
+              Chord.toPitchSet
+                lowestPitch
+                model.keyboard.customOctave
+                model.keyboard.customChord
+            else
+              Chord.toPitchSet
+                lowestPitch
+                0
+                ( Maybe.map
+                    .chord
+                    (Player.lastPlayed model.keyboard.player)
+                )
         in let
           newPitchSet =
             Set.filter
@@ -656,12 +687,10 @@ update msg model =
           { model
           | playing = False
           , keyboard =
-              { player =
-                  Player.silent
-                    { id = IdChord.customId
-                    , chord = newChord
-                    }
-              , octave = newOctave
+              { player = Player.init
+              , customChord = Just newChord
+              , customOctave = newOctave
+              , showCustomChord = True
               }
         , history =
             History.add
@@ -680,37 +709,37 @@ update msg model =
             Lowest.pitch model.parse.scale.tonic model.parse.lowest
         in let
           pitchSet =
-            case Player.lastPlayed model.keyboard.player of
-              Nothing ->
-                Set.empty
-              Just idChord ->
-                let
-                  octave =
-                    if idChord.id == IdChord.customId then
-                      model.keyboard.octave
-                    else
-                      0
-                in
-                  Chord.toPitchSet
-                    lowestPitch
-                    octave
-                    idChord.chord
+            if model.keyboard.showCustomChord then
+              Chord.toPitchSet
+                lowestPitch
+                model.keyboard.customOctave
+                model.keyboard.customChord
+            else
+              Chord.toPitchSet
+                lowestPitch
+                0
+                ( Maybe.map
+                    .chord
+                    (Player.lastPlayed model.keyboard.player)
+                )
         in let
           newPitchSet =
             Set.remove pitch pitchSet
         in let
           newKeyboard =
             case Chord.fromPitchSet lowestPitch newPitchSet of
-              Just ( newChord, o ) ->
-                { player =
-                    Player.silent
-                      { id = IdChord.customId
-                      , chord = newChord
-                      }
-                , octave = o
+              Just ( newChord, newOctave ) ->
+                { player = Player.init
+                , customChord = Just newChord
+                , customOctave = newOctave
+                , showCustomChord = True
                 }
               Nothing ->
-                { player = Player.init, octave = 0 }
+                { player = Player.init
+                , customChord = Nothing
+                , customOctave = 0
+                , showCustomChord = True
+                }
         in
           { model
           | playing = False
@@ -1616,22 +1645,27 @@ viewSearchResults : Int -> Maybe Int -> Keyboard -> Html Msg
 viewSearchResults tonic lowest keyboard =
   let
     lowestPitch = Lowest.pitch tonic lowest
-    lastPlayed = Player.lastPlayed keyboard.player
+    maybeChord =
+      if keyboard.showCustomChord then
+        keyboard.customChord
+      else
+        ( Maybe.map
+            .chord
+            (Player.lastPlayed keyboard.player)
+        )
   in let
+    colorChord =
+      Maybe.withDefault (Chord [] 0) keyboard.customChord
     octave =
-      case lastPlayed of
-        Nothing ->
-          0
-        Just idChord ->
-          if idChord.id == IdChord.customId then
-            keyboard.octave
-          else
-            0
+      if keyboard.showCustomChord then
+        keyboard.customOctave
+      else
+        0
     maxOctave =
-      case lastPlayed of
+      case maybeChord of
         Nothing ->
           0
-        Just { chord } ->
+        Just chord ->
           let
             rootPitch =
               (chord.root - lowestPitch) % 12 + lowestPitch
@@ -1654,7 +1688,69 @@ viewSearchResults tonic lowest keyboard =
           [ ( "grid-area", "pane" )
           ]
       ]
-      [ input
+      [ span
+          [ style
+              [ ( "width", "75px" )
+              , ( "height", "75px" )
+              , ( "position", "relative" )
+              , ( "display", "inline-block" )
+              ]
+          ]
+          [ span
+              [ style
+                  [ ( "position", "absolute" )
+                  , ( "top", "-5px" )
+                  , ( "left", "-5px" )
+                  , ( "right", "-5px" )
+                  , ( "bottom", "-5px" )
+                  , ( "pointer-events", "none" )
+                  , ( "border-width", "5px" )
+                  , ( "border-radius", "10px" )
+                  , ( "border-color"
+                    , if keyboard.showCustomChord then
+                        "#3399ff"
+                      else
+                        "transparent"
+                    )
+                  , ( "border-style", "solid" )
+                  ]
+              ]
+              []
+          , button
+              [ onLeftDown ToggleCustomChord
+              , onKeyDown
+                  [ ( 13, ToggleCustomChord )
+                  , ( 32, ToggleCustomChord )
+                  ]
+              , style
+                  [ ( "width", "100%" )
+                  , ( "height", "100%" )
+                  , ( "background", Colour.bg tonic colorChord )
+                  , ( "color", Colour.fg colorChord )
+                  , ( "padding", "0" )
+                  , ( "border"
+                    , String.concat
+                        [ "1px solid rgba(0, 0, 0, "
+                        , Colour.borderOpacity colorChord
+                        , ")"
+                        ]
+                    )
+                  , ( "border-radius", "5px" )
+                  , ( "box-shadow"
+                    , String.concat
+                        [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
+                        , Colour.shineOpacity colorChord
+                        , ")"
+                        ]
+                    )
+                  , ( "cursor", "pointer" )
+                  , ( "white-space", "normal" )
+                  ]
+              ]
+              [ Html.text "Show custom chord"
+              ]
+          ]
+      , input
           [ type_ "number"
           , onInput SetKeyboardOctave
           , value (toString octave)
@@ -1668,25 +1764,22 @@ viewKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
 viewKeyboard tonic lowest keyboard =
   let
     lowestPitch = Lowest.pitch tonic lowest
-    lastPlayed = Player.lastPlayed keyboard.player
-  in let
+    maybeChord =
+      if keyboard.showCustomChord then
+        keyboard.customChord
+      else
+        ( Maybe.map
+            .chord
+            (Player.lastPlayed keyboard.player)
+        )
     octave =
-      case lastPlayed of
-        Nothing ->
-          0
-        Just idChord ->
-          if idChord.id == IdChord.customId then
-            keyboard.octave
-          else
-            0
+      if keyboard.showCustomChord then
+        keyboard.customOctave
+      else
+        0
   in let
     pitchSet =
-      Maybe.withDefault
-        Set.empty
-        ( Maybe.map
-            (Chord.toPitchSet lowestPitch octave << .chord)
-            lastPlayed
-        )
+      Chord.toPitchSet lowestPitch octave maybeChord
   in
     Html.map
       KeyboardMsg

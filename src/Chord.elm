@@ -63,14 +63,20 @@ transpose : Int -> Chord -> Chord
 transpose offset chord =
   { chord | root = (chord.root + offset) % 12 }
 
-toPitchSet : Int -> Int -> Chord -> Set Int
-toPitchSet lowestPitch octave chord =
-  let
-    rootPitch =
-      (chord.root - lowestPitch) % 12 + lowestPitch + 12 * octave
-  in
-    Set.fromList
-      (List.map ((+) rootPitch) (0 :: chord.flavor))
+toPitchSet : Int -> Int -> Maybe Chord -> Set Int
+toPitchSet lowestPitch octave maybeChord =
+  case maybeChord of
+    Nothing ->
+      Set.empty
+    Just chord ->
+      let
+        rootPitch =
+          (chord.root - lowestPitch) % 12 +
+            lowestPitch +
+            12 * octave
+      in
+        Set.fromList
+          (List.map ((+) rootPitch) (0 :: chord.flavor))
 
 fromPitchSet : Int -> Set Int -> Maybe (Chord, Int)
 fromPitchSet lowestPitch pitchSet =
