@@ -1,23 +1,210 @@
-module Keyboard exposing (Msg(..), view)
+module Keyboard exposing (Keyboard, init, Msg(..), update, view)
 
+import Chord exposing (Chord)
 import Colour
-import CustomEvents exposing (onLeftDown, onKeyDown)
+import CustomEvents exposing (onLeftDown, onKeyDown, onIntInput)
 import Path
+import Player exposing (Player)
 
-import Html exposing (Html)
-import Html.Attributes exposing (attribute, style)
+import Html exposing (Html, span, input)
+import Html.Attributes as Attributes exposing (attribute, style)
 import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 
+type alias Keyboard =
+  { player : Player
+  , customChord : Maybe Chord
+  , customOctave : Int
+  , showCustomChord : Bool
+  }
+
+init : Keyboard
+init =
+  { player = Player.init
+  , customChord = Nothing
+  , customOctave = 0
+  , showCustomChord = False
+  }
+
 type Msg
-  = AddPitch Int
-  | RemovePitch Int
+  = ShowCustomChord Bool
+  | SetOctave Int
+  | AddPitch (Int, Int)
+  | RemovePitch (Int, Int)
+
+update : Msg -> Keyboard -> Keyboard
+update msg keyboard =
+  case msg of
+    ShowCustomChord showCustomChord ->
+      { keyboard
+      | player = Player.init
+      , showCustomChord = showCustomChord
+      }
+
+    SetOctave octave ->
+      { player = Player.init
+      , customChord =
+          case Player.lastPlayed keyboard.player of
+            Nothing ->
+              keyboard.customChord
+            Just idChord ->
+              Just idChord.chord
+      , customOctave = octave
+      , showCustomChord = True
+      }
+
+    AddPitch ( lowestPitch, pitch ) ->
+      let
+        pitchSet =
+          if keyboard.showCustomChord then
+            Chord.toPitchSet
+              lowestPitch
+              keyboard.customOctave
+              keyboard.customChord
+          else
+            Chord.toPitchSet
+              lowestPitch
+              0
+              ( Maybe.map
+                  .chord
+                  (Player.lastPlayed keyboard.player)
+              )
+      in let
+        newPitchSet =
+          Set.filter
+            ( inRange
+                (pitch - maxChordRange)
+                (pitch + maxChordRange)
+            )
+            (Set.insert pitch pitchSet)
+      in let
+        ( newChord, newOctave ) =
+          case Chord.fromPitchSet lowestPitch newPitchSet of
+            Just x ->
+              x
+            Nothing ->
+              Debug.crash
+                "Keyboard.update: Pitch set empty after inserting pitch"
+      in
+        { player = Player.init
+        , customChord = Just newChord
+        , customOctave = newOctave
+        , showCustomChord = True
+        }
+
+    RemovePitch ( lowestPitch, pitch ) ->
+      let
+        pitchSet =
+          if keyboard.showCustomChord then
+            Chord.toPitchSet
+              lowestPitch
+              keyboard.customOctave
+              keyboard.customChord
+          else
+            Chord.toPitchSet
+              lowestPitch
+              0
+              ( Maybe.map
+                  .chord
+                  (Player.lastPlayed keyboard.player)
+              )
+      in let
+        newPitchSet =
+          Set.remove pitch pitchSet
+      in
+        case Chord.fromPitchSet lowestPitch newPitchSet of
+          Just ( newChord, newOctave ) ->
+            { player = Player.init
+            , customChord = Just newChord
+            , customOctave = newOctave
+            , showCustomChord = True
+            }
+          Nothing ->
+            { player = Player.init
+            , customChord = Nothing
+            , customOctave = 0
+            , showCustomChord = False
+            }
+
+maxChordRange : Int
+maxChordRange = 23
+
+inRange : Int -> Int -> Int -> Bool
+inRange low high x =
+  low <= x && x <= high
+
+view : String -> Int -> Int -> Keyboard -> Html Msg
+view gridArea tonic lowestPitch keyboard =
+  let
+    maybeChord =
+      if keyboard.showCustomChord then
+        keyboard.customChord
+      else
+        ( Maybe.map
+            .chord
+            (Player.lastPlayed keyboard.player)
+        )
+    octave =
+      if keyboard.showCustomChord then
+        keyboard.customOctave
+      else
+        0
+    maxOctave =
+      case maybeChord of
+        Nothing ->
+          0
+        Just chord ->
+          let
+            rootPitch =
+              (chord.root - lowestPitch) % 12 + lowestPitch
+            highestOffset =
+              case List.reverse chord.flavor of
+                [] ->
+                  0
+                flavorPitch :: _ ->
+                  flavorPitch
+          in let
+            highestPitch = rootPitch + highestOffset
+            maxPitch = lowestPitch + 11 + maxChordRange
+          in let
+            maxTransposition = maxPitch - highestPitch
+          in
+            (maxTransposition - maxTransposition % 12) // 12
+  in let
+    pitchSet =
+      Chord.toPitchSet lowestPitch octave maybeChord
+  in
+    span
+      [ style
+          [ ( "grid-area", gridArea )
+          ]
+      ]
+      [ span
+          [ style
+              [ ( "display", "block" )
+              ]
+          ]
+          [ input
+              [ Attributes.type_ "number"
+              , onIntInput octave SetOctave
+              , Attributes.value (toString octave)
+              , Attributes.min "0"
+              , Attributes.max (toString maxOctave)
+              ]
+              []
+          ]
+      , viewKeys
+          tonic
+          lowestPitch
+          (lowestPitch + 11 + maxChordRange)
+          pitchSet
+      ]
 
 -- the origin is the top left corner of middle C,
 -- not including its border
-view : String -> Int -> Int -> Int -> Set Int -> Html Msg
-view gridArea tonic lowestPitch highestPitch pitchSet =
+viewKeys : Int -> Int -> Int -> Set Int -> Html Msg
+viewKeys tonic lowestPitch highestPitch pitchSet =
   let
     left = viewBoxLeft lowestPitch
   in let
@@ -28,10 +215,7 @@ view gridArea tonic lowestPitch highestPitch pitchSet =
     height = fullHeight + borderWidth
   in
     Svg.svg
-      [ style
-          [ ( "grid-area", gridArea )
-          ]
-      , SA.width (toString width)
+      [ SA.width (toString width)
       , SA.height (toString height)
       , SA.viewBox
           ( String.join
@@ -103,9 +287,9 @@ viewKey tonic lowestPitch highestPitch pitchSet pitch =
   in let
     action =
       if selected then
-        RemovePitch pitch
+        RemovePitch ( lowestPitch, pitch )
       else
-        AddPitch pitch
+        AddPitch ( lowestPitch, pitch )
   in
     if isWhiteKey pitch then
       let

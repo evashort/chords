@@ -1,4 +1,4 @@
-module CustomEvents exposing (onChange, onLeftDown, onKeyDown)
+module CustomEvents exposing (onChange, onLeftDown, onKeyDown, onIntInput)
 
 import Html exposing (Attribute)
 import Html.Events exposing (on, targetValue)
@@ -44,3 +44,26 @@ pickMessage messageMap which =
         pickMessage rest which
     [] ->
       Decode.fail ("ignoring key " ++ toString which)
+
+onIntInput : Int -> (Int -> msg) -> Attribute msg
+onIntInput current message =
+  on
+    "input"
+    ( Decode.map
+        message
+        ( Decode.andThen
+            (requireDifferentInt current)
+            targetValue
+        )
+    )
+
+requireDifferentInt : Int -> String -> Decoder Int
+requireDifferentInt current valueString =
+  case String.toInt valueString of
+    Ok value ->
+      if value /= current then
+        Decode.succeed value
+      else
+        Decode.fail ("ignoring current value " ++ valueString)
+    Err _ ->
+      Decode.fail ("ignroring non-integer value " ++ valueString)
