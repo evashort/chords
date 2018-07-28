@@ -63,9 +63,9 @@ schemes =
     [ ( [ 4, 7 ], major )
     , ( [ 3, 7 ], minor )
     , ( [ 3, 6 ], diminished )
-    , ( [ 4, 8 ], major )
-    , ( [ 5, 7 ], sus4 )
-    , ( [ 2, 7 ], major7 )
+    , ( [ 4, 8 ], allGray )
+    , ( [ 5, 7 ], allGray )
+    , ( [ 2, 7 ], allGray )
     , ( [ 4, 7, 10 ], dominant7 )
     , ( [ 4, 7, 11 ], major7 )
     , ( [ 3, 7, 10 ], minor7 )
@@ -85,20 +85,20 @@ schemes =
     , ( [ 3, 7, 10, 14, 21 ], minor7 )
     ]
 
+allGray : Scheme
+allGray =
+  { fg = black
+  , f = gray
+  , c = gray
+  , g = gray
+  }
+
 major : Scheme
 major =
   { fg = black
   , f = teal
   , c = purple
   , g = orange
-  }
-
-sus4 : Scheme
-sus4 =
-  { fg = black
-  , f = yellow
-  , c = cyan
-  , g = pink
   }
 
 minor : Scheme
