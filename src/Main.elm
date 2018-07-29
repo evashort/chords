@@ -11,7 +11,7 @@ import Colour
 import CustomEvents exposing (onChange, onLeftDown, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
-import IdChord exposing (IdChord, PlayStatus)
+import IdChord exposing (IdChord)
 import Keyboard exposing (Keyboard)
 import Lowest
 import Pane exposing (Pane)
@@ -199,8 +199,8 @@ type Msg
   | CurrentTime Float
   | IdChordMsg IdChord.Msg
   | Play (IdChord, Float)
-  | Stop Float
-  | Stopped
+  | FinishSequence Float
+  | Playing Bool
   | KeyboardMsg Keyboard.Msg
   | AddLine String
   | SetShouldStore Bool
@@ -460,43 +460,31 @@ update msg model =
             let keyboard = model.keyboard in
               { model
               | keyboard =
-                  { keyboard | player = player}
+                  { keyboard | player = player }
               }
       , Cmd.none
       )
 
     IdChordMsg (IdChord.Play idChord) ->
       if model.storage.playStyle == PlayStyle.Silent then
-        ( let
-            shouldInit =
-              case Player.lastPlayed model.keyboard.player of
-                Nothing ->
-                  False
-                Just lastPlayed ->
-                  idChord.id == lastPlayed.id
-            keyboard = model.keyboard
-          in
-            { model
-            | playing = False
-            , keyboard =
+        let keyboard = model.keyboard in
+          ( { model
+            | keyboard =
                 { keyboard
-                | player =
-                    if shouldInit then
-                      Player.init
+                | source =
+                    if Keyboard.getId keyboard == Just idChord.id then
+                      Keyboard.NoChord
                     else
-                      Player.silent idChord
-                , showCustomChord = False
+                      Keyboard.ThisChord idChord
                 }
-            , history =
-                History.add
-                  (Player.sequence keyboard.player)
-                  model.history
             }
-        , if model.playing then
-            Task.perform Stop AudioTime.now
-          else
-            Cmd.none
-        )
+          , if keyboard.source == Keyboard.LastPlayed then
+              Task.perform
+                (KeyboardMsg << Keyboard.Stop)
+                AudioTime.now
+            else
+              Cmd.none
+          )
       else
         ( model
         , Task.perform (Play << (,) idChord) AudioTime.now
@@ -504,7 +492,10 @@ update msg model =
 
     IdChordMsg IdChord.Stop ->
       ( { model | playing = False }
-      , Task.perform Stop AudioTime.now
+      , Cmd.batch
+          [ Task.perform FinishSequence AudioTime.now
+          , Ports.stopAudio ()
+          ]
       )
 
     Play ( idChord, now ) ->
@@ -557,14 +548,14 @@ update msg model =
           , keyboard =
               { keyboard
               | player = player
-              , showCustomChord = False
+              , source = Keyboard.LastPlayed
               }
           , history = History.add sequence model.history
           }
         , AudioChange.perform changes
         )
 
-    Stop now ->
+    FinishSequence now ->
       let
         ( player, changes ) =
           Player.stop now model.keyboard.player
@@ -573,29 +564,25 @@ update msg model =
         ( { model
           | keyboard = { keyboard | player = player }
           }
-        , AudioChange.perform changes
+        , Cmd.none
         )
 
-    Stopped ->
-      ( { model | playing = False }
+    Playing playing ->
+      ( if playing /= model.playing then
+          { model | playing = playing }
+        else
+          model
       , Cmd.none
       )
 
     KeyboardMsg keyboardMsg ->
-      ( { model
-        | playing = False
-        , keyboard =
-            Keyboard.update keyboardMsg model.keyboard
-        , history =
-            History.add
-              (Player.sequence model.keyboard.player)
-              model.history
-        }
-      , if model.playing then
-          Task.perform Stop AudioTime.now
-        else
-          Cmd.none
-      )
+      let
+        ( newKeyboard, keyboardCmd ) =
+          Keyboard.update keyboardMsg model.keyboard
+      in
+        ( { model | keyboard = newKeyboard }
+        , Cmd.map KeyboardMsg keyboardCmd
+        )
 
     AddLine line ->
       replace
@@ -726,10 +713,7 @@ subscriptions : Model -> Sub Msg
 subscriptions model =
   Sub.batch
     [ Ports.text TextChanged
-    , if model.playing then
-        Ports.stopped (always Stopped)
-      else
-        Sub.none
+    , Ports.playing Playing
     , if Player.willChange model.keyboard.player then
         AnimationFrame.times (always RequestTime)
       else
@@ -844,7 +828,7 @@ view model =
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
     , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
     , Html.Lazy.lazy viewPlaySettings model.storage
-    , viewSong model.tour (getPlayStatus model) model.parse
+    , viewSong model.tour model.storage model.keyboard model.parse
     , Html.Lazy.lazy3
         viewPaneSelector
         model.tour
@@ -857,22 +841,17 @@ view model =
           (Tour.paneShadow model.tour)
       of
         Pane.ChordsInKey ->
-          Html.map
-            IdChordMsg
-            ( ChordsInKey.view
-                "pane"
-                (Tour.shadowStorage model.tour model.storage)
-                model.parse.scale
-                (getPlayStatus model)
-            )
+          Html.Lazy.lazy3
+            viewChordsInKey
+            model.parse.scale
+            (Tour.shadowStorage model.tour model.storage)
+            model.keyboard
         Pane.Circle ->
-          Html.map
-            IdChordMsg
-            ( Circle.view
-                "pane"
-                model.parse.scale.tonic
-                (getPlayStatus model)
-            )
+          Html.Lazy.lazy3
+            viewCircle
+            model.parse.scale.tonic
+            model.storage
+            model.keyboard
         Pane.Keyboard ->
           Html.Lazy.lazy2
             viewSearchResults
@@ -916,13 +895,6 @@ hasBackup action model =
       False
     Just backup ->
       backup.action == action
-
-getPlayStatus : Model -> PlayStatus
-getPlayStatus model =
-  if model.storage.playStyle == PlayStyle.Silent then
-    Player.silentStatus model.keyboard.player
-  else
-    Player.status model.keyboard.player
 
 viewShouldWarn : Bool -> Html msg
 viewShouldWarn shouldWarn =
@@ -1349,14 +1321,17 @@ viewPlaySettings storage =
         ]
         []
 
-viewSong : Tour -> PlayStatus -> Parse -> Html Msg
-viewSong tour playStatus parse =
+viewSong : Tour -> Storage -> Keyboard -> Parse -> Html Msg
+viewSong tour storage keyboard parse =
   Html.map
     IdChordMsg
     ( Song.view
         "song"
         parse.scale.tonic
-        playStatus
+        ( Keyboard.status
+            (storage.playStyle == PlayStyle.Silent)
+            keyboard
+        )
         (Tour.padSong tour (Parse.song parse))
     )
 
@@ -1475,6 +1450,33 @@ viewPaneSettings tour storage =
         ]
         []
 
+viewChordsInKey : Scale -> Storage -> Keyboard -> Html Msg
+viewChordsInKey scale storage keyboard =
+  Html.map
+    IdChordMsg
+    ( ChordsInKey.view
+        "pane"
+        storage
+        scale
+        ( Keyboard.status
+            (storage.playStyle == PlayStyle.Silent)
+            keyboard
+        )
+    )
+
+viewCircle : Int -> Storage -> Keyboard -> Html Msg
+viewCircle tonic storage keyboard =
+  Html.map
+    IdChordMsg
+      ( Circle.view
+          "pane"
+          tonic
+          ( Keyboard.status
+              (storage.playStyle == PlayStyle.Silent)
+              keyboard
+          )
+      )
+
 viewSearchResults : Int -> Keyboard -> Html Msg
 viewSearchResults tonic keyboard =
   let
@@ -1485,7 +1487,7 @@ viewSearchResults tonic keyboard =
     action =
       ( KeyboardMsg
           ( Keyboard.ShowCustomChord
-              (not keyboard.showCustomChord)
+              (keyboard.source /= Keyboard.CustomChord)
           )
       )
   in
@@ -1513,7 +1515,7 @@ viewSearchResults tonic keyboard =
                   , ( "border-width", "5px" )
                   , ( "border-radius", "10px" )
                   , ( "border-color"
-                    , if keyboard.showCustomChord then
+                    , if keyboard.source == Keyboard.CustomChord then
                         "#3399ff"
                       else
                         "transparent"

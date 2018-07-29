@@ -3,7 +3,8 @@ module Circle exposing (view)
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
-import IdChord exposing (IdChord, PlayStatus)
+import IdChord exposing (IdChord)
+import PlayStatus exposing (PlayStatus)
 import Name
 
 import Html exposing (Html)
@@ -41,9 +42,6 @@ view gridArea tonic playStatus =
             (\i -> (9 + tonic + 7 * i) % 12)
         )
         (List.range 0 11)
-  in let
-    stopButtonId =
-      if playStatus.stoppable then playStatus.active else -1
   in
     Html.span
       [ style
@@ -85,10 +83,10 @@ view gridArea tonic playStatus =
           ]
           ( List.concat
               [ List.indexedMap
-                  (viewChordText stopButtonId (0.5 * (rMid + rOuter)))
+                  (viewChordText playStatus (0.5 * (rMid + rOuter)))
                   majorChords
               , List.indexedMap
-                  (viewChordText stopButtonId (0.5 * (rInner + rMid)))
+                  (viewChordText playStatus (0.5 * (rInner + rMid)))
                   minorChords
               ]
           )
@@ -152,7 +150,7 @@ viewChord :
 viewChord tonic playStatus rInner rOuter i { id, chord } =
   List.filterMap
     identity
-    [ if playStatus.active == id || playStatus.next == id then
+    [ if PlayStatus.hasBorder playStatus id then
         Just
           ( path
               [ fill "none"
@@ -160,7 +158,11 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
               , strokeWidth "5"
               , strokeLinejoin "round"
               , strokeDasharray
-                  (if playStatus.next == id then "10, 10" else "none")
+                  ( if PlayStatus.hasDashedBorder playStatus id then
+                      "10, 10"
+                    else
+                      "none"
+                  )
               , d (twelfth 0 rInner rOuter i)
               ]
               []
@@ -168,10 +170,8 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
       else
         Nothing
     , let
-        stopButton = playStatus.active == id && playStatus.stoppable
-      in let
         play =
-          if stopButton then
+          if PlayStatus.hasStopButton playStatus id then
             IdChord.Stop
           else
             IdChord.Play (IdChord id chord)
@@ -212,8 +212,8 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
     ]
 
 
-viewChordText : Int -> Float -> Int -> IdChord -> Html msg
-viewChordText stopButtonId r i { id, chord } =
+viewChordText : PlayStatus -> Float -> Int -> IdChord -> Html msg
+viewChordText playStatus r i { id, chord } =
   let
     ( x, y ) =
       polar r (2 * pi * (0.25 - toFloat i / 12))
@@ -228,7 +228,7 @@ viewChordText stopButtonId r i { id, chord } =
           , ( "color", Colour.fg chord )
           ]
       ]
-      ( if id == stopButtonId then
+      ( if PlayStatus.hasStopButton playStatus id then
           [ Html.span
               [ style
                   [ ( "width", "1em" )

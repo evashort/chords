@@ -1,15 +1,15 @@
 module Player exposing
-  ( Player, init, setTime, status, silentStatus, willChange, sequence
-  , sequenceFinished, lastPlayed, silent
-  , stop, pad, strum, arp, strumPattern
+  ( Player, init, setTime, status, willChange, sequence, sequenceFinished
+  , lastPlayed, stop, pad, strum, arp, strumPattern
   )
 
 import Arp
 import AudioChange exposing (AudioChange(..))
 import Chord exposing (Chord)
 import Cliff exposing (Hold, Region, Cliff)
-import IdChord exposing (IdChord, PlayStatus)
+import IdChord exposing (IdChord)
 import Note exposing (Note)
+import PlayStatus exposing (PlayStatus)
 import StrumPattern exposing (StrumPattern, StrumNote)
 
 type alias Player =
@@ -41,44 +41,39 @@ setTime now player =
     else
       Just { player | unfinishedCount = unfinishedCount }
 
-status : Player -> PlayStatus
-status player =
+status : Bool -> Player -> PlayStatus
+status showSilent player =
   if player.unfinishedCount <= 0 then
-    { active = -1
-    , next = -1
-    , stoppable = False
-    }
+    if showSilent then
+      case player.schedule of
+        [] ->
+          PlayStatus.Cleared
+        current :: _ ->
+          PlayStatus.Selected current.id
+    else
+      PlayStatus.Cleared
   else if player.unfinishedCount == 1 then
     case player.schedule of
       [] ->
         Debug.crash
           ("Player.status: Inconsistent state: " ++ toString player)
       current :: _ ->
-        { active = current.id
-        , next = -1
-        , stoppable = current.stop == infinity
-        }
+        PlayStatus.Playing
+          { active = current.id
+          , stopButton = current.stop == infinity
+          , next = Nothing
+          }
   else
     case List.drop (player.unfinishedCount - 2) player.schedule of
       future :: current :: _ ->
-        { active = current.id
-        , next = future.id
-        , stoppable = False
-        }
+        PlayStatus.Playing
+          { active = current.id
+          , stopButton = False
+          , next = Just future.id
+          }
       _ ->
         Debug.crash
           ("Player.status: Inconsistent state: " ++ toString player)
-
-silentStatus : Player -> PlayStatus
-silentStatus player =
-  case ( player.unfinishedCount, player.schedule ) of
-    ( 0, segment :: _ ) ->
-      { active = segment.id
-      , next = -1
-      , stoppable = False
-      }
-    _ ->
-      status player
 
 willChange : Player -> Bool
 willChange player =
@@ -125,13 +120,6 @@ lastPlayed player =
       Just (IdChord segment.id segment.chord)
     [] ->
       Nothing
-
-silent : IdChord -> Player
-silent idChord =
-  { cliff = []
-  , schedule = [ Segment idChord.id idChord.chord 0 ]
-  , unfinishedCount = 0
-  }
 
 stop : Float -> Player -> (Player, List AudioChange)
 stop now player =

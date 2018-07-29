@@ -163,6 +163,7 @@
       );
 
       app.ports.changeAudio.subscribe(changeAudio);
+      app.ports.stopAudio.subscribe(stopAudio);
       app.ports.initTheater.subscribe(initTheater);
       app.ports.focusTheater.subscribe(focusTheater);
       app.ports.replace.subscribe(replace);

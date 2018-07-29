@@ -1,7 +1,8 @@
 module ChordsInKey exposing (view)
 
 import Chord exposing (Chord)
-import IdChord exposing (IdChord, PlayStatus)
+import IdChord
+import PlayStatus exposing (PlayStatus)
 import Scale exposing (Scale)
 import Storage exposing (Storage)
 

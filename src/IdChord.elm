@@ -1,10 +1,10 @@
-module IdChord exposing
-  (IdChord, PlayStatus, Msg(..), fromChord, count, view)
+module IdChord exposing (IdChord, Msg(..), fromChord, count, view)
 
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown)
 import Name
+import PlayStatus exposing (PlayStatus)
 
 import Dict exposing (Dict)
 import Html exposing (Html, span, button)
@@ -13,12 +13,6 @@ import Html.Attributes as Attributes exposing (style)
 type alias IdChord =
   { id : Int
   , chord : Chord
-  }
-
-type alias PlayStatus =
-  { active : Int
-  , next : Int
-  , stoppable : Bool
   }
 
 type Msg
@@ -66,13 +60,13 @@ view tonic playStatus y x { id, chord } =
         , ( "border-width", "5px" )
         , ( "border-radius", "10px" )
         , ( "border-color"
-          , if playStatus.active == id || playStatus.next == id then
+          , if PlayStatus.hasBorder playStatus id then
               "#3399ff"
             else
               "transparent"
           )
         , ( "border-style"
-          , if playStatus.next == id then
+          , if PlayStatus.hasDashedBorder playStatus id then
               "dashed"
             else
               "solid"
@@ -81,11 +75,8 @@ view tonic playStatus y x { id, chord } =
     ]
     []
   , let
-      stopButton =
-        playStatus.active == id && playStatus.stoppable
-    in let
       action =
-        if stopButton then
+        if PlayStatus.hasStopButton playStatus id then
           Stop
         else
           Play (IdChord id chord)
@@ -126,7 +117,7 @@ view tonic playStatus y x { id, chord } =
             , ( "white-space", "nowrap" )
             ]
         ]
-        ( if stopButton then
+        ( if PlayStatus.hasStopButton playStatus id then
             [ span
                 [ style
                    [ ( "background", Colour.fg chord )

@@ -1,11 +1,16 @@
-module Keyboard exposing (Keyboard, init, Msg(..), update, view)
+module Keyboard exposing
+  (Keyboard, ChordSource(..), init, status, getId, Msg(..), update, view)
 
+import AudioChange
+import AudioTime
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown, onIntInput)
+import IdChord exposing (IdChord)
 import Name
 import Path
 import Player exposing (Player)
+import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html, span, text, input)
 import Html.Attributes as Attributes exposing (attribute, style)
@@ -13,21 +18,90 @@ import Html.Events exposing (onInput)
 import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
+import Task
 
 type alias Keyboard =
   { player : Player
+  , source : ChordSource
   , customCode : String
   , customOctave : Int
-  , showCustomChord : Bool
   }
+
+type ChordSource
+  = LastPlayed
+  | ThisChord IdChord
+  | CustomChord
+  | NoChord
 
 init : Keyboard
 init =
   { player = Player.init
+  , source = NoChord
   , customCode = ""
   , customOctave = 0
-  , showCustomChord = False
   }
+
+getCode : Keyboard -> String
+getCode keyboard =
+  case keyboard.source of
+    LastPlayed ->
+      case Player.lastPlayed keyboard.player of
+        Nothing ->
+          ""
+        Just idChord ->
+          Name.code idChord.chord
+    ThisChord idChord ->
+      Name.code idChord.chord
+    CustomChord ->
+      keyboard.customCode
+    NoChord ->
+      ""
+
+getChord : Keyboard -> Maybe Chord
+getChord keyboard =
+  case keyboard.source of
+    LastPlayed ->
+      Maybe.map
+        .chord
+        (Player.lastPlayed keyboard.player)
+    ThisChord idChord ->
+      Just idChord.chord
+    CustomChord ->
+      Chord.fromCodeExtended keyboard.customCode
+    NoChord ->
+      Nothing
+
+getOctave : Keyboard -> Int
+getOctave keyboard =
+  if keyboard.source == CustomChord then
+    keyboard.customOctave
+  else
+    0
+
+status : Bool -> Keyboard -> PlayStatus
+status showSilent keyboard =
+  case keyboard.source of
+    LastPlayed ->
+      Player.status showSilent keyboard.player
+    ThisChord idChord ->
+      if showSilent then
+        PlayStatus.Selected idChord.id
+      else
+        PlayStatus.Cleared
+    _ ->
+      PlayStatus.Cleared
+
+getId : Keyboard -> Maybe Int
+getId keyboard =
+  case keyboard.source of
+    LastPlayed ->
+      Maybe.map
+        .id
+        (Player.lastPlayed keyboard.player)
+    ThisChord idChord ->
+      Just idChord.id
+    _ ->
+      Nothing
 
 type Msg
   = ShowCustomChord Bool
@@ -35,58 +109,60 @@ type Msg
   | SetOctave Int
   | AddPitch (Int, Int)
   | RemovePitch (Int, Int)
+  | Stop Float
 
-update : Msg -> Keyboard -> Keyboard
+update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
   case msg of
     ShowCustomChord showCustomChord ->
-      { keyboard
-      | player = Player.init
-      , showCustomChord = showCustomChord
-      }
+      ( { keyboard
+        | source =
+            if showCustomChord then
+              CustomChord
+            else
+              NoChord
+        }
+      , if keyboard.source == LastPlayed then
+          Task.perform Stop AudioTime.now
+        else
+          Cmd.none
+      )
 
     SetCode code ->
-      { player = Player.init
-      , customCode = code
-      , customOctave =
-          if keyboard.showCustomChord then
-            keyboard.customOctave
-          else
-            0
-      , showCustomChord = code /= ""
-      }
+      ( { keyboard
+        | source =
+            if code == "" then
+              NoChord
+            else
+              CustomChord
+        , customCode = code
+        , customOctave = getOctave keyboard
+        }
+      , if keyboard.source == LastPlayed then
+          Task.perform Stop AudioTime.now
+        else
+          Cmd.none
+      )
 
     SetOctave octave ->
-      { player = Player.init
-      , customCode =
-          if keyboard.showCustomChord then
-            keyboard.customCode
-          else
-            case Player.lastPlayed keyboard.player of
-              Nothing ->
-                ""
-              Just idChord ->
-                Name.code idChord.chord
-      , customOctave = octave
-      , showCustomChord = True
-      }
+      ( { keyboard
+        | source = CustomChord
+        , customCode = getCode keyboard
+        , customOctave = octave
+        }
+      , if keyboard.source == LastPlayed then
+          Task.perform Stop AudioTime.now
+        else
+          Cmd.none
+      )
 
     AddPitch ( lowestPitch, pitch ) ->
       let
         pitchSet =
-          if keyboard.showCustomChord then
-            Chord.toPitchSet
-              lowestPitch
-              keyboard.customOctave
-              (Chord.fromCodeExtended keyboard.customCode)
-          else
-            Chord.toPitchSet
-              lowestPitch
-              0
-              ( Maybe.map
-                  .chord
-                  (Player.lastPlayed keyboard.player)
-              )
+          Chord.toPitchSet
+            lowestPitch
+            keyboard.customOctave
+            (getChord keyboard)
       in let
         newPitchSet =
           Set.filter
@@ -104,45 +180,55 @@ update msg keyboard =
               Debug.crash
                 "Keyboard.update: Pitch set empty after inserting pitch"
       in
-        { player = Player.init
-        , customCode = Name.codeExtended newChord
-        , customOctave = newOctave
-        , showCustomChord = True
-        }
+        ( { keyboard
+          | source = CustomChord
+          , customCode = Name.codeExtended newChord
+          , customOctave = newOctave
+          }
+        , if keyboard.source == LastPlayed then
+            Task.perform Stop AudioTime.now
+          else
+            Cmd.none
+        )
 
     RemovePitch ( lowestPitch, pitch ) ->
       let
         pitchSet =
-          if keyboard.showCustomChord then
-            Chord.toPitchSet
-              lowestPitch
-              keyboard.customOctave
-              (Chord.fromCodeExtended keyboard.customCode)
-          else
-            Chord.toPitchSet
-              lowestPitch
-              0
-              ( Maybe.map
-                  .chord
-                  (Player.lastPlayed keyboard.player)
-              )
+          Chord.toPitchSet
+            lowestPitch
+            keyboard.customOctave
+            (getChord keyboard)
       in let
         newPitchSet =
           Set.remove pitch pitchSet
       in
-        case Chord.fromPitchSet lowestPitch newPitchSet of
-          Just ( newChord, newOctave ) ->
-            { player = Player.init
-            , customCode = Name.codeExtended newChord
-            , customOctave = newOctave
-            , showCustomChord = True
-            }
-          Nothing ->
-            { player = Player.init
-            , customCode = ""
-            , customOctave = 0
-            , showCustomChord = False
-            }
+        ( case Chord.fromPitchSet lowestPitch newPitchSet of
+            Just ( newChord, newOctave ) ->
+              { keyboard
+              | source = CustomChord
+              , customCode = Name.codeExtended newChord
+              , customOctave = newOctave
+              }
+            Nothing ->
+              { keyboard
+              | source = NoChord
+              , customCode = ""
+              , customOctave = 0
+              }
+        , if keyboard.source == LastPlayed then
+            Task.perform Stop AudioTime.now
+          else
+            Cmd.none
+        )
+
+    Stop now ->
+      let
+        ( player, changes ) =
+          Player.stop now keyboard.player
+      in
+        ( { keyboard | player = player }
+        , AudioChange.perform changes
+        )
 
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
@@ -151,27 +237,9 @@ inRange low high x =
 view : String -> Int -> Int -> Keyboard -> Html Msg
 view gridArea tonic lowestPitch keyboard =
   let
-    lastPlayed = Player.lastPlayed keyboard.player
+    maybeChord = getChord keyboard
+    octave = getOctave keyboard
   in let
-    maybeChord =
-      if keyboard.showCustomChord then
-        Chord.fromCodeExtended keyboard.customCode
-      else
-        Maybe.map .chord lastPlayed
-    code =
-      if keyboard.showCustomChord then
-        keyboard.customCode
-      else
-        case lastPlayed of
-          Nothing ->
-            ""
-          Just idChord ->
-            Name.code idChord.chord
-    octave =
-      if keyboard.showCustomChord then
-        keyboard.customOctave
-      else
-        0
     maxOctave =
       case maybeChord of
         Nothing ->
@@ -193,9 +261,6 @@ view gridArea tonic lowestPitch keyboard =
             maxTransposition = maxPitch - highestPitch
           in
             (maxTransposition - maxTransposition % 12) // 12
-  in let
-    pitchSet =
-      Chord.toPitchSet lowestPitch octave maybeChord
   in
     span
       [ style
@@ -211,7 +276,7 @@ view gridArea tonic lowestPitch keyboard =
           , input
               [ Attributes.type_ "text"
               , onInput SetCode
-              , Attributes.value code
+              , Attributes.value (getCode keyboard)
               ]
               []
           , text " Octave "
@@ -233,7 +298,7 @@ view gridArea tonic lowestPitch keyboard =
           tonic
           lowestPitch
           (lowestPitch + 11 + Chord.maxRange)
-          pitchSet
+          (Chord.toPitchSet lowestPitch octave maybeChord)
       ]
 
 -- the origin is the top left corner of middle C,

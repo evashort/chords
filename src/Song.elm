@@ -1,6 +1,7 @@
 module Song exposing (Song, view)
 
-import IdChord exposing (IdChord, PlayStatus)
+import IdChord exposing (IdChord)
+import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html, span)
 import Html.Attributes exposing (style)

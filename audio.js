@@ -96,13 +96,15 @@ function collectNotes() {
   if (notes.length == 0) {
     clearInterval(noteCollector);
     noteCollector = 0;
-    app.ports.stopped.send(null);
+    app.ports.playing.send(false);
   }
 }
 
 var noteCollector = 0;
 
 function changeAudio(changes) {
+  var wasPlaying = notes.length > 0;
+
   for (var i = 0; i < changes.length; i++) {
     if (changes[i].type == "mute") {
       muteAt(changes[i].t);
@@ -120,6 +122,10 @@ function changeAudio(changes) {
   }
 
   notes.sort(reverseExpiration);
+
+  if (notes.length > 0 && !wasPlaying) {
+    app.ports.playing.send(true);
+  }
 }
 
 function reverseExpiration(a, b) {
@@ -132,4 +138,8 @@ function reverseExpiration(a, b) {
   }
 
   return 0;
+}
+
+function stopAudio() {
+  muteAt(0);
 }
