@@ -1,4 +1,4 @@
-module Name exposing (code, view)
+module Name exposing (code, codeExtended, view)
 
 import Chord exposing (Chord)
 import Pitch
@@ -13,6 +13,19 @@ code chord =
       Maybe.withDefault unknown (Dict.get chord.flavor schemes)
   in
     Pitch.code scheme.sharpCount chord.root ++ scheme.code
+
+codeExtended : Chord -> String
+codeExtended chord =
+  case Dict.get chord.flavor schemes of
+    Just scheme ->
+      Pitch.code scheme.sharpCount chord.root ++ scheme.code
+    Nothing ->
+      String.join
+        " "
+        ( List.map
+            (toString << (+) chord.root)
+            (0 :: chord.flavor)
+        )
 
 view : Chord -> List (Html msg)
 view chord =

@@ -1479,7 +1479,9 @@ viewSearchResults : Int -> Keyboard -> Html Msg
 viewSearchResults tonic keyboard =
   let
     colorChord =
-      Maybe.withDefault (Chord [] 0) keyboard.customChord
+      Maybe.withDefault
+        (Chord [] 0)
+        (Chord.fromCodeExtended keyboard.customCode)
     action =
       ( KeyboardMsg
           ( Keyboard.ShowCustomChord
@@ -1526,13 +1528,13 @@ viewSearchResults tonic keyboard =
                   [ ( 13, action )
                   , ( 32, action )
                   ]
-              , disabled (keyboard.customChord == Nothing)
+              , disabled (keyboard.customCode == "")
               , style
                   [ ( "width", "100%" )
                   , ( "height", "100%" )
                   , ( "background", Colour.bg tonic colorChord )
                   , ( "color"
-                    , if keyboard.customChord == Nothing then
+                    , if keyboard.customCode == "" then
                         ""
                       else
                         Colour.fg colorChord
@@ -1554,7 +1556,7 @@ viewSearchResults tonic keyboard =
                         ]
                     )
                   , ( "cursor"
-                    , if keyboard.customChord == Nothing then
+                    , if keyboard.customCode == "" then
                         ""
                       else
                         "pointer"

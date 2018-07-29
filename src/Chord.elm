@@ -1,5 +1,7 @@
 module Chord exposing
-  (Chord, fromCode, transpose, toPitchSet, fromPitchSet, flavors)
+  ( Chord, fromCode, fromCodeExtended, maxRange, transpose, toPitchSet
+  , fromPitchSet, flavors
+  )
 
 import Pitch
 import Submatches exposing (submatches)
@@ -27,6 +29,59 @@ fromCode code =
             }
     _ ->
       Nothing
+
+fromCodeExtended : String -> Maybe Chord
+fromCodeExtended code =
+  case fromCode code of
+    Just chord ->
+      Just chord
+    Nothing ->
+      let
+        words =
+          List.filter
+            (not << String.isEmpty)
+            (String.split " " code)
+      in let
+        pitches = List.filterMap stringToInt words
+      in
+        if List.length pitches < List.length words then
+          Nothing
+        else
+          case removeDuplicates (List.sort pitches) of
+            [] ->
+              Nothing
+            rootPitch :: flavorPitches ->
+              let
+                tallFlavor =
+                  List.map ((+) -rootPitch) flavorPitches
+              in
+                Just
+                  { flavor =
+                      List.filter ((>=) maxRange) tallFlavor
+                  , root = rootPitch % 12
+                  }
+
+stringToInt : String -> Maybe Int
+stringToInt string =
+  case String.toInt string of
+    Ok int ->
+      Just int
+    Err _ ->
+      Nothing
+
+removeDuplicates : List a -> List a
+removeDuplicates xs =
+  case xs of
+    x :: y :: rest ->
+      if x == y then
+        removeDuplicates (y :: rest)
+      else
+        x :: removeDuplicates (y :: rest)
+    other ->
+      other
+
+maxRange : Int
+maxRange = 23
 
 regex : Regex
 regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"

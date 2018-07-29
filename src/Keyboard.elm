@@ -3,18 +3,20 @@ module Keyboard exposing (Keyboard, init, Msg(..), update, view)
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown, onIntInput)
+import Name
 import Path
 import Player exposing (Player)
 
-import Html exposing (Html, span, input)
+import Html exposing (Html, span, text, input)
 import Html.Attributes as Attributes exposing (attribute, style)
+import Html.Events exposing (onInput)
 import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 
 type alias Keyboard =
   { player : Player
-  , customChord : Maybe Chord
+  , customCode : String
   , customOctave : Int
   , showCustomChord : Bool
   }
@@ -22,13 +24,14 @@ type alias Keyboard =
 init : Keyboard
 init =
   { player = Player.init
-  , customChord = Nothing
+  , customCode = ""
   , customOctave = 0
   , showCustomChord = False
   }
 
 type Msg
   = ShowCustomChord Bool
+  | SetCode String
   | SetOctave Int
   | AddPitch (Int, Int)
   | RemovePitch (Int, Int)
@@ -42,14 +45,28 @@ update msg keyboard =
       , showCustomChord = showCustomChord
       }
 
+    SetCode code ->
+      { player = Player.init
+      , customCode = code
+      , customOctave =
+          if keyboard.showCustomChord then
+            keyboard.customOctave
+          else
+            0
+      , showCustomChord = code /= ""
+      }
+
     SetOctave octave ->
       { player = Player.init
-      , customChord =
-          case Player.lastPlayed keyboard.player of
-            Nothing ->
-              keyboard.customChord
-            Just idChord ->
-              Just idChord.chord
+      , customCode =
+          if keyboard.showCustomChord then
+            keyboard.customCode
+          else
+            case Player.lastPlayed keyboard.player of
+              Nothing ->
+                ""
+              Just idChord ->
+                Name.code idChord.chord
       , customOctave = octave
       , showCustomChord = True
       }
@@ -61,7 +78,7 @@ update msg keyboard =
             Chord.toPitchSet
               lowestPitch
               keyboard.customOctave
-              keyboard.customChord
+              (Chord.fromCodeExtended keyboard.customCode)
           else
             Chord.toPitchSet
               lowestPitch
@@ -74,8 +91,8 @@ update msg keyboard =
         newPitchSet =
           Set.filter
             ( inRange
-                (pitch - maxChordRange)
-                (pitch + maxChordRange)
+                (pitch - Chord.maxRange)
+                (pitch + Chord.maxRange)
             )
             (Set.insert pitch pitchSet)
       in let
@@ -88,7 +105,7 @@ update msg keyboard =
                 "Keyboard.update: Pitch set empty after inserting pitch"
       in
         { player = Player.init
-        , customChord = Just newChord
+        , customCode = Name.codeExtended newChord
         , customOctave = newOctave
         , showCustomChord = True
         }
@@ -100,7 +117,7 @@ update msg keyboard =
             Chord.toPitchSet
               lowestPitch
               keyboard.customOctave
-              keyboard.customChord
+              (Chord.fromCodeExtended keyboard.customCode)
           else
             Chord.toPitchSet
               lowestPitch
@@ -116,19 +133,16 @@ update msg keyboard =
         case Chord.fromPitchSet lowestPitch newPitchSet of
           Just ( newChord, newOctave ) ->
             { player = Player.init
-            , customChord = Just newChord
+            , customCode = Name.codeExtended newChord
             , customOctave = newOctave
             , showCustomChord = True
             }
           Nothing ->
             { player = Player.init
-            , customChord = Nothing
+            , customCode = ""
             , customOctave = 0
             , showCustomChord = False
             }
-
-maxChordRange : Int
-maxChordRange = 23
 
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
@@ -137,14 +151,22 @@ inRange low high x =
 view : String -> Int -> Int -> Keyboard -> Html Msg
 view gridArea tonic lowestPitch keyboard =
   let
+    lastPlayed = Player.lastPlayed keyboard.player
+  in let
     maybeChord =
       if keyboard.showCustomChord then
-        keyboard.customChord
+        Chord.fromCodeExtended keyboard.customCode
       else
-        ( Maybe.map
-            .chord
-            (Player.lastPlayed keyboard.player)
-        )
+        Maybe.map .chord lastPlayed
+    code =
+      if keyboard.showCustomChord then
+        keyboard.customCode
+      else
+        case lastPlayed of
+          Nothing ->
+            ""
+          Just idChord ->
+            Name.code idChord.chord
     octave =
       if keyboard.showCustomChord then
         keyboard.customOctave
@@ -166,7 +188,7 @@ view gridArea tonic lowestPitch keyboard =
                   flavorPitch
           in let
             highestPitch = rootPitch + highestOffset
-            maxPitch = lowestPitch + 11 + maxChordRange
+            maxPitch = lowestPitch + 11 + Chord.maxRange
           in let
             maxTransposition = maxPitch - highestPitch
           in
@@ -185,7 +207,15 @@ view gridArea tonic lowestPitch keyboard =
               [ ( "display", "block" )
               ]
           ]
-          [ input
+          [ text "Chord "
+          , input
+              [ Attributes.type_ "text"
+              , onInput SetCode
+              , Attributes.value code
+              ]
+              []
+          , text " Octave "
+          , input
               [ Attributes.type_ "number"
               , Attributes.disabled
                   (maxOctave <= 0 && octave == 0)
@@ -193,13 +223,16 @@ view gridArea tonic lowestPitch keyboard =
               , Attributes.value (toString octave)
               , Attributes.min "0"
               , Attributes.max (toString maxOctave)
+              , style
+                  [ ( "width", "5ch" )
+                  ]
               ]
               []
           ]
       , viewKeys
           tonic
           lowestPitch
-          (lowestPitch + 11 + maxChordRange)
+          (lowestPitch + 11 + Chord.maxRange)
           pitchSet
       ]
 
