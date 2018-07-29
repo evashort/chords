@@ -187,6 +187,8 @@ view gridArea tonic lowestPitch keyboard =
           ]
           [ input
               [ Attributes.type_ "number"
+              , Attributes.disabled
+                  (maxOctave <= 0 && octave == 0)
               , onIntInput octave SetOctave
               , Attributes.value (toString octave)
               , Attributes.min "0"
