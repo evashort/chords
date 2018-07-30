@@ -6,6 +6,7 @@ import AudioTime
 import Buffet exposing (Buffet, LensChange)
 import Chord exposing (Chord)
 import ChordsInKey
+import Chroma
 import Circle
 import Colour
 import CustomEvents exposing (onChange, onLeftDown, onKeyDown)
@@ -18,6 +19,7 @@ import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
 import Player exposing (Player)
+import PlayStatus exposing (PlayStatus)
 import PlayStyle exposing (PlayStyle)
 import Ports
 import Radio
@@ -1492,17 +1494,6 @@ viewSearchResults tonic storage keyboard =
   let
     maybeChord =
       Chord.fromCodeExtended keyboard.customCode
-  in let
-    exactMatch =
-      Maybe.andThen IdChord.fromChord maybeChord
-    colorChord =
-      Maybe.withDefault (Chord [] 0) maybeChord
-    action =
-      ( KeyboardMsg
-          ( Keyboard.ShowCustomChord
-              (keyboard.source /= Keyboard.CustomChord)
-          )
-      )
     playStatus =
       Keyboard.status
         (storage.playStyle == PlayStyle.Silent)
@@ -1514,101 +1505,130 @@ viewSearchResults tonic storage keyboard =
           , ( "display", "flex" )
           ]
       ]
+      ( List.concat
+          [ [ viewCustomChord tonic keyboard maybeChord
+            ]
+          , case Maybe.andThen IdChord.fromChord maybeChord of
+              Nothing ->
+                []
+              Just idChord ->
+                [ viewSearchResult tonic playStatus idChord
+                ]
+          , case maybeChord of
+              Nothing ->
+                []
+              Just chord ->
+                List.map
+                  (viewSearchResult tonic playStatus)
+                  (Chroma.search chord)
+          ]
+      )
+
+viewCustomChord : Int -> Keyboard -> Maybe Chord -> Html Msg
+viewCustomChord tonic keyboard maybeChord =
+  let
+    colorChord =
+      Maybe.withDefault (Chord [] 0) maybeChord
+    action =
+      ( KeyboardMsg
+          ( Keyboard.ShowCustomChord
+              (keyboard.source /= Keyboard.CustomChord)
+          )
+      )
+  in
+    span
+      [ style
+          [ ( "width", "75px" )
+          , ( "height", "75px" )
+          , ( "position", "relative" )
+          , ( "display", "inline-block" )
+          , ( "margin-right", "5px" )
+          , ( "margin-bottom", "5px" )
+          ]
+      ]
       [ span
           [ style
-              [ ( "width", "75px" )
-              , ( "height", "75px" )
-              , ( "position", "relative" )
-              , ( "display", "inline-block" )
-              , ( "margin-right", "5px" )
-              , ( "margin-bottom", "5px" )
+              [ ( "position", "absolute" )
+              , ( "top", "-5px" )
+              , ( "left", "-5px" )
+              , ( "right", "-5px" )
+              , ( "bottom", "-5px" )
+              , ( "pointer-events", "none" )
+              , ( "border-width", "5px" )
+              , ( "border-radius", "10px" )
+              , ( "border-color"
+                , if keyboard.source == Keyboard.CustomChord then
+                    "#3399ff"
+                  else
+                    "transparent"
+                )
+              , ( "border-style", "solid" )
               ]
           ]
-          [ span
-              [ style
-                  [ ( "position", "absolute" )
-                  , ( "top", "-5px" )
-                  , ( "left", "-5px" )
-                  , ( "right", "-5px" )
-                  , ( "bottom", "-5px" )
-                  , ( "pointer-events", "none" )
-                  , ( "border-width", "5px" )
-                  , ( "border-radius", "10px" )
-                  , ( "border-color"
-                    , if keyboard.source == Keyboard.CustomChord then
-                        "#3399ff"
-                      else
-                        "transparent"
-                    )
-                  , ( "border-style", "solid" )
-                  ]
+          []
+      , button
+          [ onLeftDown action
+          , onKeyDown
+              [ ( 13, action )
+              , ( 32, action )
               ]
-              []
-          , button
-              [ onLeftDown action
-              , onKeyDown
-                  [ ( 13, action )
-                  , ( 32, action )
-                  ]
-              , disabled (keyboard.customCode == "")
-              , style
-                  [ ( "width", "100%" )
-                  , ( "height", "100%" )
-                  , ( "background", Colour.bg tonic colorChord )
-                  , ( "color"
-                    , if keyboard.customCode == "" then
-                        ""
-                      else
-                        Colour.fg colorChord
-                    )
-                  , ( "padding", "0" )
-                  , ( "border"
-                    , String.concat
-                        [ "1px solid rgba(0, 0, 0, "
-                        , Colour.borderOpacity colorChord
-                        , ")"
-                        ]
-                    )
-                  , ( "border-radius", "5px" )
-                  , ( "box-shadow"
-                    , String.concat
-                        [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
-                        , Colour.shineOpacity colorChord
-                        , ")"
-                        ]
-                    )
-                  , ( "cursor"
-                    , if keyboard.customCode == "" then
-                        ""
-                      else
-                        "pointer"
-                    )
-                  , ( "white-space", "normal" )
-                  ]
-              ]
-              [ Html.text "Show custom chord"
+          , disabled (keyboard.customCode == "")
+          , style
+              [ ( "width", "100%" )
+              , ( "height", "100%" )
+              , ( "background", Colour.bg tonic colorChord )
+              , ( "color"
+                , if keyboard.customCode == "" then
+                    ""
+                  else
+                    Colour.fg colorChord
+                )
+              , ( "padding", "0" )
+              , ( "border"
+                , String.concat
+                    [ "1px solid rgba(0, 0, 0, "
+                    , Colour.borderOpacity colorChord
+                    , ")"
+                    ]
+                )
+              , ( "border-radius", "5px" )
+              , ( "box-shadow"
+                , String.concat
+                    [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
+                    , Colour.shineOpacity colorChord
+                    , ")"
+                    ]
+                )
+              , ( "cursor"
+                , if keyboard.customCode == "" then
+                    ""
+                  else
+                    "pointer"
+                )
+              , ( "white-space", "normal" )
               ]
           ]
-      , case exactMatch of
-          Nothing ->
-            span [] []
-          Just idChord ->
-            Html.map
-              IdChordMsg
-              ( span
-                  [ style
-                      [ ( "width", "75px" )
-                      , ( "height", "75px" )
-                      , ( "margin-right", "5px" )
-                      , ( "margin-bottom", "5px" )
-                      , ( "position", "relative" )
-                      , ( "display", "inline-block" )
-                      , ( "font-size", "150%" )
-                      ]
-                  ]
-                  (IdChord.view tonic playStatus idChord)
-              )
+          [ Html.text "Show custom chord"
+          ]
       ]
+
+viewSearchResult : Int -> PlayStatus -> IdChord -> Html Msg
+viewSearchResult tonic playStatus idChord =
+  Html.map
+    IdChordMsg
+    ( span
+        [ style
+            [ ( "width", "75px" )
+            , ( "height", "75px" )
+            , ( "margin-right", "5px" )
+            , ( "margin-bottom", "5px" )
+            , ( "position", "relative" )
+            , ( "display", "inline-block" )
+            , ( "font-size", "150%" )
+            ]
+        ]
+        (IdChord.view tonic playStatus idChord)
+    )
 
 viewKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
 viewKeyboard tonic lowest keyboard =
