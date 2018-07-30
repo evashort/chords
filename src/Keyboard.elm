@@ -1,7 +1,7 @@
 module Keyboard exposing
   (Keyboard, ChordSource(..), init, status, getId, Msg(..), update, view)
 
-import AudioChange
+import AudioChange exposing (AudioChange(..))
 import AudioTime
 import Chord exposing (Chord)
 import Colour
@@ -110,6 +110,8 @@ type Msg
   | AddPitch (Int, Int)
   | RemovePitch (Int, Int)
   | Stop Float
+  | PlayNote (Int, Float)
+  | TeaseNote (Int, Float)
 
 update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
@@ -185,10 +187,7 @@ update msg keyboard =
           , customCode = Name.codeExtended newChord
           , customOctave = newOctave
           }
-        , if keyboard.source == LastPlayed then
-            Task.perform Stop AudioTime.now
-          else
-            Cmd.none
+        , Task.perform (PlayNote << (,) pitch) AudioTime.now
         )
 
     RemovePitch ( lowestPitch, pitch ) ->
@@ -196,7 +195,7 @@ update msg keyboard =
         pitchSet =
           Chord.toPitchSet
             lowestPitch
-            keyboard.customOctave
+            (getOctave keyboard)
             (getChord keyboard)
       in let
         newPitchSet =
@@ -215,10 +214,7 @@ update msg keyboard =
               , customCode = ""
               , customOctave = 0
               }
-        , if keyboard.source == LastPlayed then
-            Task.perform Stop AudioTime.now
-          else
-            Cmd.none
+        , Task.perform (TeaseNote << (,) pitch) AudioTime.now
         )
 
     Stop now ->
@@ -230,9 +226,64 @@ update msg keyboard =
         , AudioChange.perform changes
         )
 
+    PlayNote ( pitch, now ) ->
+      let
+        ( newKeyboard, playerChanges ) =
+          if keyboard.source == LastPlayed then
+            let
+              ( player, pc ) =
+                Player.stop now keyboard.player
+            in
+              ( { keyboard | player = player }, pc )
+          else
+            ( keyboard, [] )
+      in let
+        changes =
+          playerChanges ++
+            [ AddPianoNote
+                { v = 1
+                , t = now
+                , f = pitchFrequency pitch
+                }
+            ]
+      in
+        ( newKeyboard
+        , AudioChange.perform changes
+        )
+
+    TeaseNote ( pitch, now ) ->
+      let
+        ( newKeyboard, playerChanges ) =
+          if keyboard.source == LastPlayed then
+            let
+              ( player, pc ) =
+                Player.stop now keyboard.player
+            in
+              ( { keyboard | player = player }, pc )
+          else
+            ( keyboard, [] )
+      in let
+        changes =
+          playerChanges ++
+            [ AddPianoNote
+                { v = 1
+                , t = now
+                , f = pitchFrequency pitch
+                }
+            , Mute (now + 0.03)
+            ]
+      in
+        ( newKeyboard
+        , AudioChange.perform changes
+        )
+
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
   low <= x && x <= high
+
+pitchFrequency : Int -> Float
+pitchFrequency pitch =
+  440 * 2 ^ (toFloat (pitch - 69) / 12)
 
 view : String -> Bool -> Int -> Int -> Keyboard -> Html Msg
 view gridArea interactive tonic lowestPitch keyboard =
