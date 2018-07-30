@@ -104,22 +104,41 @@ viewRow scale playStatus sharpCount row code =
     sortedChords =
       List.sortBy (degree sharpCount scale.minor) chords
   in
-    List.concatMap
+    List.map
       (viewChord scale playStatus sharpCount row)
       sortedChords
 
 viewChord :
-  Scale -> PlayStatus -> Int -> Int -> Chord -> List (Html IdChord.Msg)
+  Scale -> PlayStatus -> Int -> Int -> Chord -> Html IdChord.Msg
 viewChord scale playStatus sharpCount row chord =
   let
     column =
       degree sharpCount scale.minor chord + 1
   in let
     idChord =
-      IdChord.fromChord
-        (Chord.transpose scale.tonic chord)
+      case
+        IdChord.fromChord
+          (Chord.transpose scale.tonic chord)
+      of
+        Nothing ->
+          Debug.crash
+            ("ChordsInKey.viewChord: Unknown chord " ++ toString chord)
+        Just something ->
+          something
   in
-    IdChord.view scale.tonic playStatus row column idChord
+    span
+      [ style
+          [ ( "grid-row-start", toString (row + 1) )
+          , ( "grid-column-start", toString (column + 1) )
+          , ( "grid-row-end", "span 1" )
+          , ( "grid-column-end", "span 1" )
+          , ( "align-self", "stretch" )
+          , ( "justify-self", "stretch" )
+          , ( "position", "relative" )
+          ]
+      ]
+      (IdChord.view scale.tonic playStatus idChord)
+
 
 degree : Int -> Bool -> Chord -> Int
 degree sharpCount minor chord =

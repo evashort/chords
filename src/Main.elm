@@ -853,9 +853,10 @@ view model =
             model.storage
             model.keyboard
         Pane.Keyboard ->
-          Html.Lazy.lazy2
+          Html.Lazy.lazy3
             viewSearchResults
             model.parse.scale.tonic
+            model.storage
             model.keyboard
         Pane.History ->
           Html.map
@@ -1477,23 +1478,31 @@ viewCircle tonic storage keyboard =
           )
       )
 
-viewSearchResults : Int -> Keyboard -> Html Msg
-viewSearchResults tonic keyboard =
+viewSearchResults : Int -> Storage -> Keyboard -> Html Msg
+viewSearchResults tonic storage keyboard =
   let
+    maybeChord =
+      Chord.fromCodeExtended keyboard.customCode
+  in let
+    exactMatch =
+      Maybe.andThen IdChord.fromChord maybeChord
     colorChord =
-      Maybe.withDefault
-        (Chord [] 0)
-        (Chord.fromCodeExtended keyboard.customCode)
+      Maybe.withDefault (Chord [] 0) maybeChord
     action =
       ( KeyboardMsg
           ( Keyboard.ShowCustomChord
               (keyboard.source /= Keyboard.CustomChord)
           )
       )
+    playStatus =
+      Keyboard.status
+        (storage.playStyle == PlayStyle.Silent)
+        keyboard
   in
     span
       [ style
           [ ( "grid-area", "pane" )
+          , ( "display", "flex" )
           ]
       ]
       [ span
@@ -1502,6 +1511,8 @@ viewSearchResults tonic keyboard =
               , ( "height", "75px" )
               , ( "position", "relative" )
               , ( "display", "inline-block" )
+              , ( "margin-right", "5px" )
+              , ( "margin-bottom", "5px" )
               ]
           ]
           [ span
@@ -1569,6 +1580,25 @@ viewSearchResults tonic keyboard =
               [ Html.text "Show custom chord"
               ]
           ]
+      , case exactMatch of
+          Nothing ->
+            span [] []
+          Just idChord ->
+            Html.map
+              IdChordMsg
+              ( span
+                  [ style
+                      [ ( "width", "75px" )
+                      , ( "height", "75px" )
+                      , ( "margin-right", "5px" )
+                      , ( "margin-bottom", "5px" )
+                      , ( "position", "relative" )
+                      , ( "display", "inline-block" )
+                      , ( "font-size", "150%" )
+                      ]
+                  ]
+                  (IdChord.view tonic playStatus idChord)
+              )
       ]
 
 viewKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg

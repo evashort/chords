@@ -19,14 +19,13 @@ type Msg
   = Play IdChord
   | Stop
 
-fromChord : Chord -> IdChord
+fromChord : Chord -> Maybe IdChord
 fromChord chord =
   case Dict.get chord.flavor schemes of
     Nothing ->
-      Debug.crash
-        ("IdChord.fromChord: Unknown flavor: " ++ toString chord.flavor)
+      Nothing
     Just i ->
-      IdChord (12 * i + chord.root) chord
+      Just (IdChord (12 * i + chord.root) chord)
 
 count : Int
 count = 12 * Dict.size schemes
@@ -43,15 +42,11 @@ reversedTuple : a -> b -> ( b, a )
 reversedTuple x y =
   ( y, x )
 
-view : Int -> PlayStatus -> Int -> Int -> IdChord -> List (Html Msg)
-view tonic playStatus y x { id, chord } =
+view : Int -> PlayStatus -> IdChord -> List (Html Msg)
+view tonic playStatus { id, chord } =
   [ span
     [ style
-        [ ( "grid-row-start", toString (y + 1) )
-        , ( "grid-column-start", toString (x + 1) )
-        , ( "grid-row-end", "span 1" )
-        , ( "grid-column-end", "span 1" )
-        , ( "position", "absolute" )
+        [ ( "position", "absolute" )
         , ( "top", "-5px" )
         , ( "left", "-5px" )
         , ( "right", "-5px" )
@@ -88,10 +83,8 @@ view tonic playStatus y x { id, chord } =
             , ( 32, action )
             ]
         , style
-            [ ( "grid-row", toString (y + 1) )
-            , ( "grid-column", toString (x + 1) )
-            , ( "align-self", "stretch" )
-            , ( "justify-self", "stretch" )
+            [ ( "width", "100%" )
+            , ( "height", "100%" )
             , ( "background", Colour.bg tonic chord )
             , ( "color", Colour.fg chord )
             , ( "font", "inherit" ) -- somehow this redundant style changes

@@ -28,7 +28,7 @@ view gridArea tonic playStatus =
     rMid = areaAverage 100 247.5
   in let
     majorChords =
-      List.map
+      List.filterMap
         ( IdChord.fromChord <<
             Chord [ 4, 7 ] <<
             (\i -> (tonic + 7 * i) % 12)
@@ -36,7 +36,7 @@ view gridArea tonic playStatus =
         (List.range 0 11)
   in let
     minorChords =
-      List.map
+      List.filterMap
         ( IdChord.fromChord <<
             Chord [ 3, 7 ] <<
             (\i -> (9 + tonic + 7 * i) % 12)
