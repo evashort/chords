@@ -1498,6 +1498,24 @@ viewSearchResults tonic storage keyboard =
       Keyboard.status
         (storage.playStyle == PlayStyle.Silent)
         keyboard
+  in let
+    exactMatch =
+      Maybe.andThen IdChord.fromChord maybeChord
+    inversions =
+      case maybeChord of
+        Nothing ->
+          []
+        Just chord ->
+          Chroma.search chord
+  in let
+    colorChord =
+      case ( exactMatch, inversions ) of
+        ( Just match, _ ) ->
+          match.chord
+        ( _, inversion :: _ ) ->
+          inversion.chord
+        _ ->
+          Chord [] 0
   in
     span
       [ style
@@ -1506,29 +1524,23 @@ viewSearchResults tonic storage keyboard =
           ]
       ]
       ( List.concat
-          [ [ viewCustomChord tonic keyboard maybeChord
+          [ [ viewCustomChord tonic keyboard colorChord
             ]
-          , case Maybe.andThen IdChord.fromChord maybeChord of
+          , case exactMatch of
               Nothing ->
                 []
               Just idChord ->
                 [ viewSearchResult tonic playStatus idChord
                 ]
-          , case maybeChord of
-              Nothing ->
-                []
-              Just chord ->
-                List.map
-                  (viewSearchResult tonic playStatus)
-                  (Chroma.search chord)
+          , List.map
+              (viewSearchResult tonic playStatus)
+              inversions
           ]
       )
 
-viewCustomChord : Int -> Keyboard -> Maybe Chord -> Html Msg
-viewCustomChord tonic keyboard maybeChord =
+viewCustomChord : Int -> Keyboard -> Chord -> Html Msg
+viewCustomChord tonic keyboard colorChord =
   let
-    colorChord =
-      Maybe.withDefault (Chord [] 0) maybeChord
     action =
       ( KeyboardMsg
           ( Keyboard.ShowCustomChord
