@@ -111,6 +111,7 @@ type Msg
   | RemovePitch (Int, Int)
   | Stop Float
   | PlayNote (Bool, Int, Float)
+  | StopNote (Bool, Int, Float)
 
 update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
@@ -217,10 +218,11 @@ update msg keyboard =
               , customCode = ""
               , customOctave = 0
               }
-        , if keyboard.source == LastPlayed then
-            Task.perform Stop AudioTime.now
-          else
-            Cmd.none
+        , Task.perform
+            ( StopNote <<
+                (,,) (keyboard.source == LastPlayed) pitch
+            )
+            AudioTime.now
         )
 
     Stop now ->
@@ -249,6 +251,30 @@ update msg keyboard =
             [ AddPianoNote
                 { v = 1
                 , t = now
+                , f = pitchFrequency pitch
+                }
+            ]
+      in
+        ( newKeyboard
+        , AudioChange.perform changes
+        )
+
+    StopNote ( shouldStop, pitch, now ) ->
+      let
+        ( newKeyboard, playerChanges ) =
+          if shouldStop then
+            let
+              ( newPlayer, pc ) =
+                Player.stop now keyboard.player
+            in
+              ( { keyboard | player = newPlayer }, pc )
+          else
+            ( keyboard, [] )
+      in let
+        changes =
+          playerChanges ++
+            [ NoteOff
+                { t = now
                 , f = pitchFrequency pitch
                 }
             ]

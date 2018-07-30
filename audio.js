@@ -48,6 +48,14 @@ function muteAt(t) {
   }
 }
 
+function muteFrequencyAt(t, f) {
+  for (var i = 0; i < notes.length; i++) {
+    if (notes[i].frequency == f) {
+      muteNoteAt(t, notes[i]);
+    }
+  }
+}
+
 function cancelNoteAt(t, note) {
   if (t <= note.start) {
     muteNoteAt(t, note);
@@ -67,11 +75,7 @@ function cancelAt(t) {
 }
 
 function addNote(addInstrumentNote, spec) {
-  for (var i = 0; i < notes.length; i++) {
-    if (notes[i].frequency == spec.f) {
-      muteNoteAt(spec.t, notes[i]);
-    }
-  }
+  muteFrequencyAt(spec.t, spec.f);
 
   notes.push(addInstrumentNote(spec.v, spec.t, spec.f));
 
@@ -118,6 +122,8 @@ function changeAudio(changes) {
       addNote(addGuitarNote, changes[i]);
     } else if (changes[i].type == "pad") {
       addNote(addPadNote, changes[i]);
+    } else if (changes[i].type == "noteOff") {
+      muteFrequencyAt(changes[i].t, changes[i].f);
     }
   }
 

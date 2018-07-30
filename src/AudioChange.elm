@@ -9,6 +9,7 @@ type AudioChange
   = AddPianoNote Note
   | AddGuitarNote Note
   | AddPadNote Note
+  | NoteOff { t : Float, f : Float }
   | Mute Float
   | Cancel Float
 
@@ -41,6 +42,12 @@ toJson change =
       Encode.object
         [ ( "type", Encode.string "pad" )
         , ( "v", Encode.float v )
+        , ( "t", Encode.float t )
+        , ( "f", Encode.float f )
+        ]
+    NoteOff { t, f } ->
+      Encode.object
+        [ ( "type", Encode.string "noteOff" )
         , ( "t", Encode.float t )
         , ( "f", Encode.float f )
         ]
