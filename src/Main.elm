@@ -1369,8 +1369,8 @@ viewPaneSelector tour scale storage =
               (Maybe.withDefault storage.pane paneShadow)
               [ ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
-              , ( "Keyboard", Pane.Keyboard )
               , ( "Recently played", Pane.History )
+              , ( "Keyboard", Pane.Keyboard )
               ]
           )
       ]
