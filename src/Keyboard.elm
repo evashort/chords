@@ -466,7 +466,7 @@ viewKey interactive tonic lowestPitch highestPitch pitchSet pitch =
                 ( if Set.member pitch pitchSet then
                     Colour.pitchBg tonic pitch
                   else
-                    ""
+                    "black"
                 )
             , SA.strokeWidth (toString borderWidth)
             , SA.strokeLinejoin "round"
