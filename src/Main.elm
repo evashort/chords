@@ -875,6 +875,15 @@ view model =
           model.parse.scale.tonic
           model.parse.lowest
           model.keyboard
+      else if
+        model.storage.pane == Pane.ChordsInKey ||
+          model.storage.pane == Pane.Circle
+      then
+        Html.Lazy.lazy3
+          viewPassiveKeyboard
+          model.parse.scale.tonic
+          model.parse.lowest
+          model.keyboard
       else
         span
           [ style
@@ -1608,7 +1617,16 @@ viewKeyboard tonic lowest keyboard =
   in
     Html.map
       KeyboardMsg
-      (Keyboard.view "keyboard" tonic lowestPitch keyboard)
+      (Keyboard.view "keyboard" True tonic lowestPitch keyboard)
+
+viewPassiveKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
+viewPassiveKeyboard tonic lowest keyboard =
+  let
+    lowestPitch = Lowest.pitch tonic lowest
+  in
+    Html.map
+      KeyboardMsg
+      (Keyboard.view "keyboard" False tonic lowestPitch keyboard)
 
 viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
 viewMiscSettings canStore shouldStore storage =
