@@ -26,6 +26,7 @@
     <script src="audio.js"></script>
     <script src="theater.js"></script>
     <script src="storage.js"></script>
+    <script src="harp.js"></script>
     <script src="elm.js"></script>
     <style>
     button {
@@ -176,33 +177,24 @@
         }
       );
 
-      function scrollIntoView(id, expiration, now) {
-        if (typeof expiration === "undefined") {
-          expiration = performance.now() + 100;
-        } else if (expiration <= now) {
-          return;
-        }
-
-        let x = document.getElementById(id);
-        if (x == null) {
-          requestAnimationFrame(
-            function(now) {
-              scrollIntoView(id, expiration, now);
-            }
-          );
-        } else {
-          x.scrollIntoView(
-            { block: "nearest"
-            }
-          );
-        }
+      function scrollIntoView(element) {
+        element.scrollIntoView(
+          { block: "nearest"
+          }
+        );
       }
 
-      app.ports.scrollIntoView.subscribe(scrollIntoView);
+      app.ports.scrollIntoView.subscribe(
+        function(id) {
+          withElement(id, scrollIntoView);
+        }
+      );
+
+      app.ports.setHarpExistence.subscribe(setHarpExistence);
 
       onbeforeunload = function(event) {
         var warning = document.getElementById("warning");
-        if (warning != null && warning.attributes.value.value == "true") {
+        if (warning != null && warning.getAttribute("value") == "true") {
           event.preventDefault();
           return "true";
         }

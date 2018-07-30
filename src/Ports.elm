@@ -4,8 +4,8 @@ port module Ports exposing
   , text
   , initStorage
   , setTitle
-  , scrollIntoView
-  , escape
+  , setHarpExistence, harpPlucked, Pluck
+  , scrollIntoView, escape
   )
 
 import Json.Encode as Encode
@@ -25,6 +25,14 @@ port text : (String -> msg) -> Sub msg
 port initStorage : () -> Cmd msg
 
 port setTitle : String -> Cmd msg
+
+port setHarpExistence : Bool -> Cmd msg
+port harpPlucked : (Pluck -> msg) -> Sub msg
+
+type alias Pluck =
+  { now : Float
+  , pitches : List Int
+  }
 
 port scrollIntoView : String -> Cmd msg
 port escape : (() -> msg) -> Sub msg

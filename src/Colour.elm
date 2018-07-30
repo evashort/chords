@@ -1,5 +1,5 @@
 module Colour exposing
-  (borderOpacity, shineOpacity, fg, bg, swatchBg, pitchBg)
+  (borderOpacity, shineOpacity, fg, bg, swatchBg, pitchBg, ropeColor)
 
 import Chord exposing (Chord)
 
@@ -49,6 +49,13 @@ pitchBg tonic pitch =
     0 -> cyan
     1 -> pink
     _ -> yellow
+
+ropeColor : Int -> Int -> String
+ropeColor tonic pitch =
+  case (pitch - tonic) % 3 of
+    0 -> "#00ebf0"
+    1 -> "#cb4dd6"
+    _ -> "#cac200"
 
 type alias Scheme =
   { fg : String

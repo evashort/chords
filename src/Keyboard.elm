@@ -6,11 +6,17 @@ import AudioTime
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (onLeftDown, onKeyDown, onIntInput)
+import Harp exposing
+  ( viewBoxLeft, viewBoxRight, isWhiteKey, neckLeft, headLeft
+  , borderWidth, headWidth, scale
+  )
 import IdChord exposing (IdChord)
 import Name
+import Note exposing (Note)
 import Path
 import Player exposing (Player)
 import PlayStatus exposing (PlayStatus)
+import Ports exposing (Pluck)
 
 import Html exposing (Html, span, text, input)
 import Html.Attributes as Attributes exposing (attribute, style)
@@ -112,6 +118,7 @@ type Msg
   | Stop Float
   | PlayNote (Bool, Int, Float)
   | StopNote (Bool, Int, Float)
+  | HarpPlucked Pluck
 
 update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
@@ -283,6 +290,46 @@ update msg keyboard =
         , AudioChange.perform changes
         )
 
+    HarpPlucked pluck ->
+      let
+        ( newKeyboard, playerChanges ) =
+          if keyboard.source == LastPlayed then
+            let
+              maybePlayer =
+                Player.setTime pluck.now keyboard.player
+            in
+              if
+                Player.sequenceFinished
+                  (Maybe.withDefault keyboard.player maybePlayer)
+              then
+                case maybePlayer of
+                  Nothing ->
+                    ( keyboard, [] )
+                  Just newPlayer ->
+                    ( { keyboard | player = newPlayer }, [] )
+              else
+                let
+                  ( newPlayer, pc ) =
+                    Player.stop pluck.now keyboard.player
+                in
+                  ( { keyboard | player = newPlayer }, pc )
+          else
+            ( keyboard, [] )
+      in let
+        changes =
+          playerChanges ++
+            ( List.map
+                ( AddGuitarNote <<
+                    Note 1 pluck.now <<
+                      pitchFrequency
+                )
+                pluck.pitches
+            )
+      in
+        ( newKeyboard
+        , AudioChange.perform changes
+        )
+
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
   low <= x && x <= high
@@ -294,6 +341,7 @@ pitchFrequency pitch =
 view : String -> Bool -> Int -> Int -> Keyboard -> Html Msg
 view gridArea interactive tonic lowestPitch keyboard =
   let
+    highestPitch = lowestPitch + 11 + Chord.maxRange
     maybeChord = getChord keyboard
     octave = getOctave keyboard
   in let
@@ -318,6 +366,8 @@ view gridArea interactive tonic lowestPitch keyboard =
             maxTransposition = maxPitch - highestPitch
           in
             (maxTransposition - maxTransposition % 12) // 12
+    pitchSet =
+      Chord.toPitchSet lowestPitch octave maybeChord
   in
     span
       [ style
@@ -358,8 +408,13 @@ view gridArea interactive tonic lowestPitch keyboard =
           interactive
           tonic
           lowestPitch
-          (lowestPitch + 11 + Chord.maxRange)
-          (Chord.toPitchSet lowestPitch octave maybeChord)
+          highestPitch
+          pitchSet
+      , Harp.view
+          tonic
+          lowestPitch
+          highestPitch
+          pitchSet
       ]
 
 -- the origin is the top left corner of middle C,
@@ -387,6 +442,9 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
               , toString height
               ]
           )
+      , style
+          [ ( "display", "block" )
+          ]
       ]
       ( List.concat
           [ [ Svg.defs
@@ -432,20 +490,6 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
             ]
           ]
       )
-
-viewBoxLeft : Int -> Float
-viewBoxLeft lowestPitch =
-  if isWhiteKey lowestPitch then
-    headLeft lowestPitch - borderWidth
-  else
-    neckLeft lowestPitch - borderWidth
-
-viewBoxRight : Int -> Float
-viewBoxRight highestPitch =
-  if isWhiteKey highestPitch then
-    headLeft highestPitch + headWidth
-  else
-    neckLeft (highestPitch + 1)
 
 viewKey : Bool -> Int -> Int -> Int -> Set Int -> Int -> List (Svg Msg)
 viewKey interactive tonic lowestPitch highestPitch pitchSet pitch =
@@ -573,10 +617,6 @@ viewKey interactive tonic lowestPitch highestPitch pitchSet pitch =
           []
       ]
 
-isWhiteKey : Int -> Bool
-isWhiteKey pitch =
-  (pitch % 2 == 1) == (pitch % 12 > 4)
-
 whitePath : Int -> Int -> Int -> String
 whitePath lowestPitch highestPitch pitch =
   String.join
@@ -678,52 +718,17 @@ hillPath pitch =
     , Path.bigZ
     ]
 
-neckLeft : Int -> Float
-neckLeft pitch =
-  let
-    pitchClass = pitch % 12
-  in let
-    octave = (pitch - pitchClass) // 12 - 5
-  in let
-    classLeft =
-      if pitchClass > 4 then
-        toFloat (1 + 4 * pitchClass) * headWidth / 7
-      else
-        toFloat (pitchClass % 2 + 25 * pitchClass) * headWidth / 42
-  in
-    classLeft + 7 * headWidth * toFloat octave
-
-headLeft : Int -> Float
-headLeft pitch =
-  let
-    pitchClass = pitch % 12
-  in let
-    octave = (pitch - pitchClass) // 12 - 5
-  in let
-    letterIndex = (pitchClass * 7 + 6) // 12
-  in
-    headWidth * toFloat (letterIndex + 7 * octave)
-
-borderWidth : Float
-borderWidth = 0.5 * scale
-
 -- white keys have rounded corners at the bottom
--- the radius is measured at the edge of the white area, inside the border
+-- the radius is measured at the edge of the white area,
+-- inside the border
 borderRadius : Float
 borderRadius = 0.75 * scale
 
--- all widths and heights include one border width
-headWidth : Float
-headWidth = 7 * scale
-
-blackHeight : Float
+blackHeight : Float -- includes one border width
 blackHeight = 20 * scale
 
-fullHeight : Float
+fullHeight : Float -- includes one border width
 fullHeight = 31 * scale
-
-scale : Float
-scale = 6
 
 -- black key lighting parameters (these don't include any border width)
 blackWidth : Float

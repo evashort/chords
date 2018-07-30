@@ -164,6 +164,7 @@ init flags location =
             Storage.init
           else
             Cmd.none
+        , Pane.setHarpExistence storage.pane
         ]
     )
 
@@ -224,6 +225,11 @@ update msg model =
                   (Dom.focus "tourNext")
               else
                 Cmd.none
+            , case Tour.paneShadow tour of
+                Nothing ->
+                  Cmd.none
+                Just pane ->
+                  Pane.setHarpExistence pane
             ]
         else
           Cmd.none
@@ -432,7 +438,10 @@ update msg model =
 
     SetStorage storage ->
       ( { model | storage = storage }
-      , Cmd.none
+      , if storage.pane /= model.storage.pane then
+          Pane.setHarpExistence storage.pane
+        else
+          Cmd.none
       )
 
     SetStrumInterval strumIntervalString ->
@@ -724,6 +733,7 @@ subscriptions model =
         Ports.escape (always CloseTour)
       else
         Sub.none
+    , Ports.harpPlucked (KeyboardMsg << Keyboard.HarpPlucked)
     ]
 
 -- VIEW
@@ -871,28 +881,33 @@ view model =
                 (Player.sequence model.keyboard.player)
                 (Player.sequenceFinished model.keyboard.player)
             )
-    , if model.storage.pane == Pane.Keyboard then
-        Html.Lazy.lazy3
-          viewKeyboard
-          model.parse.scale.tonic
-          model.parse.lowest
-          model.keyboard
-      else if
-        model.storage.pane == Pane.ChordsInKey ||
-          model.storage.pane == Pane.Circle
-      then
-        Html.Lazy.lazy3
-          viewPassiveKeyboard
-          model.parse.scale.tonic
-          model.parse.lowest
-          model.keyboard
-      else
-        span
-          [ style
-              [ ( "grid-area", "keyboard" )
-              ]
-          ]
-          []
+    , let
+        pane =
+          Maybe.withDefault
+            model.storage.pane
+            (Tour.paneShadow model.tour)
+      in
+        if pane == Pane.Keyboard then
+          Html.Lazy.lazy3
+            viewKeyboard
+            model.parse.scale.tonic
+            model.parse.lowest
+            model.keyboard
+        else if
+          pane == Pane.ChordsInKey || pane == Pane.Circle
+        then
+          Html.Lazy.lazy3
+            viewPassiveKeyboard
+            model.parse.scale.tonic
+            model.parse.lowest
+            model.keyboard
+        else
+          span
+            [ style
+                [ ( "grid-area", "keyboard" )
+                ]
+            ]
+            []
     , Html.Lazy.lazy3
         viewMiscSettings
         model.canStore

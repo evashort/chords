@@ -15,9 +15,10 @@ function initStorage() {
 }
 
 function updateStorage() {
-  if (storageElement.attributes.value.value == "") {
+  var storage = storageElement.getAttribute("value");
+  if (storage == "") {
     localStorage.removeItem("storage");
   } else {
-    localStorage.setItem("storage", storageElement.attributes.value.value)
+    localStorage.setItem("storage", storage)
   }
 }
