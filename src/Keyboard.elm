@@ -163,7 +163,7 @@ update msg keyboard =
         pitchSet =
           Chord.toPitchSet
             lowestPitch
-            keyboard.customOctave
+            (getOctave keyboard)
             (getChord keyboard)
       in let
         newPitchSet =
@@ -228,15 +228,8 @@ update msg keyboard =
 
     PlayNote ( pitch, now ) ->
       let
-        ( newKeyboard, playerChanges ) =
-          if keyboard.source == LastPlayed then
-            let
-              ( player, pc ) =
-                Player.stop now keyboard.player
-            in
-              ( { keyboard | player = player }, pc )
-          else
-            ( keyboard, [] )
+        ( newPlayer, playerChanges ) =
+          Player.stop now keyboard.player
       in let
         changes =
           playerChanges ++
@@ -247,21 +240,17 @@ update msg keyboard =
                 }
             ]
       in
-        ( newKeyboard
+        ( if Player.sequenceFinished keyboard.player then
+            keyboard -- avoid calling keyboard.view a second time
+          else
+            { keyboard | player = newPlayer }
         , AudioChange.perform changes
         )
 
     TeaseNote ( pitch, now ) ->
       let
-        ( newKeyboard, playerChanges ) =
-          if keyboard.source == LastPlayed then
-            let
-              ( player, pc ) =
-                Player.stop now keyboard.player
-            in
-              ( { keyboard | player = player }, pc )
-          else
-            ( keyboard, [] )
+        ( newPlayer, playerChanges ) =
+          Player.stop now keyboard.player
       in let
         changes =
           playerChanges ++
@@ -273,7 +262,10 @@ update msg keyboard =
             , Mute (now + 0.03)
             ]
       in
-        ( newKeyboard
+        ( if Player.sequenceFinished keyboard.player then
+            keyboard -- avoid calling keyboard.view a second time
+          else
+            { keyboard | player = newPlayer }
         , AudioChange.perform changes
         )
 

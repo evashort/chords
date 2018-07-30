@@ -128,7 +128,10 @@ stop now player =
         stopScheduleAt now player.schedule
     , unfinishedCount = 0
     }
-  , [ Mute now ]
+  , if countUnfinished now player.schedule > 0 then
+      [ Mute now ]
+    else
+      []
   )
 
 pad :
