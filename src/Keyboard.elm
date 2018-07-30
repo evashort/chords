@@ -110,8 +110,7 @@ type Msg
   | AddPitch (Int, Int)
   | RemovePitch (Int, Int)
   | Stop Float
-  | PlayNote (Int, Float)
-  | TeaseNote (Int, Float)
+  | PlayNote (Bool, Int, Float)
 
 update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
@@ -187,7 +186,11 @@ update msg keyboard =
           , customCode = Name.codeExtended newChord
           , customOctave = newOctave
           }
-        , Task.perform (PlayNote << (,) pitch) AudioTime.now
+        , Task.perform
+            ( PlayNote <<
+                (,,) (keyboard.source == LastPlayed) pitch
+            )
+            AudioTime.now
         )
 
     RemovePitch ( lowestPitch, pitch ) ->
@@ -214,7 +217,10 @@ update msg keyboard =
               , customCode = ""
               , customOctave = 0
               }
-        , Task.perform (TeaseNote << (,) pitch) AudioTime.now
+        , if keyboard.source == LastPlayed then
+            Task.perform Stop AudioTime.now
+          else
+            Cmd.none
         )
 
     Stop now ->
@@ -226,10 +232,17 @@ update msg keyboard =
         , AudioChange.perform changes
         )
 
-    PlayNote ( pitch, now ) ->
+    PlayNote ( shouldStop, pitch, now ) ->
       let
-        ( newPlayer, playerChanges ) =
-          Player.stop now keyboard.player
+        ( newKeyboard, playerChanges ) =
+          if shouldStop then
+            let
+              ( newPlayer, pc ) =
+                Player.stop now keyboard.player
+            in
+              ( { keyboard | player = newPlayer }, pc )
+          else
+            ( keyboard, [] )
       in let
         changes =
           playerChanges ++
@@ -240,32 +253,7 @@ update msg keyboard =
                 }
             ]
       in
-        ( if Player.sequenceFinished keyboard.player then
-            keyboard -- avoid calling keyboard.view a second time
-          else
-            { keyboard | player = newPlayer }
-        , AudioChange.perform changes
-        )
-
-    TeaseNote ( pitch, now ) ->
-      let
-        ( newPlayer, playerChanges ) =
-          Player.stop now keyboard.player
-      in let
-        changes =
-          playerChanges ++
-            [ AddPianoNote
-                { v = 1
-                , t = now
-                , f = pitchFrequency pitch
-                }
-            , Mute (now + 0.03)
-            ]
-      in
-        ( if Player.sequenceFinished keyboard.player then
-            keyboard -- avoid calling keyboard.view a second time
-          else
-            { keyboard | player = newPlayer }
+        ( newKeyboard
         , AudioChange.perform changes
         )
 
