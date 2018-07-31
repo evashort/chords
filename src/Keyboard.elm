@@ -332,8 +332,8 @@ pitchFrequency : Int -> Float
 pitchFrequency pitch =
   440 * 2 ^ (toFloat (pitch - 69) / 12)
 
-view : String -> Bool -> Int -> Int -> Keyboard -> Html Msg
-view gridArea interactive tonic lowestPitch keyboard =
+view : String -> Int -> Int -> Keyboard -> Html Msg
+view gridArea tonic lowestPitch keyboard =
   let
     highestPitch = lowestPitch + 11 + Chord.maxRange
     maybeChord = getChord keyboard
@@ -366,9 +366,20 @@ view gridArea interactive tonic lowestPitch keyboard =
     span
       [ style
           [ ( "grid-area", gridArea )
+          , ( "margin-top", "5px" )
           ]
       ]
-      [ span
+      [ Harp.view
+          tonic
+          lowestPitch
+          highestPitch
+          pitchSet
+      , viewKeys
+          tonic
+          lowestPitch
+          highestPitch
+          pitchSet
+      , span
           [ style
               [ ( "display", "block" )
               ]
@@ -376,7 +387,6 @@ view gridArea interactive tonic lowestPitch keyboard =
           [ text "Chord "
           , input
               [ Attributes.type_ "text"
-              , Attributes.disabled (not interactive)
               , onInput SetCode
               , Attributes.value (getCode keyboard)
               ]
@@ -396,9 +406,7 @@ view gridArea interactive tonic lowestPitch keyboard =
           , input
               [ Attributes.type_ "number"
               , Attributes.disabled
-                  ( not interactive ||
-                      (maxOctave <= 0 && octave == 0)
-                  )
+                  (maxOctave <= 0 && octave == 0)
               , onIntInput octave SetOctave
               , Attributes.value (toString octave)
               , Attributes.min "0"
@@ -409,23 +417,12 @@ view gridArea interactive tonic lowestPitch keyboard =
               ]
               []
           ]
-      , viewKeys
-          interactive
-          tonic
-          lowestPitch
-          highestPitch
-          pitchSet
-      , Harp.view
-          tonic
-          lowestPitch
-          highestPitch
-          pitchSet
       ]
 
 -- the origin is the top left corner of middle C,
 -- not including its border
-viewKeys : Bool -> Int -> Int -> Int -> Set Int -> Html Msg
-viewKeys interactive tonic lowestPitch highestPitch pitchSet =
+viewKeys : Int -> Int -> Int -> Set Int -> Html Msg
+viewKeys tonic lowestPitch highestPitch pitchSet =
   let
     left = viewBoxLeft lowestPitch
   in let
@@ -433,7 +430,7 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
   in let
     width = right - left
   in let
-    height = fullHeight + borderWidth
+    height = fullHeight
   in
     Svg.svg
       [ SA.width (toString width)
@@ -442,7 +439,7 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
           ( String.join
               " "
               [ toString left
-              , toString -borderWidth
+              , "0"
               , toString width
               , toString height
               ]
@@ -460,7 +457,7 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
                 ]
             , Svg.rect
                 [ SA.x (toString left)
-                , SA.y (toString -borderWidth)
+                , SA.y "0"
                 , SA.width (toString width)
                 , SA.height (toString height)
                 , SA.fill "black"
@@ -469,7 +466,6 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
             ]
           , List.concatMap
               ( viewKey
-                  interactive
                   tonic
                   lowestPitch
                   highestPitch
@@ -496,29 +492,26 @@ viewKeys interactive tonic lowestPitch highestPitch pitchSet =
           ]
       )
 
-viewKey : Bool -> Int -> Int -> Int -> Set Int -> Int -> List (Svg Msg)
-viewKey interactive tonic lowestPitch highestPitch pitchSet pitch =
+viewKey : Int -> Int -> Int -> Set Int -> Int -> List (Svg Msg)
+viewKey tonic lowestPitch highestPitch pitchSet pitch =
   let
     selected = Set.member pitch pitchSet
   in let
     commonAttributes =
-      if interactive then
-        let
-          action =
-            if selected then
-              RemovePitch ( lowestPitch, pitch )
-            else
-              AddPitch ( lowestPitch, pitch )
-        in
-          [ onLeftDown action
-          , onKeyDown
-              [ ( 13, action )
-              , ( 32, action )
-              ]
-          , attribute "tabindex" "0"
-          ]
-      else
-        []
+      let
+        action =
+          if selected then
+            RemovePitch ( lowestPitch, pitch )
+          else
+            AddPitch ( lowestPitch, pitch )
+      in
+        [ onLeftDown action
+        , onKeyDown
+            [ ( 13, action )
+            , ( 32, action )
+            ]
+        , attribute "tabindex" "0"
+        ]
   in
     if isWhiteKey pitch then
       let
@@ -526,12 +519,7 @@ viewKey interactive tonic lowestPitch highestPitch pitchSet pitch =
       in
         [ Svg.path
             ( [ style
-                  [ ( "cursor"
-                    , if interactive then
-                        "pointer"
-                      else
-                        ""
-                    )
+                  [ ( "cursor", "pointer" )
                   ]
               , SA.fill
                   ( if selected then
@@ -561,12 +549,7 @@ viewKey interactive tonic lowestPitch highestPitch pitchSet pitch =
     else
       [ Svg.rect
           ( [ style
-                [ ( "cursor"
-                  , if interactive then
-                      "pointer"
-                    else
-                      ""
-                  )
+                [ ( "cursor", "pointer" )
                 ]
             , SA.fill
                 ( if Set.member pitch pitchSet then
@@ -730,10 +713,10 @@ borderRadius : Float
 borderRadius = 0.75 * scale
 
 blackHeight : Float -- includes one border width
-blackHeight = 20 * scale
+blackHeight = 15.5 * scale
 
 fullHeight : Float -- includes one border width
-fullHeight = 31 * scale
+fullHeight = 24 * scale
 
 -- black key lighting parameters (these don't include any border width)
 blackWidth : Float

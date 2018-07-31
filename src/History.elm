@@ -107,7 +107,7 @@ viewSequence shorten finished tonic index sequence =
                     (List.map Name.code shortenedSequence)
                 )
             ]
-            [ text "Use"
+            [ text "Add line"
             ]
         ]
     , span

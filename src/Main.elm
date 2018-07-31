@@ -164,7 +164,7 @@ init flags location =
             Storage.init
           else
             Cmd.none
-        , Pane.setHarpExistence storage.pane
+        , Ports.setHarpExistence True
         ]
     )
 
@@ -225,11 +225,6 @@ update msg model =
                   (Dom.focus "tourNext")
               else
                 Cmd.none
-            , case Tour.paneShadow tour of
-                Nothing ->
-                  Cmd.none
-                Just pane ->
-                  Pane.setHarpExistence pane
             ]
         else
           Cmd.none
@@ -430,18 +425,22 @@ update msg model =
         [] ->
           ( model, Cmd.none )
         range :: _ ->
-          replace
-            { old = range
-            , new = Swatch.concat suggestion.swatches
-            }
-            model
+          let
+            ( newModel, cmd ) =
+              replace
+                { old = range
+                , new = Swatch.concat suggestion.swatches
+                }
+                model
+          in
+            ( newModel
+            , Cmd.batch [ cmd, Theater.focus ]
+            )
+
 
     SetStorage storage ->
       ( { model | storage = storage }
-      , if storage.pane /= model.storage.pane then
-          Pane.setHarpExistence storage.pane
-        else
-          Cmd.none
+      , Cmd.none
       )
 
     SetStrumInterval strumIntervalString ->
@@ -599,8 +598,19 @@ update msg model =
       let
         ( newKeyboard, keyboardCmd ) =
           Keyboard.update keyboardMsg model.keyboard
+        storage = model.storage
       in
-        ( { model | keyboard = newKeyboard }
+        ( { model
+          | keyboard = newKeyboard
+          , storage =
+              case keyboardMsg of
+                Keyboard.AddPitch _ ->
+                  { storage | pane = Pane.Keyboard }
+                Keyboard.RemovePitch _ ->
+                  { storage | pane = Pane.Keyboard }
+                _ ->
+                  storage
+          }
         , Cmd.map KeyboardMsg keyboardCmd
         )
 
@@ -640,7 +650,6 @@ replace replacement model =
       }
     , Cmd.batch
         [ Theater.replace replacement
-        , Theater.focus
         , codeChanged model parse
         ]
     )
@@ -769,10 +778,10 @@ view model =
 "playStyle playStyle"
 "playSettings playSettings"
 "song song"
+"keyboard keyboard"
 "paneSelector paneSelector"
 "paneSettings paneSettings"
 "pane pane"
-"keyboard keyboard"
 "misc misc"
 / minmax(auto, 60em) 1fr
 """
@@ -851,6 +860,11 @@ view model =
     , Html.Lazy.lazy viewPlaySettings model.storage
     , viewSong model.tour model.storage model.keyboard model.parse
     , Html.Lazy.lazy3
+        viewKeyboard
+        model.parse.scale.tonic
+        model.parse.lowest
+        model.keyboard
+    , Html.Lazy.lazy3
         viewPaneSelector
         model.tour
         model.parse.scale
@@ -890,33 +904,6 @@ view model =
                 (Player.sequence model.keyboard.player)
                 (Player.sequenceFinished model.keyboard.player)
             )
-    , let
-        pane =
-          Maybe.withDefault
-            model.storage.pane
-            (Tour.paneShadow model.tour)
-      in
-        if pane == Pane.Keyboard then
-          Html.Lazy.lazy3
-            viewKeyboard
-            model.parse.scale.tonic
-            model.parse.lowest
-            model.keyboard
-        else if
-          pane == Pane.ChordsInKey || pane == Pane.Circle
-        then
-          Html.Lazy.lazy3
-            viewPassiveKeyboard
-            model.parse.scale.tonic
-            model.parse.lowest
-            model.keyboard
-        else
-          span
-            [ style
-                [ ( "grid-area", "keyboard" )
-                ]
-            ]
-            []
     , Html.Lazy.lazy3
         viewMiscSettings
         model.canStore
@@ -1385,7 +1372,6 @@ viewPaneSelector tour scale storage =
     span
       [ style
           [ ( "grid-area", "paneSelector" )
-          , ( "margin-top", "8px" )
           ]
       ]
       [ Html.map
@@ -1393,7 +1379,7 @@ viewPaneSelector tour scale storage =
           ( Radio.view
               (paneShadow /= Nothing)
               (Maybe.withDefault storage.pane paneShadow)
-              [ ( "Keyboard", Pane.Keyboard )
+              [ ( "Find chords", Pane.Keyboard )
               , ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
               , ( "Recently played", Pane.History )
@@ -1682,16 +1668,7 @@ viewKeyboard tonic lowest keyboard =
   in
     Html.map
       KeyboardMsg
-      (Keyboard.view "keyboard" True tonic lowestPitch keyboard)
-
-viewPassiveKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
-viewPassiveKeyboard tonic lowest keyboard =
-  let
-    lowestPitch = Lowest.pitch tonic lowest
-  in
-    Html.map
-      KeyboardMsg
-      (Keyboard.view "keyboard" False tonic lowestPitch keyboard)
+      (Keyboard.view "keyboard" tonic lowestPitch keyboard)
 
 viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
 viewMiscSettings canStore shouldStore storage =

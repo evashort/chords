@@ -1,13 +1,7 @@
-module Pane exposing (Pane(..), setHarpExistence)
-
-import Ports
+module Pane exposing (Pane(..))
 
 type Pane
   = ChordsInKey
   | Circle
   | Keyboard
   | History
-
-setHarpExistence : Pane -> Cmd msg
-setHarpExistence pane =
-  Ports.setHarpExistence (pane /= History)

@@ -153,7 +153,7 @@ headWidth : Float -- includes one border width
 headWidth = 7 * scale
 
 height : Float
-height = 45 * scale
+height = 32 * scale
 
 scale : Float
 scale = 6
