@@ -65,7 +65,7 @@ function harpClicked(event) {
   }
 }
 
-var translationRegex = /translate\s*\(\s*([^\s,)]+)[ ,]/;
+var translationRegex = /translate\s*\(\s*([^\s,)]+)[ ,)]/;
 
 function harpDragged(event) {
   if (dragPos != null) {
