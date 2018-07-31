@@ -121,15 +121,17 @@ lastPlayed player =
     [] ->
       Nothing
 
-stop : Float -> Player -> (Player, List AudioChange)
+stop : Float -> Player -> Maybe Player
 stop now player =
-  ( { cliff = []
-    , schedule =
-        stopScheduleAt now player.schedule
-    , unfinishedCount = 0
-    }
-  , [ Mute now ]
-  )
+  if player.unfinishedCount > 0 then
+    Just
+      { cliff = []
+      , schedule =
+          stopScheduleAt now player.schedule
+      , unfinishedCount = 0
+      }
+  else
+    Nothing
 
 pad :
   Int -> IdChord -> Float -> Player -> (Player, List Chord, List AudioChange)

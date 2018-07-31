@@ -482,14 +482,15 @@ update msg model =
           ( { model
             | keyboard =
                 { keyboard
-                | source =
+                | playerPlaying = False
+                , source =
                     if Keyboard.getId keyboard == Just idChord.id then
                       Keyboard.NoChord
                     else
                       Keyboard.ThisChord idChord
                 }
             }
-          , if keyboard.source == Keyboard.LastPlayed then
+          , if keyboard.playerPlaying then
               Task.perform
                 (KeyboardMsg << Keyboard.Stop)
                 AudioTime.now
@@ -559,6 +560,7 @@ update msg model =
           , keyboard =
               { keyboard
               | player = player
+              , playerPlaying = True
               , source = Keyboard.LastPlayed
               }
           , history = History.add sequence model.history
@@ -567,16 +569,17 @@ update msg model =
         )
 
     FinishSequence now ->
-      let
-        ( player, changes ) =
-          Player.stop now model.keyboard.player
-        keyboard = model.keyboard
-      in
-        ( { model
-          | keyboard = { keyboard | player = player }
-          }
-        , Cmd.none
-        )
+      case Player.stop now model.keyboard.player of
+        Nothing ->
+          ( model, Cmd.none )
+        Just newPlayer ->
+          let keyboard = model.keyboard in
+            ( { model
+              | keyboard =
+                  { keyboard | player = newPlayer }
+              }
+            , Cmd.none
+            )
 
     Playing playing ->
       ( if playing /= model.playing then
