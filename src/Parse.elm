@@ -1,5 +1,5 @@
 module Parse exposing
-  (Parse, init, update, song, setBpm, setScale, setLowest)
+  (Parse, init, update, song, setBpm, setScale, setLowest, addWord)
 
 import Bpm
 import Chord
@@ -15,6 +15,8 @@ import Scale exposing (Scale)
 import Song exposing (Song)
 import Substring exposing (Substring)
 import Suggestion exposing (Suggestion)
+
+import Regex exposing (Regex)
 
 type alias Parse =
   { code : String
@@ -179,3 +181,32 @@ glue source replacement =
   else
     Debug.crash
       ("Parse.glue: Replacement out of bounds: " ++ toString replacement)
+
+addWord : String -> Parse -> Replacement
+addWord word parse =
+  let
+    prefix =
+      if String.endsWith "\n" parse.code then
+        ""
+      else
+        case Paragraph.lastWordEnd parse.paragraph of
+          Nothing ->
+            "\n"
+          Just lastWordEnd ->
+            if lastWordEnd == String.length parse.code then
+              " "
+            else if
+              Regex.contains
+                onlySpaces
+                (String.dropLeft lastWordEnd parse.code)
+            then
+              ""
+            else
+              "\n"
+  in
+    Replacement
+      { i = String.length parse.code, s = "" }
+      (prefix ++ word)
+
+onlySpaces : Regex
+onlySpaces = Regex.regex "^ +$"

@@ -587,6 +587,11 @@ update msg model =
       , Cmd.none
       )
 
+    KeyboardMsg (Keyboard.AddWord word) ->
+      replace
+        (Parse.addWord word model.parse)
+        model
+
     KeyboardMsg keyboardMsg ->
       let
         ( newKeyboard, keyboardCmd ) =

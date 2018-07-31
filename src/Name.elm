@@ -8,11 +8,11 @@ import Html exposing (Html, text, sup)
 
 code : Chord -> String
 code chord =
-  let
-    scheme =
-      Maybe.withDefault unknown (Dict.get chord.flavor schemes)
-  in
-    Pitch.code scheme.sharpCount chord.root ++ scheme.code
+  case Dict.get chord.flavor schemes of
+    Nothing ->
+      "unknown"
+    Just scheme ->
+      Pitch.code scheme.sharpCount chord.root ++ scheme.code
 
 codeExtended : Chord -> String
 codeExtended chord =

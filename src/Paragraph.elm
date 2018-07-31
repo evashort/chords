@@ -1,6 +1,6 @@
 module Paragraph exposing
   ( Paragraph, init, update, highlights, song, suggestions, mapChords
-  , defaultTitle
+  , defaultTitle, lastWordEnd
   )
 
 import Chord exposing (Chord)
@@ -123,3 +123,11 @@ truncateByLength length strings =
         else
           string ::
             truncateByLength (remainingLength - 1) rest
+
+lastWordEnd : Paragraph -> Maybe Int
+lastWordEnd paragraph =
+  case List.reverse (Train.flatten paragraph.words) of
+    [] ->
+      Nothing
+    word :: _ ->
+      Just (Substring.stop word.substring)

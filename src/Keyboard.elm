@@ -18,9 +18,9 @@ import Player exposing (Player)
 import PlayStatus exposing (PlayStatus)
 import Ports exposing (Pluck)
 
-import Html exposing (Html, span, text, input)
+import Html exposing (Html, span, text, input, button)
 import Html.Attributes as Attributes exposing (attribute, style)
-import Html.Events exposing (onInput)
+import Html.Events exposing (onInput, onClick)
 import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
@@ -121,6 +121,7 @@ type Msg
   | PlayNote (Bool, Int, Float)
   | StopNote (Bool, Int, Float)
   | HarpPlucked Pluck
+  | AddWord String
 
 update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
@@ -320,6 +321,9 @@ update msg keyboard =
             AudioChange.perform changes
         )
 
+    AddWord _ ->
+      ( keyboard, Cmd.none )
+
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
   low <= x && x <= high
@@ -377,6 +381,17 @@ view gridArea interactive tonic lowestPitch keyboard =
               , Attributes.value (getCode keyboard)
               ]
               []
+          , button
+              [ case Maybe.map Name.code maybeChord of
+                  Just "unknown" ->
+                    Attributes.disabled True
+                  Just word ->
+                    onClick (AddWord word)
+                  Nothing ->
+                    Attributes.disabled True
+              ]
+              [ text "Add"
+              ]
           , text " Octave "
           , input
               [ Attributes.type_ "number"
