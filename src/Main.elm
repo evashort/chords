@@ -1390,10 +1390,10 @@ viewPaneSelector tour scale storage =
           ( Radio.view
               (paneShadow /= Nothing)
               (Maybe.withDefault storage.pane paneShadow)
-              [ ( "Chords in " ++ scaleName, Pane.ChordsInKey )
+              [ ( "Keyboard", Pane.Keyboard )
+              , ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
               , ( "Recently played", Pane.History )
-              , ( "Keyboard", Pane.Keyboard )
               ]
           )
       ]
