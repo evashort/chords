@@ -482,7 +482,7 @@ update msg model =
           ( { model
             | keyboard =
                 { keyboard
-                | playerPlaying = False
+                | playerPlaying = True
                 , source =
                     if Keyboard.getId keyboard == Just idChord.id then
                       Keyboard.NoChord
@@ -490,10 +490,13 @@ update msg model =
                       Keyboard.ThisChord idChord
                 }
             }
-          , Cmd.batch
-              [ Task.perform FinishSequence AudioTime.now
-              , Ports.stopAudio ()
-              ]
+          , if keyboard.playerPlaying then
+              Cmd.batch
+                [ Task.perform FinishSequence AudioTime.now
+                , Ports.stopAudio ()
+                ]
+            else
+              Cmd.none
           )
       else
         ( model
