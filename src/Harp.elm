@@ -10,6 +10,7 @@ import Html.Attributes exposing (style, id)
 import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
+import Svg.Keyed
 
 view : Int -> Int -> Int -> Set Int -> Html msg
 view tonic lowestPitch highestPitch pitchSet =
@@ -38,49 +39,50 @@ view tonic lowestPitch highestPitch pitchSet =
           ]
       , id "harp"
       ]
-      ( List.concat
-          [ [ Svg.rect
-                [ SA.x (toString left)
-                , SA.y "0"
-                , SA.width (toString width)
-                , SA.height (toString height)
-                , SA.fill "#eeeeee"
-                ]
-                []
-            ]
-          , List.map (viewRope tonic) (Set.toList pitchSet)
-          , [ Svg.text_
-                [ style
-                    [ ( "pointer-events", "none" )
-                    ]
-                , SA.fill "GrayText"
-                , SA.textAnchor "middle"
-                , SA.x
-                    ( toString
-                        (left + bodyLeftMargin + 10 * headWidth)
-                    )
-                , SA.y (toString (0.5 * height + 6))
-                ]
-                [ Svg.text "Drag across strings to strum"
-                ]
-            ]
+      [ Svg.rect
+          [ SA.x (toString left)
+          , SA.y "0"
+          , SA.width (toString width)
+          , SA.height (toString height)
+          , SA.fill "#eeeeee"
           ]
-      )
-
-viewRope : Int -> Int -> Svg msg
-viewRope tonic pitch =
-  let
-    x = neckCenter pitch
-  in
-    Svg.path
-      [ SA.class "rope"
-      , SA.name (toString pitch)
-      , SA.transform ("translate(" ++ toString x ++ " 0)")
-      , SA.d ("M0,0 V" ++ toString height)
-      , SA.stroke (Colour.ropeColor tonic pitch)
-      , SA.strokeWidth "4"
+          []
+      , Svg.Keyed.node
+          "g"
+          []
+          (List.map (viewRope tonic) (Set.toList pitchSet))
+      , Svg.text_
+          [ style
+              [ ( "pointer-events", "none" )
+              ]
+          , SA.fill "GrayText"
+          , SA.textAnchor "middle"
+          , SA.x
+              ( toString
+                  (left + bodyLeftMargin + 10 * headWidth)
+              )
+          , SA.y (toString (0.5 * height + 6))
+          ]
+          [ Svg.text "Drag across strings to strum"
+          ]
       ]
-      []
+
+viewRope : Int -> Int -> (String, Svg msg)
+viewRope tonic pitch =
+  ( toString pitch
+  , let
+      x = neckCenter pitch
+    in
+      Svg.path
+        [ SA.class "rope"
+        , SA.name (toString pitch)
+        , SA.transform ("translate(" ++ toString x ++ " 0)")
+        , SA.d ("M0,0 V" ++ toString height)
+        , SA.stroke (Colour.ropeColor tonic pitch)
+        , SA.strokeWidth "4"
+        ]
+        []
+  )
 
 bodyLeftMargin : Float
 bodyLeftMargin = 8
