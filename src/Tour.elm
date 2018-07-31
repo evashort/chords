@@ -132,7 +132,7 @@ viewPage pageCount pageIndex page =
     [ style
         [ ( "grid-area", page.gridArea )
         , ( "position", "absolute" )
-        , ( "z-index", "2" )
+        , ( "z-index", "3" )
         , if page.above then
             ( "bottom"
             , "calc(100% + 32px + " ++ toString page.distance ++ "em)"

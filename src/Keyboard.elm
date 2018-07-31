@@ -510,7 +510,6 @@ viewKey tonic lowestPitch highestPitch pitchSet pitch =
             [ ( 13, action )
             , ( 32, action )
             ]
-        , attribute "tabindex" "0"
         ]
   in
     if isWhiteKey pitch then

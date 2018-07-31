@@ -766,6 +766,7 @@ view model =
         , ( "line-height", "1.9" )
         , ( "white-space", "nowrap" )
         , ( "position", "relative" )
+        , ( "margin-bottom", "5em" )
         , ( "display", "grid" )
         , ( "grid", """
 "brand ."
@@ -856,9 +857,8 @@ view model =
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
-    , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
-    , Html.Lazy.lazy viewPlaySettings model.storage
     , viewSong model.tour model.storage model.keyboard model.parse
+    , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
     , Html.Lazy.lazy3
         viewKeyboard
         model.parse.scale.tonic
@@ -1250,39 +1250,52 @@ viewPlayStyle : Storage -> Bool -> Html Msg
 viewPlayStyle storage playing =
   span
     [ style
-        [ ( "grid-area", "playStyle" )
-        , ( "margin-top", "8px" )
+        [ ( "position", "fixed" )
+        , ( "z-index", "2" )
+        , ( "right", "0px" )
+        , ( "bottom", "0px" )
+        , ( "background", "white" )
+        , ( "padding", "5px 8px" )
+        , ( "border-top", "1px solid darkgray" )
+        , ( "border-left", "1px solid darkgray" )
+        , ( "border-right", "1px solid darkgray" )
+        , ( "border-top-left-radius", "5px" )
+        , ( "border-top-right-radius", "5px" )
         ]
     ]
-    [ Html.text "Play chords as\xA0"
-    , Html.map
-        (\x -> SetStorage { storage | playStyle = x })
-        ( Radio.view
-            False
-            storage.playStyle
-            [ ( "Arpeggio", PlayStyle.Arpeggio )
-            , ( "Strum pattern", PlayStyle.StrumPattern )
-            , ( "Strum", PlayStyle.Strum )
-            , ( "Pad", PlayStyle.Pad )
-            , ( "Silent", PlayStyle.Silent )
+    [ viewPlaySettings storage
+    , span
+        []
+        [ Html.text "Play chords as\xA0"
+        , Html.map
+            (\x -> SetStorage { storage | playStyle = x })
+            ( Radio.view
+                False
+                storage.playStyle
+                [ ( "Arpeggio", PlayStyle.Arpeggio )
+                , ( "Strum pattern", PlayStyle.StrumPattern )
+                , ( "Strum", PlayStyle.Strum )
+                , ( "Pad", PlayStyle.Pad )
+                , ( "Silent", PlayStyle.Silent )
+                ]
+            )
+        , Html.text " "
+        , button
+            [ onClick (IdChordMsg IdChord.Stop)
+            , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
+            , disabled (not playing)
             ]
-        )
-    , Html.text " "
-    , button
-        [ onClick (IdChordMsg IdChord.Stop)
-        , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
-        , disabled (not playing)
-        ]
-        [ span
-            [ style
-               [ ( "background", "currentcolor" )
-               , ( "width", "0.75em" )
-               , ( "height", "0.75em" )
-               , ( "display", "inline-block" )
-               ]
+            [ span
+                [ style
+                   [ ( "background", "currentcolor" )
+                   , ( "width", "0.75em" )
+                   , ( "height", "0.75em" )
+                   , ( "display", "inline-block" )
+                   ]
+                ]
+                []
+            , Html.text " Stop"
             ]
-            []
-        , Html.text " Stop"
         ]
     ]
 
@@ -1292,7 +1305,8 @@ viewPlaySettings storage =
     PlayStyle.StrumPattern ->
       span
         [ style
-            [ ( "grid-area", "playSettings" )
+            [ ( "display", "block" )
+            , ( "align-items", "center" )
             ]
         ]
         [ Html.text "Strum pattern\xA0"
@@ -1310,8 +1324,7 @@ viewPlaySettings storage =
     PlayStyle.Strum ->
       span
         [ style
-            [ ( "grid-area", "playSettings" )
-            , ( "display", "flex" )
+            [ ( "display", "flex" )
             , ( "align-items", "center" )
             ]
         ]
@@ -1337,12 +1350,7 @@ viewPlaySettings storage =
           )
       ]
     _ ->
-      span
-        [ style
-            [ ( "grid-area", "playSettings" )
-            ]
-        ]
-        []
+      span [] []
 
 viewSong : Tour -> Storage -> Keyboard -> Parse -> Html Msg
 viewSong tour storage keyboard parse =
