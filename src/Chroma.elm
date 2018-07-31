@@ -1,4 +1,4 @@
-module Chroma exposing (search)
+module Chroma exposing (search, extendedSearch)
 
 import Chord exposing (Chord)
 import IdChord exposing (IdChord)
@@ -7,6 +7,10 @@ import Dict exposing (Dict)
 
 search : Chord -> List IdChord
 search chord =
+  searchHelp fullSchemes chord
+
+searchHelp : Dict (List Int) (List Chord) -> Chord -> List IdChord
+searchHelp schemes chord =
   case Dict.get (fromFlavor chord.flavor) schemes of
     Nothing ->
       []
@@ -44,8 +48,8 @@ removeDuplicates xs =
     other ->
       other
 
-schemes : Dict (List Int) (List Chord)
-schemes =
+fullSchemes : Dict (List Int) (List Chord)
+fullSchemes =
   List.foldl
     addSchemes
     Dict.empty
@@ -76,3 +80,42 @@ mod12 x =
 addToScheme : Chord -> Maybe (List Chord) -> Maybe (List Chord)
 addToScheme chord scheme =
   Just (chord :: Maybe.withDefault [] scheme)
+
+-- Extended search
+
+extendedSearch : Chord -> List IdChord
+extendedSearch chord =
+  searchHelp partialSchemes chord
+
+partialSchemes : Dict (List Int) (List Chord)
+partialSchemes =
+  List.foldl
+    addPartialSchemes
+    Dict.empty
+    (Dict.values Chord.flavors)
+
+addPartialSchemes :
+  List Int -> Dict (List Int) (List Chord) ->
+    Dict (List Int) (List Chord)
+addPartialSchemes flavor schemes =
+  if List.length flavor > 2 then
+    let chroma = fromFlavor flavor in
+      List.foldl
+        (addPartialSchemesHelp flavor chroma)
+        schemes
+        chroma
+  else
+    schemes
+
+addPartialSchemesHelp :
+  List Int -> List Int -> Int -> Dict (List Int) (List Chord) ->
+    Dict (List Int) (List Chord)
+addPartialSchemesHelp flavor chroma toRemove schemes =
+  let
+    partialChroma =
+      List.filter ((/=) toRemove) chroma
+  in
+    List.foldl
+      (addScheme flavor partialChroma)
+      schemes
+      partialChroma

@@ -1523,6 +1523,12 @@ viewSearchResults tonic storage keyboard =
         Just chord ->
           Chroma.search chord
   in let
+    extensions =
+      case ( maybeChord, exactMatch, inversions ) of
+        ( Just chord, Nothing, [] ) ->
+          Chroma.extendedSearch chord
+        _ ->
+          []
     colorChord =
       case ( exactMatch, inversions ) of
         ( Just match, _ ) ->
@@ -1550,6 +1556,9 @@ viewSearchResults tonic storage keyboard =
           , List.map
               (viewSearchResult tonic playStatus)
               inversions
+          , List.map
+              (viewSearchResult tonic playStatus)
+              extensions
           ]
       )
 
