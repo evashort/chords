@@ -490,12 +490,10 @@ update msg model =
                       Keyboard.ThisChord idChord
                 }
             }
-          , if keyboard.playerPlaying then
-              Task.perform
-                (KeyboardMsg << Keyboard.Stop)
-                AudioTime.now
-            else
-              Cmd.none
+          , Cmd.batch
+              [ Task.perform FinishSequence AudioTime.now
+              , Ports.stopAudio ()
+              ]
           )
       else
         ( model
