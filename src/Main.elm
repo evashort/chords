@@ -25,6 +25,7 @@ import Ports
 import Radio
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
+--import SharpCount
 import Song
 import Storage exposing (Storage)
 import StrumPattern
@@ -1745,4 +1746,6 @@ viewMiscSettings canStore shouldStore storage =
             []
         , Html.text " Warn me when I close without saving"
         ]
+    --, Html.br [] []
+    --, Html.text (toString SharpCount.ranges)
     ]
