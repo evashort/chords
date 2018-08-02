@@ -9,7 +9,7 @@ reverb.connect(ac.destination);
 var notes = [];
 
 function muteNoteAt(t, note) {
-  var muteTime = ac.currentTime + 0.025;
+  var muteTime = ac.currentTime + 0.04;
   if (t > note.start && muteTime < t) {
     muteTime = t;
   }

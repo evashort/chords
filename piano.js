@@ -8,20 +8,22 @@ function addPianoNote(v, t, f) {
   var frequencyCenter = 146.8;
   var filterOffset = 0.5 * (f - frequencyCenter);
 
+  var safeTime = Math.max(t, ac.currentTime + 0.003);
   var attack = 0.005;
-  var peakTime = t + attack;
+  var peakTime = safeTime + attack;
   var sawPeak = 0.5 * peakScale;
   var sawDecay = 2;
 
   var filter = ac.createBiquadFilter();
   filter.connect(fader);
   filter.frequency.value = 285 + filterOffset;
-  filter.detune.setValueAtTime(300, t);
+  filter.detune.value = 300;
   filter.detune.setTargetAtTime(0, peakTime, 8 * decayScale);
 
   var sawGain = ac.createGain();
   sawGain.connect(filter);
-  sawGain.gain.setValueAtTime(0, t);
+  sawGain.gain.value = 0;
+  sawGain.gain.setValueAtTime(0, safeTime);
   sawGain.gain.linearRampToValueAtTime(sawPeak, peakTime);
   sawGain.gain.setTargetAtTime(0, peakTime, sawDecay * decayScale);
 
@@ -29,7 +31,7 @@ function addPianoNote(v, t, f) {
   saw.type = "sawtooth";
   saw.frequency.value = f;
   saw.connect(sawGain);
-  saw.start(t);
+  saw.start(safeTime);
 
   var note = {
     fader: fader,
