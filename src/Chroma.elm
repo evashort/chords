@@ -1,4 +1,4 @@
-module Chroma exposing (search, extendedSearch)
+module Chroma exposing (search, extendedSearch, subsetSearch)
 
 import Chord exposing (Chord)
 import IdChord exposing (IdChord)
@@ -55,8 +55,19 @@ addSchemes :
   List Int -> Dict (List Int) (List Chord) ->
     Dict (List Int) (List Chord)
 addSchemes flavor schemes =
-  let chroma = fromFlavor flavor in
-    List.foldl (addScheme flavor chroma) schemes chroma
+  let
+    chroma = fromFlavor flavor
+  in let
+    offsets =
+      case flavor of
+        [ 3, 6, 9 ] ->
+          [ 0 ]
+        [ 4, 8 ] ->
+          [ 0 ]
+        _ ->
+          chroma
+  in
+    List.foldl (addScheme flavor chroma) schemes offsets
 
 addScheme :
   List Int -> List Int -> Int -> Dict (List Int) (List Chord) ->
@@ -178,3 +189,46 @@ interestingFlavors =
   , [ 4, 7, 11, 14, 21 ]
   , [ 3, 7, 10, 14, 21 ]
   ]
+
+-- Subset search
+
+subsetSearch : Int -> Chord -> List (String, IdChord)
+subsetSearch tonic chord =
+  let chroma = fromFlavor chord.flavor in
+    List.concatMap
+      (subsetSearchHelp tonic chord chroma)
+      chroma
+
+subsetSearchHelp : Int -> Chord -> List Int -> Int -> List (String, IdChord)
+subsetSearchHelp tonic chord chroma missingPitch =
+  case List.filter ((/=) missingPitch) chroma of
+    [] ->
+      []
+    offset :: rest ->
+      let
+        partialChroma =
+          0 :: (List.map ((+) -offset) rest)
+      in
+        case Dict.get partialChroma interestingSchemes of
+          Nothing ->
+            []
+          Just schemeList ->
+            let
+              header =
+                String.concat
+                  [ Pitch.view
+                      (SharpCount.fromTonic tonic)
+                      ((chord.root + missingPitch) % 12)
+                  , " removed"
+                  ]
+            in
+              List.map
+                ( (,) header <<
+                    addId <<
+                    Chord.transpose (chord.root + offset)
+                )
+                schemeList
+
+interestingSchemes : Dict (List Int) (List Chord)
+interestingSchemes =
+  List.foldr addSchemes Dict.empty interestingFlavors

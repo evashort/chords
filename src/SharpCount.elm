@@ -1,4 +1,4 @@
-module SharpCount exposing (fromFlavor)
+module SharpCount exposing (fromFlavor, fromTonic)
 
 fromFlavor : Int -> List Int -> List Int
 fromFlavor rootSharpCount flavor =
@@ -17,3 +17,13 @@ delta interval =
 intervals : List Int -> List Int
 intervals flavor =
   List.map2 (-) flavor (0 :: flavor)
+
+fromTonic : Int -> Int
+fromTonic tonic =
+  case tonic of
+    7 -> 1
+    2 -> 2
+    9 -> 3
+    4 -> 4
+    11 -> 5
+    _ -> 0

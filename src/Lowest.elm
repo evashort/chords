@@ -3,6 +3,7 @@ module Lowest exposing (flag, rangeStart, fromPitch, pitch, viewDefault, view)
 import Flag exposing (Flag)
 import Pitch
 import Scale exposing (Scale)
+import SharpCount
 
 import Html exposing (Html, text, sup)
 import Regex exposing (Regex)
@@ -132,14 +133,7 @@ view scale lowest =
     pitch =
       (scale.tonic + lowest - rangeStart) % 12 + rangeStart
   in let
-    sharpCount =
-      case scale.tonic of
-        7 -> 1
-        2 -> 2
-        9 -> 3
-        4 -> 4
-        11 -> 5
-        _ -> 0
+    sharpCount = SharpCount.fromTonic scale.tonic
   in let
     pitchString = Pitch.view sharpCount (pitch % 12)
   in
