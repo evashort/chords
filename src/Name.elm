@@ -1,4 +1,4 @@
-module Name exposing (code, codeExtended, view)
+module Name exposing (code, codeExtended, view, sharpCount)
 
 import Chord exposing (Chord)
 import Pitch
@@ -40,6 +40,15 @@ view chord =
       [ text normal ]
     else
       [ text normal, sup [] [ text scheme.superscript ] ]
+
+sharpCount : List Int -> Int
+sharpCount flavor =
+  case Dict.get flavor schemes of
+    Nothing ->
+      Debug.crash
+        ("Name.sharpCount: Unknown flavor: " ++ toString flavor)
+    Just scheme ->
+      scheme.sharpCount
 
 type alias Scheme =
   { code : String

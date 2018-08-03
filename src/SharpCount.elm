@@ -1,38 +1,19 @@
-module SharpCount exposing (ranges)
+module SharpCount exposing (fromFlavor)
 
-import Chord
+fromFlavor : Int -> List Int -> List Int
+fromFlavor rootSharpCount flavor =
+  List.scanl
+    (+)
+    rootSharpCount
+    (List.map delta (intervals flavor))
 
-import Dict exposing (Dict)
-
-range : List Int -> (Int, Int)
-range flavor =
-  let
-    sharpCounts =
-      List.scanl
-        (+)
-        0
-        (List.map sharpDelta (intervals flavor))
-  in let
-    minimum =
-      Maybe.withDefault 1000 (List.minimum sharpCounts)
-    maximum =
-      Maybe.withDefault 1000 (List.maximum sharpCounts)
-  in
-    ( -minimum, 5 - maximum )
-
-sharpDelta : Int -> Int
-sharpDelta interval =
+delta : Int -> Int
+delta interval =
   if interval == 6 then
-    Debug.crash "think about this"
+    Debug.crash "SharpCount.delta: Tritones are ambiguous"
   else
     (7 * interval + 6) % 12 - 6
 
 intervals : List Int -> List Int
 intervals flavor =
   List.map2 (-) flavor (0 :: flavor)
-
-ranges : Dict String (Int, Int)
-ranges =
-  Dict.map
-    (always range)
-    Chord.flavors

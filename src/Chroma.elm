@@ -2,22 +2,21 @@ module Chroma exposing (search, extendedSearch)
 
 import Chord exposing (Chord)
 import IdChord exposing (IdChord)
+import Name
+import Pitch
+import SharpCount
 
 import Dict exposing (Dict)
 
-search : Chord -> List IdChord
+search : Chord -> List (String, IdChord)
 search chord =
-  searchHelp fullSchemes chord
-
-searchHelp : Dict (List Int) (List Chord) -> Chord -> List IdChord
-searchHelp schemes chord =
-  case Dict.get (fromFlavor chord.flavor) schemes of
+  case Dict.get (fromFlavor chord.flavor) fullSchemes of
     Nothing ->
       []
-    Just scheme ->
+    Just schemeList ->
       List.map
-        (addId << Chord.transpose chord.root)
-        (List.filter (differentFlavor chord) scheme)
+        ((,) "Inversion" << addId << Chord.transpose chord.root)
+        (List.filter (differentFlavor chord) schemeList)
 
 differentFlavor : Chord -> Chord -> Bool
 differentFlavor x y =
@@ -50,10 +49,7 @@ removeDuplicates xs =
 
 fullSchemes : Dict (List Int) (List Chord)
 fullSchemes =
-  List.foldl
-    addSchemes
-    Dict.empty
-    (Dict.values Chord.flavors)
+  List.foldr addSchemes Dict.empty Chord.flavors
 
 addSchemes :
   List Int -> Dict (List Int) (List Chord) ->
@@ -70,52 +66,115 @@ addScheme flavor chroma offset schemes =
     ( List.sort
         (List.map (mod12 << (+) -offset) chroma)
     )
-    (addToScheme (Chord flavor -offset))
+    (addToList (Chord flavor -offset))
     schemes
 
 mod12 : Int -> Int
 mod12 x =
   x % 12
 
-addToScheme : Chord -> Maybe (List Chord) -> Maybe (List Chord)
-addToScheme chord scheme =
-  Just (chord :: Maybe.withDefault [] scheme)
+addToList : a -> Maybe (List a) -> Maybe (List a)
+addToList item maybeList =
+  Just (item :: Maybe.withDefault [] maybeList)
 
 -- Extended search
 
-extendedSearch : Chord -> List IdChord
-extendedSearch chord =
-  searchHelp partialSchemes chord
+type alias PartialScheme =
+  { chord : Chord
+  , missingPitch : Int
+  , sharpCount : Int
+  }
 
-partialSchemes : Dict (List Int) (List Chord)
+extendedSearch : Chord -> List (String, IdChord)
+extendedSearch chord =
+  case Dict.get (fromFlavor chord.flavor) partialSchemes of
+    Nothing ->
+      []
+    Just schemeList ->
+      List.map (interpretPartialScheme chord) schemeList
+
+interpretPartialScheme : Chord -> PartialScheme -> (String, IdChord)
+interpretPartialScheme chord scheme =
+  ( String.concat
+      [ Pitch.view
+          scheme.sharpCount
+          ((chord.root + scheme.missingPitch) % 12)
+      , " added"
+      ]
+  , addId (Chord.transpose chord.root scheme.chord)
+  )
+
+partialSchemes : Dict (List Int) (List PartialScheme)
 partialSchemes =
-  List.foldl
-    addPartialSchemes
-    Dict.empty
-    (Dict.values Chord.flavors)
+  List.foldr addPartialSchemes Dict.empty interestingFlavors
 
 addPartialSchemes :
-  List Int -> Dict (List Int) (List Chord) ->
-    Dict (List Int) (List Chord)
+  List Int -> Dict (List Int) (List PartialScheme) ->
+    Dict (List Int) (List PartialScheme)
 addPartialSchemes flavor schemes =
-  if List.length flavor > 2 then
-    let chroma = fromFlavor flavor in
-      List.foldl
-        (addPartialSchemesHelp flavor chroma)
-        schemes
-        chroma
-  else
-    schemes
-
-addPartialSchemesHelp :
-  List Int -> List Int -> Int -> Dict (List Int) (List Chord) ->
-    Dict (List Int) (List Chord)
-addPartialSchemesHelp flavor chroma toRemove schemes =
   let
-    partialChroma =
-      List.filter ((/=) toRemove) chroma
+    chroma = fromFlavor flavor
+    sharpCount = Name.sharpCount flavor
+  in let
+    sharpCounts =
+      SharpCount.fromFlavor sharpCount flavor
+  in let
+    missingPitches =
+      List.map2
+        (,)
+        (List.map mod12 (0 :: flavor))
+        sharpCounts
   in
     List.foldl
-      (addScheme flavor partialChroma)
+      (addPartialSchemesHelp flavor chroma)
+      schemes
+      missingPitches
+
+addPartialSchemesHelp :
+  List Int -> List Int -> (Int, Int) -> Dict (List Int) (List PartialScheme) ->
+    Dict (List Int) (List PartialScheme)
+addPartialSchemesHelp flavor chroma ( missingPitch, sharpCount ) schemes =
+  let
+    partialChroma =
+      List.filter ((/=) missingPitch) chroma
+  in
+    List.foldl
+      (addPartialScheme flavor missingPitch sharpCount partialChroma)
       schemes
       partialChroma
+
+addPartialScheme :
+  List Int -> Int -> Int -> List Int -> Int ->
+    Dict (List Int) (List PartialScheme) ->
+    Dict (List Int) (List PartialScheme)
+addPartialScheme flavor missingPitch sharpCount chroma offset schemes =
+  Dict.update
+    ( List.sort
+        (List.map (mod12 << (+) -offset) chroma)
+    )
+    ( addToList
+        { chord = Chord flavor -offset
+        , missingPitch = missingPitch - offset
+        , sharpCount = sharpCount
+        }
+    )
+    schemes
+
+interestingFlavors : List (List Int)
+interestingFlavors =
+  [ [ 4, 7, 10 ]
+  , [ 4, 7, 11 ]
+  , [ 3, 7, 10 ]
+  , [ 3, 6, 10 ]
+  , [ 3, 6, 9 ]
+  , [ 3, 7, 11 ]
+  , [ 4, 7, 10, 14 ]
+  , [ 4, 7, 11, 14 ]
+  , [ 3, 7, 10, 14 ]
+  , [ 4, 7, 10, 13 ]
+  , [ 4, 7, 14 ]
+  , [ 3, 7, 14 ]
+  , [ 4, 7, 10, 14, 21 ]
+  , [ 4, 7, 11, 14, 21 ]
+  , [ 3, 7, 10, 14, 21 ]
+  ]

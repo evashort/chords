@@ -33,10 +33,7 @@ count = 12 * Dict.size schemes
 schemes : Dict (List Int) Int
 schemes =
   Dict.fromList
-    ( List.indexedMap
-        reversedTuple
-        (Dict.values Chord.flavors)
-    )
+    (List.indexedMap reversedTuple Chord.flavors)
 
 reversedTuple : a -> b -> ( b, a )
 reversedTuple x y =

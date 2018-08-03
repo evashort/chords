@@ -52,18 +52,21 @@ code sharpCount pitch =
 view : Int -> Int -> String
 view sharpCount pitch =
   let
-    letterIndex = (pitch * 7 + 6 - sharpCount) // 12
+    staffRow = (pitch * 7 + 6 - sharpCount) // 12
   in let
-    letterPitch = (letterIndex * 12 + 5) // 7
+    letterPitch = (staffRow * 12 + 5) // 7
   in let
-    letter = String.slice letterIndex (letterIndex + 1) "CDEFGAB"
+    accidental = tally (pitch - letterPitch)
+    letterIndex = staffRow % 7
   in let
-    accidental =
-      case pitch - letterPitch of
-        0 -> ""
-        (-1) -> "♭"
-        1 -> "♯"
-        _ ->
-          Debug.crash ("Pitch.view: Pitch caused error: " ++ toString pitch)
+    letter =
+      String.slice letterIndex (letterIndex + 1) "CDEFGAB"
   in
     letter ++ accidental
+
+tally : Int -> String
+tally x =
+  if x > 0 then
+    String.repeat (x % 2) "♯" ++ String.repeat (x // 2) "𝄪"
+  else
+    String.repeat (x % 2) "♭" ++ String.repeat (-x // 2) "𝄫"

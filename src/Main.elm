@@ -25,7 +25,6 @@ import Ports
 import Radio
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
---import SharpCount
 import Song
 import Storage exposing (Storage)
 import StrumPattern
@@ -1537,7 +1536,7 @@ viewSearchResults tonic storage keyboard =
       case ( exactMatch, inversions ) of
         ( Just match, _ ) ->
           match.chord
-        ( _, inversion :: _ ) ->
+        ( _, ( _, inversion ) :: _ ) ->
           inversion.chord
         _ ->
           Chord [] 0
@@ -1546,16 +1545,28 @@ viewSearchResults tonic storage keyboard =
       [ style
           [ ( "grid-area", "pane" )
           , ( "display", "flex" )
+          , ( "align-items", "flex-end" )
           ]
       ]
       ( List.concat
-          [ [ viewCustomChord tonic keyboard colorChord
+          [ [ span
+                [ style
+                    [ ( "margin-right", "5px" )
+                    , ( "margin-bottom", "5px" )
+                    ]
+                ]
+                [ Html.br [] []
+                , viewCustomChord tonic keyboard colorChord
+                ]
             ]
           , case exactMatch of
               Nothing ->
                 []
               Just idChord ->
-                [ viewSearchResult tonic playStatus idChord
+                [ viewSearchResult
+                    tonic
+                    playStatus
+                    ( "Exact match", idChord )
                 ]
           , List.map
               (viewSearchResult tonic playStatus)
@@ -1582,8 +1593,6 @@ viewCustomChord tonic keyboard colorChord =
           , ( "height", "75px" )
           , ( "position", "relative" )
           , ( "display", "inline-block" )
-          , ( "margin-right", "5px" )
-          , ( "margin-bottom", "5px" )
           ]
       ]
       [ span
@@ -1652,22 +1661,30 @@ viewCustomChord tonic keyboard colorChord =
           ]
       ]
 
-viewSearchResult : Int -> PlayStatus -> IdChord -> Html Msg
-viewSearchResult tonic playStatus idChord =
+viewSearchResult : Int -> PlayStatus -> (String, IdChord) -> Html Msg
+viewSearchResult tonic playStatus ( header, idChord ) =
   Html.map
     IdChordMsg
     ( span
         [ style
-            [ ( "width", "75px" )
-            , ( "height", "75px" )
+            [ ( "text-align", "center" )
             , ( "margin-right", "5px" )
             , ( "margin-bottom", "5px" )
-            , ( "position", "relative" )
-            , ( "display", "inline-block" )
-            , ( "font-size", "150%" )
             ]
         ]
-        (IdChord.view tonic playStatus idChord)
+        [ Html.text header
+        , Html.br [] []
+        , span
+            [ style
+                [ ( "width", "75px" )
+                , ( "height", "75px" )
+                , ( "position", "relative" )
+                , ( "display", "inline-block" )
+                , ( "font-size", "150%" )
+                ]
+            ]
+            (IdChord.view tonic playStatus idChord)
+        ]
     )
 
 viewKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
@@ -1746,6 +1763,4 @@ viewMiscSettings canStore shouldStore storage =
             []
         , Html.text " Warn me when I close without saving"
         ]
-    --, Html.br [] []
-    --, Html.text (toString SharpCount.ranges)
     ]
