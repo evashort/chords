@@ -609,9 +609,9 @@ update msg model =
           , storage =
               case keyboardMsg of
                 Keyboard.AddPitch _ ->
-                  { storage | pane = Pane.Keyboard }
+                  { storage | pane = Pane.Search }
                 Keyboard.RemovePitch _ ->
-                  { storage | pane = Pane.Keyboard }
+                  { storage | pane = Pane.Search }
                 _ ->
                   storage
           }
@@ -883,7 +883,7 @@ view model =
           Html.Lazy.lazy3
             viewChordsInKey
             model.parse.scale
-            (Tour.shadowStorage model.tour model.storage)
+            model.storage
             model.keyboard
         Pane.Circle ->
           Html.Lazy.lazy3
@@ -891,7 +891,7 @@ view model =
             model.parse.scale.tonic
             model.storage
             model.keyboard
-        Pane.Keyboard ->
+        Pane.Search ->
           Html.Lazy.lazy3
             viewSearchResults
             model.parse.scale.tonic
@@ -1391,7 +1391,7 @@ viewPaneSelector tour scale storage =
           ( Radio.view
               (paneShadow /= Nothing)
               (Maybe.withDefault storage.pane paneShadow)
-              [ ( "Find chords", Pane.Keyboard )
+              [ ( "Search results", Pane.Search )
               , ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
               , ( "Recently played", Pane.History )
@@ -1420,41 +1420,15 @@ viewPaneSettings tour storage =
             , Html.text " Chords from harmonic minor"
             ]
         , Html.text " "
-        , label
-            [ style
-                [ ( "color"
-                  , if Tour.extendedChords tour then
-                      "GrayText"
-                    else
-                      ""
-                  )
+        , Html.map
+            (\x -> SetStorage { storage | addedToneChords = x })
+            ( Radio.view
+                False
+                storage.addedToneChords
+                [ ( "Extended chords", False )
+                , ( "Added tone chords", True )
                 ]
-            ]
-            [ input
-                [ type_ "checkbox"
-                , disabled (Tour.extendedChords tour)
-                , checked
-                    ( storage.extendedChords ||
-                        Tour.extendedChords tour
-                    )
-                , onCheck
-                    (\x -> SetStorage { storage | extendedChords = x })
-                ]
-                []
-            , Html.text " Extended chords"
-            ]
-        , Html.text " "
-        , label
-            []
-            [ input
-                [ type_ "checkbox"
-                , checked storage.addedToneChords
-                , onCheck
-                    (\x -> SetStorage { storage | addedToneChords = x })
-                ]
-                []
-            , Html.text " Added tone chords"
-            ]
+            )
         ]
     Pane.History ->
       span

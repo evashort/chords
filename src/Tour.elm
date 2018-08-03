@@ -1,5 +1,5 @@
 module Tour exposing
-  ( shadowBuffet, padSong, paneShadow, extendedChords, shadowStorage
+  ( shadowBuffet, padSong, paneShadow
   , Tour, init, view, viewPageOptions, scrollIntoView
   )
 
@@ -7,7 +7,6 @@ import Buffet exposing (Buffet)
 import Pane exposing (Pane)
 import Ports
 import Song exposing (Song)
-import Storage exposing (Storage)
 
 import Html exposing
   (Html, text, span, div, p, ul, li, sup, code, mark, em, button, option)
@@ -43,8 +42,6 @@ padSong tour song =
       newLength =
         case tour.pageNumber of
           3 -> 1
-          8 -> 2
-          9 -> 2
           _ -> 0
     in
       (++)
@@ -60,22 +57,9 @@ paneShadow : Tour -> Maybe Pane
 paneShadow tour =
   if tour.visible then
     case tour.pageNumber of
-      8 -> Just Pane.ChordsInKey
-      9 -> Just Pane.History
       _ -> Nothing
   else
     Nothing
-
-extendedChords : Tour -> Bool
-extendedChords tour =
-  tour.visible && tour.pageNumber == 8
-
-shadowStorage : Tour -> Storage -> Storage
-shadowStorage tour storage =
-  if extendedChords tour then
-    { storage | extendedChords = True }
-  else
-    storage
 
 type alias Tour =
   { visible : Bool
@@ -587,49 +571,13 @@ pages =
       "Lowest scale degree"
       [ p
           []
-          [ text "This slider sets the cutoff point where the scale wraps around from high to low. Moving it up will transpose the lowest chords up one octave."
+          [ text "This slider adjusts the range of the piano keyboard. Moving it up will transpose the lowest chords up one octave."
           ]
       , p
           []
           [ text "In the textbox, this parameter is stored as a number which always represents a "
           , em [] [ text "major" ]
           , text " scale degree."
-          ]
-      ]
-  , Page
-      False True -1 3 11
-      "paneSelector"
-      "Chords in key"
-      [ p
-          []
-          [ text "This table contains play buttons for most of the diatonic chords in the current key."
-          ]
-      , p
-          []
-          [ text "I've temporarily selected the \"Extended chords\" checkbox so I can explain why there are no 11"
-          , sup [] [ text "th" ]
-          , text " chords: In all 13"
-          , sup [] [ text "th" ]
-          , text " chords, the 11"
-          , sup [] [ text "th" ]
-          , text " degree is skipped, so they can also be seen as inverted 11"
-          , sup [] [ text "th" ]
-          , text " chords with the root on top."
-          ]
-      , p
-          []
-          [ text "If you select \"Added tone chords\", note that the 6"
-          , sup [] [ text "th" ]
-          , text " chords are equivalent to \"add 13\" chords."
-          ]
-      ]
-  , Page
-      True True -1 18 8
-      "paneSelector"
-      "Recently played"
-      [ p
-          []
-          [ text "If you discover a sequence of chords you like while clicking the play buttons, you can look for it in the \"Recently played\" tab. The \"Use\" button next to each sequence will add it to the textbox so you can play it again."
           ]
       ]
   , Page

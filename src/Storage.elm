@@ -20,7 +20,6 @@ type alias Storage =
   , strumInterval : Float
   , pane : Pane
   , harmonicMinor : Bool
-  , extendedChords : Bool
   , addedToneChords : Bool
   , shortenSequences : Bool
   , startEmpty : Bool
@@ -32,9 +31,8 @@ default =
   { playStyle = PlayStyle.Arpeggio
   , strumPattern = StrumPattern.Indie
   , strumInterval = 0.01
-  , pane = Pane.Keyboard
+  , pane = Pane.Search
   , harmonicMinor = False
-  , extendedChords = False
   , addedToneChords = False
   , shortenSequences = True
   , startEmpty = False
@@ -49,7 +47,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 4 0))
+      , Encode.string (versionString (Version 0 5 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -64,7 +62,6 @@ encoder storage =
       , Encode.string (paneString storage.pane)
       )
     , ( "harmonicMinor", Encode.bool storage.harmonicMinor )
-    , ( "extendedChords", Encode.bool storage.extendedChords )
     , ( "addedToneChords", Encode.bool storage.addedToneChords )
     , ( "shortenSequences", Encode.bool storage.shortenSequences )
     , ( "startEmpty", Encode.bool storage.startEmpty )
@@ -107,7 +104,6 @@ v0_4Decoder =
         "pane"
         (parseDecoder "pane" parsePane)
     |> Pipeline.required "harmonicMinor" Decode.bool
-    |> Pipeline.required "extendedChords" Decode.bool
     |> Pipeline.required "addedToneChords" Decode.bool
     |> Pipeline.required "shortenSequences" Decode.bool
     |> Pipeline.required "startEmpty" Decode.bool
@@ -217,24 +213,24 @@ parseStrumPattern string =
 paneString : Pane -> String
 paneString pane =
   case pane of
+    Pane.Search ->
+      "Search"
     Pane.ChordsInKey ->
       "ChordsInKey"
     Pane.Circle ->
       "Circle"
-    Pane.Keyboard ->
-      "Keyboard"
     Pane.History ->
       "History"
 
 parsePane : String -> Maybe Pane
 parsePane string =
   case string of
+    "Search" ->
+      Just Pane.Search
     "ChordsInKey" ->
       Just Pane.ChordsInKey
     "Circle" ->
       Just Pane.Circle
-    "Keyboard" ->
-      Just Pane.Keyboard
     "History" ->
       Just Pane.History
     _ ->

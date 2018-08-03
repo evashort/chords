@@ -1,7 +1,7 @@
 module Pane exposing (Pane(..))
 
 type Pane
-  = ChordsInKey
+  = Search
+  | ChordsInKey
   | Circle
-  | Keyboard
   | History
