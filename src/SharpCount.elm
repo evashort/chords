@@ -7,12 +7,10 @@ fromFlavor rootSharpCount flavor =
     rootSharpCount
     (List.map delta (intervals flavor))
 
+-- Tritones are considered diminished 5ths
 delta : Int -> Int
 delta interval =
-  if interval == 6 then
-    Debug.crash "SharpCount.delta: Tritones are ambiguous"
-  else
-    (7 * interval + 6) % 12 - 6
+  (7 * interval + 6) % 12 - 6
 
 intervals : List Int -> List Int
 intervals flavor =

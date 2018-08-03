@@ -87,9 +87,10 @@ schemes =
     , ( [ 4, 7, 10, 13 ], dominant9 )
     , ( [ 4, 7, 14 ], major9 )
     , ( [ 3, 7, 14 ], major )
+    , ( [ 4, 7, 13 ], dominant9 )
     , ( [ 4, 7, 10, 14, 21 ], dominant7 )
     , ( [ 4, 7, 11, 14, 21 ], major7 )
-    , ( [ 3, 7, 10, 14, 21 ], minor7 )
+    , ( [ 3, 7, 10, 14, 21 ], minor13 )
     ]
 
 allGray : Scheme
@@ -170,6 +171,14 @@ dominant9 =
   , f = darkCyan
   , c = darkPink
   , g = darkYellow
+  }
+
+minor13 : Scheme
+minor13 =
+  { fg = white
+  , f = darkGreen
+  , c = darkBlue
+  , g = darkRed
   }
 
 toHexPair : Int -> String

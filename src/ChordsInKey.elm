@@ -10,247 +10,170 @@ import Html exposing (Html, span, text, sup)
 import Html.Attributes exposing (style)
 
 view : String -> Storage -> Scale -> PlayStatus -> Html IdChord.Msg
-view
-  gridArea
-  { harmonicMinor, extendedChords, addedToneChords }
-  scale
-  playStatus =
-  let row = viewRow scale playStatus 0 in
-    span
-      [ style
-          [ ( "grid-area", gridArea )
-          , ( "justify-self", "start" )
-          , ( "display", "grid" )
-          , ( "position", "relative" )
-          , ( "grid-template-rows", "auto" )
-          , ( "grid-auto-rows", "75px" )
-          , ( "grid-template-columns", "auto" )
-          , ( "grid-auto-columns", "75px" )
-          , ( "grid-row-gap", "5px" )
-          , ( "grid-column-gap", "5px" )
-          , ( "justify-items", "center" )
-          , ( "font-size", "150%" )
-          ]
-      ]
-      ( List.concat
-          [ List.indexedMap
-              (viewDegree << (+) 1)
-              ( if scale.minor then
-                  [ "i", "iio", "III", "iv"
-                  , if harmonicMinor then "V" else "v"
-                  , "VI", "VII"
-                  ]
-                else
-                  [ "I", "ii"
-                  , if harmonicMinor then "III" else "iii"
-                  , "IV", "V", "vi", "viio"
-                  ]
-              )
-          , [ viewCategory 1 "Triad" ]
-          , if harmonicMinor then
-              row 1 "C Dm E F G Am Bo"
-            else
-              row 1 "C Dm Em F G Am Bo"
-          , [ viewCategory 2 "7th" ]
-          , if harmonicMinor then
-              row 2 "CM7 Dm7 E7 FM7 G7 AmM7 Bo7"
-            else
-              row 2 "CM7 Dm7 Em7 FM7 G7 Am7 B0"
-          , if extendedChords || addedToneChords then
-              List.concat
-                [ [ viewCategory 3 "9th" ]
-                , if extendedChords && harmonicMinor then
-                    row 3 "CM9 Dm9 E7b9 FM9 G9 Am9"
-                  else if extendedChords then
-                    row 3 "CM9 Dm9 FM9 G9 Am9"
-                  else
-                    []
-                , if addedToneChords then
-                    row
-                      (if extendedChords then 4 else 3)
-                      "Cadd9 Dmadd9 Fadd9 Gadd9 Amadd9"
-                  else
-                    []
-                , [ viewCategory
-                      (if extendedChords && addedToneChords then 5 else 4)
-                      "13th"
-                  ]
-                , if extendedChords then
-                    row
-                      (if addedToneChords then 5 else 4)
-                      "CM13 Dm13 FM13 G13"
-                  else
-                    []
-                , if addedToneChords then
-                    row
-                      (if extendedChords then 6 else 4)
-                      "C6 Dm6 F6 G6"
-                  else
-                    []
-                ]
-            else
-              []
-          ]
-      )
+view gridArea storage scale playStatus =
+  span
+    [ style
+        [ ( "grid-area", gridArea )
+        ]
+    ]
+    [ viewGrid
+        scale
+        playStatus
+        [ case ( scale.minor, storage.harmonicMinor ) of
+            ( False, False ) ->
+              "I ii iii IV V vi viio"
+            ( False, True ) ->
+              "I ii III IV V vi viio"
+            ( True, False ) ->
+              "i iio III iv v VI VII"
+            ( True, True ) ->
+              "i iio III iv V VI VII"
+        , if storage.harmonicMinor then
+            "Triad C Dm E F G Am Bo"
+          else
+            "Triad C Dm Em F G Am Bo"
+        , if storage.harmonicMinor then
+            "7th CM7 Dm7 E7 FM7 G7 AmM7 Bo7"
+          else
+            "7th CM7 Dm7 Em7 FM7 G7 Am7 B0"
+        , case
+            ( storage.addedToneChords, storage.harmonicMinor )
+          of
+            ( False, False ) ->
+              "9th CM9 Dm9 _ FM9 G9 Am9 _"
+            ( False, True ) ->
+              "9th CM9 Dm9 E7b9 FM9 G9 Am9 _"
+            ( True, False ) ->
+              "9th Cadd9 Dmadd9 _ Fadd9 Gadd9 Amadd9 _"
+            ( True, True ) ->
+              "9th Cadd9 Dmadd9 E7addb9 Fadd9 Gadd9 Amadd9 _"
+        , if storage.addedToneChords then
+            "13th C6 Dm6 _ F6 G6 _ _"
+          else
+            "13th CM13 Dm13 _ FM13 G13 _ _"
+        ]
+    ]
 
-viewRow :
-  Scale -> PlayStatus -> Int -> Int -> String -> List (Html IdChord.Msg)
-viewRow scale playStatus sharpCount row code =
-  let
-    codes = String.split " " code
-  in let
-    chords = List.filterMap Chord.fromCode codes
-  in let
-    sortedChords =
-      List.sortBy (degree sharpCount scale.minor) chords
-  in
-    List.map
-      (viewChord scale playStatus sharpCount row)
-      sortedChords
+viewGrid : Scale -> PlayStatus -> List String -> Html IdChord.Msg
+viewGrid scale playStatus rows =
+  span
+    [ style
+        [ ( "display", "inline-grid" )
+        , ( "grid-template-rows", "auto" )
+        , ( "grid-auto-rows", "75px" )
+        , ( "grid-template-columns", "auto" )
+        , ( "grid-auto-columns", "75px" )
+        , ( "grid-row-gap", "5px" )
+        , ( "grid-column-gap", "5px" )
+        ]
+    ]
+    ( case rows of
+        [] ->
+          []
+        header :: rest ->
+          (++)
+            (List.indexedMap viewDegree (split header))
+            ( List.concat
+                ( List.indexedMap
+                    (viewRow scale playStatus)
+                    rest
+                )
+            )
+    )
 
-viewChord :
-  Scale -> PlayStatus -> Int -> Int -> Chord -> Html IdChord.Msg
-viewChord scale playStatus sharpCount row chord =
-  let
-    column =
-      degree sharpCount scale.minor chord + 1
-  in let
-    idChord =
-      case
-        IdChord.fromChord
-          (Chord.transpose scale.tonic chord)
-      of
-        Nothing ->
-          Debug.crash
-            ("ChordsInKey.viewChord: Unknown chord " ++ toString chord)
-        Just something ->
-          something
-  in
-    span
-      [ style
-          [ ( "grid-row-start", toString (row + 1) )
-          , ( "grid-column-start", toString (column + 1) )
-          , ( "grid-row-end", "span 1" )
-          , ( "grid-column-end", "span 1" )
-          , ( "align-self", "stretch" )
-          , ( "justify-self", "stretch" )
-          , ( "position", "relative" )
-          ]
-      ]
-      (IdChord.view scale.tonic playStatus idChord)
-
-
-degree : Int -> Bool -> Chord -> Int
-degree sharpCount minor chord =
-  let
-    majorDegree =
-      (chord.root * 7 + 6 - sharpCount) // 12
-  in
-    if minor then
-      (majorDegree + 2) % 7
-    else
-      majorDegree
+split : String -> List String
+split string =
+  List.filter
+    (not << String.isEmpty)
+    (String.split " " string)
 
 viewDegree : Int -> String -> Html msg
-viewDegree x name =
+viewDegree i name =
   span
     [ style
         [ ( "grid-row", "1" )
-        , ( "grid-column", toString (x + 1) )
+        , ( "grid-column", toString (i + 2) )
         , ( "align-self", "baseline" )
+        , ( "justify-self", "center" )
+        , ( "font-size", "150%" )
         , ( "line-height", "initial" )
-        , ( "display", "inline-block" )
         ]
     ]
     ( if String.endsWith "o" name then
         [ text (String.dropRight 1 name)
-        , sup
-            []
-            [ text "o" ]
+        , sup [] [ text "o" ]
         ]
       else
         [ text name
         ]
     )
 
+viewRow : Scale -> PlayStatus -> Int -> String -> List (Html IdChord.Msg)
+viewRow scale playStatus i row =
+  case split row of
+    [] ->
+      []
+    category :: majorCells ->
+      let
+        cells =
+          if scale.minor then
+            List.drop 5 majorCells ++ List.take 5 majorCells
+          else
+            majorCells
+      in
+        (::)
+          (viewCategory i category)
+          (List.indexedMap (viewCell scale.tonic playStatus i) cells)
+
 viewCategory : Int -> String -> Html msg
-viewCategory y name =
+viewCategory i name =
   span
     [ style
         [ ( "grid-column", "1" )
-        , ( "grid-row", toString (y + 1) )
-        , ( "font-size", "initial" )
-        , ( "display", "inline-block" )
+        , ( "grid-row", toString (i + 2) )
         , ( "align-self", "center" )
+        , ( "justify-self", "center" )
+        , ( "font-size", "initial" )
         ]
     ]
     ( if String.endsWith "th" name then
         [ text (String.dropRight 2 name)
-        , sup
-            []
-            [ text "th" ]
+        , sup [] [ text "th" ]
         ]
       else
         [ text name
         ]
     )
 
-major : Int -> Chord
-major = Chord [ 4, 7 ]
-
-minor : Int -> Chord
-minor = Chord [ 3, 7 ]
-
-diminished : Int -> Chord
-diminished = Chord [ 3, 6 ]
-
-major7 : Int -> Chord
-major7 = Chord [ 4, 7, 11 ]
-
-minor7 : Int -> Chord
-minor7 = Chord [ 3, 7, 10 ]
-
-dominant7 : Int -> Chord
-dominant7 = Chord [ 4, 7, 10 ]
-
-halfDiminished7 : Int -> Chord
-halfDiminished7 = Chord [ 3, 6, 10 ]
-
-diminished7 : Int -> Chord
-diminished7 = Chord [ 3, 6, 9 ]
-
-sus4 : Int -> Chord
-sus4 = Chord [ 5, 7 ]
-
-dominant9 : Int -> Chord
-dominant9 = Chord [ 4, 7, 10, 14 ]
-
-major9 : Int -> Chord
-major9 = Chord [ 4, 7, 11, 14 ]
-
-add9 : Int -> Chord
-add9 = Chord [ 4, 7, 14 ]
-
-minorAdd9 : Int -> Chord
-minorAdd9 = Chord [ 3, 7, 14 ]
-
-minor9 : Int -> Chord
-minor9 = Chord [ 3, 7, 10, 14 ]
-
-dominant7Flat9 : Int -> Chord
-dominant7Flat9 = Chord [ 4, 7, 10, 13 ]
-
-dominant13 : Int -> Chord
-dominant13 = Chord [ 4, 7, 10, 14, 21 ]
-
-major13 : Int -> Chord
-major13 = Chord [ 4, 7, 11, 14, 21 ]
-
-minor13 : Int -> Chord
-minor13 = Chord [ 3, 7, 10, 14, 21 ]
-
-major6 : Int -> Chord
-major6 = Chord [ 4, 7, 9 ]
-
-minor6 : Int -> Chord
-minor6 = Chord [ 3, 7, 9 ]
+viewCell : Int -> PlayStatus -> Int -> Int -> String -> Html IdChord.Msg
+viewCell tonic playStatus y x code =
+  case Chord.fromCode code of
+    Nothing ->
+      span
+        [ style
+            [ ( "grid-row-start", toString (y + 2) )
+            , ( "grid-column-start", toString (x + 2) )
+            ]
+        ]
+        []
+    Just chord ->
+      let
+        idChord =
+          case
+            IdChord.fromChord (Chord.transpose tonic chord)
+          of
+            Nothing ->
+              Debug.crash
+                ("ChordsInKey.viewCell: Unknown chord " ++ toString chord)
+            Just something ->
+              something
+      in
+        span
+          [ style
+              [ ( "grid-row-start", toString (y + 2) )
+              , ( "grid-column-start", toString (x + 2) )
+              , ( "position", "relative" )
+              , ( "font-size", "150%" )
+              ]
+          ]
+          (IdChord.view tonic playStatus idChord)

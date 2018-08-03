@@ -177,6 +177,7 @@ schemes =
     , ( [ 3, 7, 14 ], addNinth )
     , ( [ 3, 7, 10, 14 ], ninth )
     , ( [ 4, 7, 10, 13 ], ninth )
+    , ( [ 4, 7, 13 ], addNinth )
     , ( [ 4, 7, 10, 14, 21 ], thirteenth )
     , ( [ 4, 7, 11, 14, 21 ], thirteenth )
     , ( [ 3, 7, 10, 14, 21 ], thirteenth )
