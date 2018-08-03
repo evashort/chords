@@ -1,5 +1,7 @@
 module Keyboard exposing
-  (Keyboard, ChordSource(..), init, status, getId, Msg(..), update, view)
+  ( Keyboard, LastSound(..), ChordSource(..), init, status, getId, Msg(..)
+  , update, view
+  )
 
 import AudioChange exposing (AudioChange(..))
 import AudioTime
@@ -28,11 +30,16 @@ import Task
 
 type alias Keyboard =
   { player : Player
-  , playerPlaying : Bool
+  , lastSound : LastSound
   , source : ChordSource
   , customCode : String
   , customOctave : Int
   }
+
+type LastSound
+  = PlayerSound
+  | DirtyPluck
+  | Clean
 
 type ChordSource
   = LastPlayed
@@ -43,7 +50,7 @@ type ChordSource
 init : Keyboard
 init =
   { player = Player.init
-  , playerPlaying = False
+  , lastSound = Clean
   , source = NoChord
   , customCode = ""
   , customOctave = 0
@@ -128,14 +135,14 @@ update msg keyboard =
   case msg of
     ShowCustomChord showCustomChord ->
       ( { keyboard
-        | playerPlaying = False
+        | lastSound = Clean
         , source =
             if showCustomChord then
               CustomChord
             else
               NoChord
         }
-      , if keyboard.playerPlaying then
+      , if keyboard.lastSound == PlayerSound then
           Task.perform Stop AudioTime.now
         else
           Cmd.none
@@ -143,7 +150,7 @@ update msg keyboard =
 
     SetCode code ->
       ( { keyboard
-        | playerPlaying = False
+        | lastSound = Clean
         , source =
             if code == "" then
               NoChord
@@ -152,7 +159,7 @@ update msg keyboard =
         , customCode = code
         , customOctave = getOctave keyboard
         }
-      , if keyboard.playerPlaying then
+      , if keyboard.lastSound == PlayerSound then
           Task.perform Stop AudioTime.now
         else
           Cmd.none
@@ -160,12 +167,12 @@ update msg keyboard =
 
     SetOctave octave ->
       ( { keyboard
-        | playerPlaying = False
+        | lastSound = Clean
         , source = CustomChord
         , customCode = getCode keyboard
         , customOctave = octave
         }
-      , if keyboard.playerPlaying then
+      , if keyboard.lastSound == PlayerSound then
           Task.perform Stop AudioTime.now
         else
           Cmd.none
@@ -196,14 +203,14 @@ update msg keyboard =
                 "Keyboard.update: Pitch set empty after inserting pitch"
       in
         ( { keyboard
-          | playerPlaying = False
+          | lastSound = Clean
           , source = CustomChord
           , customCode = Name.codeExtended newChord
           , customOctave = newOctave
           }
         , Task.perform
             ( PlayNote <<
-                (,,) keyboard.playerPlaying pitch
+                (,,) (keyboard.lastSound /= Clean) pitch
             )
             AudioTime.now
         )
@@ -222,21 +229,21 @@ update msg keyboard =
         ( case Chord.fromPitchSet lowestPitch newPitchSet of
             Just ( newChord, newOctave ) ->
               { keyboard
-              | playerPlaying = False
+              | lastSound = Clean
               , source = CustomChord
               , customCode = Name.codeExtended newChord
               , customOctave = newOctave
               }
             Nothing ->
               { keyboard
-              | playerPlaying = False
+              | lastSound = Clean
               , source = NoChord
               , customCode = ""
               , customOctave = 0
               }
         , Task.perform
             ( StopNote <<
-                (,,) keyboard.playerPlaying pitch
+                (,,) (keyboard.lastSound /= Clean) pitch
             )
             AudioTime.now
         )
@@ -250,7 +257,7 @@ update msg keyboard =
       , AudioChange.perform [ Mute now ]
       )
 
-    PlayNote ( playerPlaying, pitch, now ) ->
+    PlayNote ( dirty, pitch, now ) ->
       let
         changes =
           [ AddPianoNote
@@ -265,19 +272,19 @@ update msg keyboard =
               keyboard
             Just newPlayer ->
               { keyboard | player = newPlayer }
-        , if playerPlaying then
+        , if dirty then
             AudioChange.perform (Mute now :: changes)
           else
             AudioChange.perform changes
         )
 
-    StopNote ( playerPlaying, pitch, now ) ->
+    StopNote ( dirty, pitch, now ) ->
       ( case Player.stop now keyboard.player of
           Nothing ->
             keyboard
           Just newPlayer ->
             { keyboard | player = newPlayer }
-      , if playerPlaying then
+      , if dirty then
           AudioChange.perform [ Mute now ]
         else
           AudioChange.perform
@@ -301,21 +308,21 @@ update msg keyboard =
       in
         ( case
             ( Player.stop pluck.now keyboard.player
-            , keyboard.playerPlaying
+            , keyboard.lastSound
             )
           of
-            ( Nothing, False ) ->
+            ( Nothing, Clean ) ->
               keyboard
-            ( Nothing, True ) ->
+            ( Nothing, _ ) ->
               { keyboard
-              | playerPlaying = False
+              | lastSound = Clean
               }
             ( Just newPlayer, _ ) ->
               { keyboard
               | player = newPlayer
-              , playerPlaying = False
+              , lastSound = Clean
               }
-        , if keyboard.playerPlaying then
+        , if keyboard.lastSound /= Clean then
             AudioChange.perform (Mute pluck.now :: changes)
           else
             AudioChange.perform changes

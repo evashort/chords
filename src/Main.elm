@@ -481,7 +481,11 @@ update msg model =
           ( { model
             | keyboard =
                 { keyboard
-                | playerPlaying = True
+                | lastSound =
+                    if keyboard.lastSound == Keyboard.PlayerSound then
+                      Keyboard.Clean
+                    else
+                      Keyboard.DirtyPluck
                 , source =
                     if Keyboard.getId keyboard == Just idChord.id then
                       Keyboard.NoChord
@@ -489,7 +493,7 @@ update msg model =
                       Keyboard.ThisChord idChord
                 }
             }
-          , if keyboard.playerPlaying then
+          , if keyboard.lastSound == Keyboard.PlayerSound then
               Cmd.batch
                 [ Task.perform FinishSequence AudioTime.now
                 , Ports.stopAudio ()
@@ -560,7 +564,7 @@ update msg model =
           , keyboard =
               { keyboard
               | player = player
-              , playerPlaying = True
+              , lastSound = Keyboard.PlayerSound
               , source = Keyboard.LastPlayed
               }
           , history = History.add sequence model.history
