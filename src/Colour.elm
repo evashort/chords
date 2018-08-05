@@ -80,12 +80,13 @@ schemes =
     , ( "M9", major9 ) -- M7 + m7
     , ( "m9", major ) -- m7 + M7
     , ( "7b9", dominant9 ) -- 7 + o7
-    , ( "13", dominant7 )
-    , ( "M13", major7 )
-    , ( "m13", minor13 )
+    , ( "M7#11", major7 ) -- M7 + M7
+    , ( "13", dominant7 ) -- m7b9 + 7
+    , ( "M13", major7 ) -- m9 + M9
     , ( "add9", major9 )
     , ( "madd9", major )
     , ( "addb9", dominant9 )
+    , ( "add#11", minor7 )
     , ( "6", minor7 )
     , ( "m6", minor6 )
     , ( "+", allGray )
@@ -158,7 +159,7 @@ diminished =
   }
 
 major9 : Scheme
-major9 =
+major9 = -- major7 + minor7
   { fg = black
   , f = sky
   , c = rose
@@ -166,7 +167,7 @@ major9 =
   }
 
 dominant9 : Scheme
-dominant9 =
+dominant9 = -- dominant7 + minor6
   { fg = white
   , f = darkCyan
   , c = darkPink

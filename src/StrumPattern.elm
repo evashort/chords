@@ -170,12 +170,13 @@ schemes =
     , ( "M9", ninth )
     , ( "m9", ninth )
     , ( "7b9", ninth )
+    , ( "M7#11", thirteenth )
     , ( "13", thirteenth )
     , ( "M13", thirteenth )
-    , ( "m13", thirteenth )
     , ( "add9", addNinth )
     , ( "madd9", addNinth )
     , ( "addb9", addNinth )
+    , ( "add#11", addEleventh )
     , ( "6", seventh )
     , ( "m6", seventh )
     , ( "+", triad )
@@ -209,6 +210,13 @@ addNinth =
   { low = [ 0, 1, 2, 3 ]
   , mid = [ 0, 1, 2, 3 ]
   , high = [ -10, -12, 1, 2, 3 ]
+  }
+
+addEleventh : Scheme
+addEleventh =
+  { low = [ 0, 2, 10, 11, 3 ]
+  , mid = [ 0, 2, 10, 11, 3 ]
+  , high = [ -10, -12, 0, 1, -13, 10 ]
   }
 
 thirteenth : Scheme

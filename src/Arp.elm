@@ -121,12 +121,13 @@ schemes =
     , ( "M9", ninth )
     , ( "m9", minorNinth )
     , ( "7b9", ninth )
+    , ( "M7#11", eleventh )
     , ( "13", thirteenth )
     , ( "M13", thirteenth )
-    , ( "m13", thirteenth )
     , ( "add9", addNinth )
     , ( "madd9", addNinth )
     , ( "addb9", addNinth )
+    , ( "add#11", addEleventh )
     , ( "6", seventh )
     , ( "m6", seventh )
     , ( "+", triad )
@@ -144,7 +145,7 @@ seventh =
 
 thirteenth : Scheme
 thirteenth =
-  basic [ 500, 1, 2, 3, 4, 2, 3, 4 ]
+  basic [ 1300, 1, 2, 3, 4, 5, 3, 4 ]
 
 addNinth : Scheme
 addNinth =
@@ -157,6 +158,14 @@ ninth =
 minorNinth : Scheme
 minorNinth =
   basic [ 1400, 1, 2, 10, 12, 13, 10, 12 ]
+
+eleventh : Scheme
+eleventh =
+  basic [ 1300, 1, 2, 3, 4, 5, 3, 4 ]
+
+addEleventh : Scheme
+addEleventh =
+  basic [ 2000, 1, 2, 10, 11, 3, 10, 11 ]
 
 basic : List Int -> Scheme
 basic half =

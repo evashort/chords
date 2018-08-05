@@ -81,9 +81,13 @@ view storage scale playStatus =
             ( True, True ) ->
               "9th Cadd9 Dmadd9 E7addb9 Fadd9 Gadd9 Amadd9 _"
         , if storage.addedToneChords then
+            "11th _ _ _ Fadd#11 _ _ _"
+          else
+            "11th _ _ _ FM7#11 _ _ _"
+        , if storage.addedToneChords then
             "13th C6 Dm6 _ F6 G6 _ _"
           else
-            "13th CM13 Dm13 _ FM13 G13 _ _"
+            "13th CM13 _ _ FM13 G13 _ _"
         ]
     ]
 

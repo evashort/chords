@@ -184,12 +184,13 @@ interestingFlavors =
     , "M9"
     , "m9"
     , "7b9"
+    , "M7#11"
     , "13"
     , "M13"
-    , "m13"
     , "add9"
     , "madd9"
     , "addb9"
+    , "add#11"
     ]
 
 -- Subset search
