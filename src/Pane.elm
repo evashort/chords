@@ -5,3 +5,4 @@ type Pane
   | ChordsInKey
   | Circle
   | History
+  | Settings

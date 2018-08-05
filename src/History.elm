@@ -1,12 +1,13 @@
-module History exposing (History, init, add, view)
+module History exposing (History, init, add, Msg(..), view)
 
 import Chord exposing (Chord)
 import Colour
 import Name
+import Storage exposing (Storage)
 
-import Html exposing (Html, span, button, text, mark)
-import Html.Attributes exposing (style, disabled)
-import Html.Events exposing (onClick)
+import Html exposing (Html, span, button, text, mark, label, input)
+import Html.Attributes exposing (style, disabled, type_, checked)
+import Html.Events exposing (onClick, onCheck)
 
 type alias History =
   { sequences : List (List Chord)
@@ -29,32 +30,53 @@ add sequence history =
   else
     history
 
-view : String -> Int -> Bool -> History -> List Chord -> Bool -> Html String
-view gridArea tonic shorten history sequence finished =
-  if List.length sequence >= 2 || history.sequences /= [] then
-    viewNonEmpty gridArea tonic shorten history sequence finished
-  else
-    span
-      [ style
-          [ ( "grid-area", gridArea )
-          , ( "color", "GrayText" )
-          , ( "background", indexBackground 0 )
-          , ( "padding", "calc(0.22em + 5px) 10px" )
-          , ( "white-space", "initial" )
-          , ( "line-height", "initial" )
-          ]
-      ]
-      [ text
-          "Sequences of two or more chords played consecutively will appear here."
-      ]
+type Msg
+  = SetStorage Storage
+  | AddLine String
 
-viewNonEmpty :
-  String -> Int -> Bool -> History -> List Chord -> Bool -> Html String
-viewNonEmpty gridArea tonic shorten history sequence finished =
+view : Int -> Storage -> History -> List Chord -> Bool -> Html Msg
+view tonic storage history sequence finished =
   span
     [ style
-        [ ( "grid-area", gridArea )
-        , ( "display", "grid" )
+        [ ( "display", "block" )
+        ]
+    ]
+    [ label
+        []
+        [ input
+            [ type_ "checkbox"
+            , checked storage.shortenSequences
+            , onCheck
+                ( \x ->
+                    SetStorage { storage | shortenSequences = x }
+                )
+            ]
+            []
+        , Html.text " Show only last 8 chords of each sequence"
+        ]
+    , if List.length sequence >= 2 || history.sequences /= [] then
+        viewNonEmpty tonic storage.shortenSequences history sequence finished
+      else
+        span
+          [ style
+              [ ( "display", "block" )
+              , ( "color", "GrayText" )
+              , ( "background", indexBackground 0 )
+              , ( "padding", "calc(0.22em + 5px) 10px" )
+              , ( "white-space", "initial" )
+              , ( "line-height", "initial" )
+              ]
+          ]
+          [ text
+              "Sequences of two or more chords played consecutively will appear here."
+          ]
+    ]
+
+viewNonEmpty : Int -> Bool -> History -> List Chord -> Bool -> Html Msg
+viewNonEmpty tonic shorten history sequence finished =
+  span
+    [ style
+        [ ( "display", "grid" )
         , ( "grid-template-columns", "auto 1fr" )
         ]
     ]
@@ -78,7 +100,7 @@ viewNonEmpty gridArea tonic shorten history sequence finished =
         ]
     )
 
-viewSequence : Bool -> Bool -> Int -> Int -> List Chord -> List (Html String)
+viewSequence : Bool -> Bool -> Int -> Int -> List Chord -> List (Html Msg)
 viewSequence shorten finished tonic index sequence =
   let
     shortenedSequence =
@@ -102,9 +124,11 @@ viewSequence shorten finished tonic index sequence =
         [ button
             [ disabled (not finished)
             , onClick
-                ( String.join
-                    " "
-                    (List.map Name.code shortenedSequence)
+                ( AddLine
+                    ( String.join
+                        " "
+                        (List.map Name.code shortenedSequence)
+                    )
                 )
             ]
             [ text "Add line"

@@ -47,7 +47,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 5 0))
+      , Encode.string (versionString (Version 0 6 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -221,6 +221,8 @@ paneString pane =
       "Circle"
     Pane.History ->
       "History"
+    Pane.Settings ->
+      "Settings"
 
 parsePane : String -> Maybe Pane
 parsePane string =
@@ -233,5 +235,7 @@ parsePane string =
       Just Pane.Circle
     "History" ->
       Just Pane.History
+    "Settings" ->
+      Just Pane.Settings
     _ ->
       Nothing

@@ -18,8 +18,8 @@ import Svg.Attributes exposing
   , textAnchor
   )
 
-view : String -> Int -> PlayStatus -> Html IdChord.Msg
-view gridArea tonic playStatus =
+view : Int -> PlayStatus -> Html IdChord.Msg
+view tonic playStatus =
   let
     rInner = 100
   in let
@@ -45,15 +45,17 @@ view gridArea tonic playStatus =
   in
     Html.span
       [ style
-          [ ( "grid-area", gridArea )
-          , ( "position", "relative" )
-          , ( "font-size", "150%" )
+          [ ( "position", "relative" )
+          , ( "display", "block" )
           ]
       ]
       [ Svg.svg
           [ width "500"
           , height "500"
           , viewBox "0 0 500 500"
+          , style
+              [ ( "display", "block" )
+              ]
           ]
           ( List.concat
               [ [ gradients ]
@@ -72,13 +74,10 @@ view gridArea tonic playStatus =
           )
       , Html.span
           [ style
-              [ ( "position", "absolute" )
-              , ( "top", "0" )
-              , ( "left", "0" )
-              , ( "bottom", "0" )
-              , ( "right", "0" )
+              [ ( "display", "block" )
               , ( "pointer-events", "none" )
               , ( "text-align", "center" )
+              , ( "font-size", "150%" )
               ]
           ]
           ( List.concat

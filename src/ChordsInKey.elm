@@ -1,22 +1,55 @@
-module ChordsInKey exposing (view)
+module ChordsInKey exposing (Msg(..), view)
 
 import Chord exposing (Chord)
 import IdChord
 import PlayStatus exposing (PlayStatus)
+import Radio
 import Scale exposing (Scale)
 import Storage exposing (Storage)
 
-import Html exposing (Html, span, text, sup)
-import Html.Attributes exposing (style)
+import Html exposing (Html, span, text, sup, label, input)
+import Html.Attributes exposing (style, type_, checked)
+import Html.Events exposing (onCheck)
 
-view : String -> Storage -> Scale -> PlayStatus -> Html IdChord.Msg
-view gridArea storage scale playStatus =
+type Msg
+  = SetStorage Storage
+  | IdChordMsg IdChord.Msg
+
+view : Storage -> Scale -> PlayStatus -> Html Msg
+view storage scale playStatus =
   span
     [ style
-        [ ( "grid-area", gridArea )
+        [ ( "display", "block" )
         ]
     ]
-    [ viewGrid
+    [ span
+        [ style
+            [ ( "display", "block" )
+            ]
+        ]
+        [ Html.map
+            (\x -> SetStorage { storage | addedToneChords = x })
+            ( Radio.view
+                False
+                storage.addedToneChords
+                [ ( "Extended chords", False )
+                , ( "Added tone chords", True )
+                ]
+            )
+        , Html.text " "
+        , label
+            []
+            [ input
+                [ type_ "checkbox"
+                , checked storage.harmonicMinor
+                , onCheck
+                    (\x -> SetStorage { storage | harmonicMinor = x })
+                ]
+                []
+            , Html.text " Chords from harmonic minor"
+            ]
+        ]
+    , viewGrid
         scale
         playStatus
         [ case ( scale.minor, storage.harmonicMinor ) of
@@ -54,7 +87,7 @@ view gridArea storage scale playStatus =
         ]
     ]
 
-viewGrid : Scale -> PlayStatus -> List String -> Html IdChord.Msg
+viewGrid : Scale -> PlayStatus -> List String -> Html Msg
 viewGrid scale playStatus rows =
   span
     [ style
@@ -108,7 +141,7 @@ viewDegree i name =
         ]
     )
 
-viewRow : Scale -> PlayStatus -> Int -> String -> List (Html IdChord.Msg)
+viewRow : Scale -> PlayStatus -> Int -> String -> List (Html Msg)
 viewRow scale playStatus i row =
   case split row of
     [] ->
@@ -145,7 +178,7 @@ viewCategory i name =
         ]
     )
 
-viewCell : Int -> PlayStatus -> Int -> Int -> String -> Html IdChord.Msg
+viewCell : Int -> PlayStatus -> Int -> Int -> String -> Html Msg
 viewCell tonic playStatus y x code =
   case Chord.fromCode code of
     Nothing ->
@@ -168,12 +201,15 @@ viewCell tonic playStatus y x code =
             Just something ->
               something
       in
-        span
-          [ style
-              [ ( "grid-row-start", toString (y + 2) )
-              , ( "grid-column-start", toString (x + 2) )
-              , ( "position", "relative" )
-              , ( "font-size", "150%" )
+        Html.map
+          IdChordMsg
+          ( span
+              [ style
+                  [ ( "grid-row-start", toString (y + 2) )
+                  , ( "grid-column-start", toString (x + 2) )
+                  , ( "position", "relative" )
+                  , ( "font-size", "150%" )
+                  ]
               ]
-          ]
-          (IdChord.view tonic playStatus idChord)
+              (IdChord.view tonic playStatus idChord)
+          )

@@ -581,9 +581,9 @@ pages =
           ]
       ]
   , Page
-      False True -0.8 1 7.5
-      "misc"
-      "Misc. settings"
+      False True -0.6 1 7.5
+      "pane"
+      "Settings"
       [ p
           []
           [ text "You'll probably want to check \"Remember my settings\" so you don't have to switch to your preferred playback mode every time you visit the site."

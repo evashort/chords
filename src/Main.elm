@@ -4,11 +4,8 @@ import Arp
 import AudioChange
 import AudioTime
 import Buffet exposing (Buffet, LensChange)
-import Chord exposing (Chord)
 import ChordsInKey
-import Chroma
 import Circle
-import Colour
 import CustomEvents exposing (onChange, onLeftDown, onKeyDown)
 import Highlight exposing (Highlight)
 import History exposing (History)
@@ -19,12 +16,13 @@ import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
 import Player exposing (Player)
-import PlayStatus exposing (PlayStatus)
 import PlayStyle exposing (PlayStyle)
 import Ports
 import Radio
 import Replacement exposing (Replacement)
 import Scale exposing (Scale)
+import Search
+import Settings
 import Song
 import Storage exposing (Storage)
 import StrumPattern
@@ -36,12 +34,11 @@ import Tour exposing (Tour)
 import AnimationFrame
 import Dom
 import Html exposing
-  ( Html, Attribute, a, button, div, pre, span, textarea, input
-  , select, option, label, br
+  ( Html, a, button, div, pre, span, input, select, option, label
   )
 import Html.Attributes as Attributes exposing
-  ( attribute, href, style, id, type_, value, selected, checked
-  , disabled, placeholder
+  ( attribute, href, style, id, type_, value, selected, checked, disabled
+  , placeholder
   )
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
@@ -770,7 +767,6 @@ view model =
         , ( "line-height", "1.9" )
         , ( "white-space", "nowrap" )
         , ( "position", "relative" )
-        , ( "margin-bottom", "5em" )
         , ( "display", "grid" )
         , ( "grid", """
 "brand ."
@@ -785,9 +781,7 @@ view model =
 "song song"
 "keyboard keyboard"
 "paneSelector paneSelector"
-"paneSettings paneSettings"
 "pane pane"
-"misc misc"
 / minmax(auto, 60em) 1fr
 """
           )
@@ -873,46 +867,52 @@ view model =
         model.tour
         model.parse.scale
         model.storage
-    , Html.Lazy.lazy2 viewPaneSettings model.tour model.storage
-    , case
-        Maybe.withDefault
-          model.storage.pane
-          (Tour.paneShadow model.tour)
-      of
-        Pane.ChordsInKey ->
-          Html.Lazy.lazy3
-            viewChordsInKey
-            model.parse.scale
-            model.storage
-            model.keyboard
-        Pane.Circle ->
-          Html.Lazy.lazy3
-            viewCircle
-            model.parse.scale.tonic
-            model.storage
-            model.keyboard
-        Pane.Search ->
-          Html.Lazy.lazy3
-            viewSearchResults
-            model.parse.scale.tonic
-            model.storage
-            model.keyboard
-        Pane.History ->
-          Html.map
-            AddLine
-            ( History.view
-                "pane"
+    , span
+        [ style
+            [ ( "grid-area", "pane" )
+            , ( "min-height", "32em" )
+            ]
+        ]
+        [ case
+            Maybe.withDefault
+              model.storage.pane
+              (Tour.paneShadow model.tour)
+          of
+            Pane.Search ->
+              Html.Lazy.lazy3
+                viewSearch
                 model.parse.scale.tonic
-                model.storage.shortenSequences
-                model.history
-                (Player.sequence model.keyboard.player)
-                (Player.sequenceFinished model.keyboard.player)
-            )
-    , Html.Lazy.lazy3
-        viewMiscSettings
-        model.canStore
-        model.shouldStore
-        model.storage
+                model.storage
+                model.keyboard
+            Pane.ChordsInKey ->
+              Html.Lazy.lazy3
+                viewChordsInKey
+                model.parse.scale
+                model.storage
+                model.keyboard
+            Pane.Circle ->
+              Html.Lazy.lazy3
+                viewCircle
+                model.parse.scale.tonic
+                model.storage
+                model.keyboard
+            Pane.History ->
+              Html.map
+                interpretHistoryMsg
+                ( History.view
+                    model.parse.scale.tonic
+                    model.storage
+                    model.history
+                    (Player.sequence model.keyboard.player)
+                    (Player.sequenceFinished model.keyboard.player)
+                )
+            Pane.Settings ->
+              Html.Lazy.lazy3
+                viewSettings
+                model.canStore
+                model.shouldStore
+                model.storage
+        ]
     ]
 
 hasBackup : String -> Model -> Bool
@@ -1386,7 +1386,8 @@ viewPaneSelector tour scale storage =
           [ ( "grid-area", "paneSelector" )
           ]
       ]
-      [ Html.map
+      [ Html.text "View "
+      , Html.map
           (\x -> SetStorage { storage | pane = x })
           ( Radio.view
               (paneShadow /= Nothing)
@@ -1395,75 +1396,43 @@ viewPaneSelector tour scale storage =
               , ( "Chords in " ++ scaleName, Pane.ChordsInKey )
               , ( "Circle of fifths", Pane.Circle )
               , ( "Recently played", Pane.History )
+              , ( "Settings", Pane.Settings )
               ]
           )
       ]
 
-viewPaneSettings : Tour -> Storage -> Html Msg
-viewPaneSettings tour storage =
-  case Maybe.withDefault storage.pane (Tour.paneShadow tour) of
-    Pane.ChordsInKey ->
-      span
-        [ style
-            [ ( "grid-area", "paneSettings" )
-            ]
-        ]
-        [ label
-            []
-            [ input
-                [ type_ "checkbox"
-                , checked storage.harmonicMinor
-                , onCheck
-                    (\x -> SetStorage { storage | harmonicMinor = x })
-                ]
-                []
-            , Html.text " Chords from harmonic minor"
-            ]
-        , Html.text " "
-        , Html.map
-            (\x -> SetStorage { storage | addedToneChords = x })
-            ( Radio.view
-                False
-                storage.addedToneChords
-                [ ( "Extended chords", False )
-                , ( "Added tone chords", True )
-                ]
-            )
-        ]
-    Pane.History ->
-      span
-        [ style
-            [ ( "grid-area", "paneSettings" )
-            ]
-        ]
-        [ label
-            []
-            [ input
-                [ type_ "checkbox"
-                , checked storage.shortenSequences
-                , onCheck
-                    ( \x ->
-                        SetStorage { storage | shortenSequences = x }
-                    )
-                ]
-                []
-            , Html.text " Show only last 8 chords of each sequence"
-            ]
-        ]
-    _ ->
-      span
-        [ style
-            [ ( "grid-area", "paneSettings" )
-            ]
-        ]
-        []
+viewSearch : Int -> Storage -> Keyboard -> Html Msg
+viewSearch tonic storage keyboard =
+  let
+    showCustomChord =
+      keyboard.source == Keyboard.CustomChord
+    playStatus =
+      Keyboard.status
+        (storage.playStyle == PlayStyle.Silent)
+        keyboard
+  in
+    Html.map
+      interpretSearchMsg
+      ( Search.view
+          tonic
+          showCustomChord
+          keyboard.customCode
+          playStatus
+      )
+
+interpretSearchMsg : Search.Msg -> Msg
+interpretSearchMsg searchMsg =
+  case searchMsg of
+    Search.ShowCustomChord showCustomChord ->
+      KeyboardMsg (Keyboard.ShowCustomChord showCustomChord)
+    Search.IdChordMsg idChordMsg ->
+      IdChordMsg idChordMsg
 
 viewChordsInKey : Scale -> Storage -> Keyboard -> Html Msg
 viewChordsInKey scale storage keyboard =
   Html.map
-    IdChordMsg
+    interpretChordsInKeyMsg
     ( ChordsInKey.view
-        "pane"
         storage
         scale
         ( Keyboard.status
@@ -1472,12 +1441,19 @@ viewChordsInKey scale storage keyboard =
         )
     )
 
+interpretChordsInKeyMsg : ChordsInKey.Msg -> Msg
+interpretChordsInKeyMsg chordsInKeyMsg =
+  case chordsInKeyMsg of
+    ChordsInKey.SetStorage storage ->
+      SetStorage storage
+    ChordsInKey.IdChordMsg idChordMsg ->
+      IdChordMsg idChordMsg
+
 viewCircle : Int -> Storage -> Keyboard -> Html Msg
 viewCircle tonic storage keyboard =
   Html.map
     IdChordMsg
       ( Circle.view
-          "pane"
           tonic
           ( Keyboard.status
               (storage.playStyle == PlayStyle.Silent)
@@ -1485,194 +1461,13 @@ viewCircle tonic storage keyboard =
           )
       )
 
-viewSearchResults : Int -> Storage -> Keyboard -> Html Msg
-viewSearchResults tonic storage keyboard =
-  let
-    maybeChord =
-      Chord.fromCodeExtended keyboard.customCode
-    playStatus =
-      Keyboard.status
-        (storage.playStyle == PlayStyle.Silent)
-        keyboard
-  in let
-    exactMatch =
-      Maybe.andThen IdChord.fromChord maybeChord
-    inversions =
-      case maybeChord of
-        Nothing ->
-          []
-        Just chord ->
-          Chroma.search chord
-  in let
-    extensions =
-      case ( maybeChord, exactMatch, inversions ) of
-        ( Just chord, Nothing, [] ) ->
-          Chroma.extendedSearch chord
-        _ ->
-          []
-    subsets =
-      case ( maybeChord, exactMatch, inversions ) of
-        ( Just chord, Nothing, [] ) ->
-          Chroma.subsetSearch tonic chord
-        _ ->
-          []
-    colorChord =
-      case ( exactMatch, inversions ) of
-        ( Just match, _ ) ->
-          match.chord
-        ( _, ( _, inversion ) :: _ ) ->
-          inversion.chord
-        _ ->
-          Chord [] 0
-  in
-    span
-      [ style
-          [ ( "grid-area", "pane" )
-          , ( "display", "flex" )
-          , ( "align-items", "flex-end" )
-          ]
-      ]
-      ( List.concat
-          [ [ span
-                [ style
-                    [ ( "margin-right", "5px" )
-                    , ( "margin-bottom", "5px" )
-                    ]
-                ]
-                [ Html.br [] []
-                , viewCustomChord tonic keyboard colorChord
-                ]
-            ]
-          , case exactMatch of
-              Nothing ->
-                []
-              Just idChord ->
-                [ viewSearchResult
-                    tonic
-                    playStatus
-                    ( "Exact match", idChord )
-                ]
-          , List.map
-              (viewSearchResult tonic playStatus)
-              inversions
-          , List.map
-              (viewSearchResult tonic playStatus)
-              extensions
-          , List.map
-              (viewSearchResult tonic playStatus)
-              subsets
-          ]
-      )
-
-viewCustomChord : Int -> Keyboard -> Chord -> Html Msg
-viewCustomChord tonic keyboard colorChord =
-  let
-    action =
-      ( KeyboardMsg
-          ( Keyboard.ShowCustomChord
-              (keyboard.source /= Keyboard.CustomChord)
-          )
-      )
-  in
-    span
-      [ style
-          [ ( "width", "75px" )
-          , ( "height", "75px" )
-          , ( "position", "relative" )
-          , ( "display", "inline-block" )
-          ]
-      ]
-      [ span
-          [ style
-              [ ( "position", "absolute" )
-              , ( "top", "-5px" )
-              , ( "left", "-5px" )
-              , ( "right", "-5px" )
-              , ( "bottom", "-5px" )
-              , ( "pointer-events", "none" )
-              , ( "border-width", "5px" )
-              , ( "border-radius", "10px" )
-              , ( "border-color"
-                , if keyboard.source == Keyboard.CustomChord then
-                    "#3399ff"
-                  else
-                    "transparent"
-                )
-              , ( "border-style", "solid" )
-              ]
-          ]
-          []
-      , button
-          [ onLeftDown action
-          , onKeyDown
-              [ ( 13, action )
-              , ( 32, action )
-              ]
-          , disabled (keyboard.customCode == "")
-          , style
-              [ ( "width", "100%" )
-              , ( "height", "100%" )
-              , ( "background", Colour.bg tonic colorChord )
-              , ( "color"
-                , if keyboard.customCode == "" then
-                    ""
-                  else
-                    Colour.fg colorChord
-                )
-              , ( "padding", "0" )
-              , ( "border"
-                , String.concat
-                    [ "1px solid rgba(0, 0, 0, "
-                    , Colour.borderOpacity colorChord
-                    , ")"
-                    ]
-                )
-              , ( "border-radius", "5px" )
-              , ( "box-shadow"
-                , String.concat
-                    [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
-                    , Colour.shineOpacity colorChord
-                    , ")"
-                    ]
-                )
-              , ( "cursor"
-                , if keyboard.customCode == "" then
-                    ""
-                  else
-                    "pointer"
-                )
-              , ( "white-space", "normal" )
-              ]
-          ]
-          [ Html.text "Show custom chord"
-          ]
-      ]
-
-viewSearchResult : Int -> PlayStatus -> (String, IdChord) -> Html Msg
-viewSearchResult tonic playStatus ( header, idChord ) =
-  Html.map
-    IdChordMsg
-    ( span
-        [ style
-            [ ( "text-align", "center" )
-            , ( "margin-right", "5px" )
-            , ( "margin-bottom", "5px" )
-            ]
-        ]
-        [ Html.text header
-        , Html.br [] []
-        , span
-            [ style
-                [ ( "width", "75px" )
-                , ( "height", "75px" )
-                , ( "position", "relative" )
-                , ( "display", "inline-block" )
-                , ( "font-size", "150%" )
-                ]
-            ]
-            (IdChord.view tonic playStatus idChord)
-        ]
-    )
+interpretHistoryMsg : History.Msg -> Msg
+interpretHistoryMsg historyMsg =
+  case historyMsg of
+    History.SetStorage storage ->
+      SetStorage storage
+    History.AddLine line ->
+      AddLine line
 
 viewKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
 viewKeyboard tonic lowest keyboard =
@@ -1683,71 +1478,16 @@ viewKeyboard tonic lowest keyboard =
       KeyboardMsg
       (Keyboard.view "keyboard" tonic lowestPitch keyboard)
 
-viewMiscSettings : Bool -> Bool -> Storage -> Html Msg
-viewMiscSettings canStore shouldStore storage =
-  span
-    [ style
-        [ ( "grid-area", "misc" )
-        , ( "margin-top", "8px" )
-        ]
-    ]
-    [ label
-        [ style
-            [ ( "color"
-              , if not canStore then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
-        ]
-        [ input
-            [ type_ "checkbox"
-            , disabled (not canStore)
-            , checked shouldStore
-            , onCheck SetShouldStore
-            ]
-            []
-        , Html.text " Remember my settings"
-        ]
-    , Html.br [] []
-    , label
-        [ style
-            [ ( "color"
-              , if not shouldStore then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
-        ]
-        [ input
-            [ type_ "checkbox"
-            , disabled (not shouldStore)
-            , checked (shouldStore && storage.startEmpty)
-            , onCheck (\x -> SetStorage { storage | startEmpty = x })
-            ]
-            []
-        , Html.text " Start with an empty textbox"
-        ]
-    , Html.br [] []
-    , label
-        [ style
-            [ ( "color"
-              , if not shouldStore then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
-        ]
-        [ input
-            [ type_ "checkbox"
-            , disabled (not shouldStore)
-            , checked (shouldStore && storage.unsavedWarning)
-            , onCheck (\x -> SetStorage { storage | unsavedWarning = x })
-            ]
-            []
-        , Html.text " Warn me when I close without saving"
-        ]
-    ]
+viewSettings : Bool -> Bool -> Storage -> Html Msg
+viewSettings canStore shouldStore storage =
+  Html.map
+    interpretSettingsMsg
+    (Settings.view canStore shouldStore storage)
+
+interpretSettingsMsg : Settings.Msg -> Msg
+interpretSettingsMsg settingsMsg =
+  case settingsMsg of
+    Settings.SetShouldStore shouldStore ->
+      SetShouldStore shouldStore
+    Settings.SetStorage storage ->
+      SetStorage storage
