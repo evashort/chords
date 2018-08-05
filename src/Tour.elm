@@ -57,6 +57,7 @@ paneShadow : Tour -> Maybe Pane
 paneShadow tour =
   if tour.visible then
     case tour.pageNumber of
+      8 -> Just Pane.Settings
       _ -> Nothing
   else
     Nothing
