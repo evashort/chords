@@ -1,6 +1,6 @@
 module Chord exposing
   ( Chord, fromCode, fromCodeExtended, maxRange, transpose, toPitchSet
-  , fromPitchSet, flavors
+  , fromPitchSet, dict, list, flavors
   )
 
 import Pitch
@@ -86,6 +86,47 @@ maxRange = 23
 regex : Regex
 regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"
 
+dict : List (String, a) -> Dict (List Int) a
+dict codePairs =
+  Dict.fromList (dictHelp codePairs flavorPairs)
+
+dictHelp : List (String, a) -> List (String, List Int) -> List (List Int, a)
+dictHelp codePairs flavorPairs =
+  case ( codePairs, flavorPairs ) of
+    ( ( code, value ) :: laterCodePairs
+    , ( rightCode, flavor ) :: laterFlavorPairs
+    ) ->
+      if code == rightCode then
+        ( flavor, value ) ::
+          dictHelp laterCodePairs laterFlavorPairs
+      else
+        Debug.crash
+          ( String.concat
+              [ "Chord.dict: Expected \""
+              , rightCode
+              , "\", got \""
+              , code
+              , "\""
+              ]
+          )
+    ( [], [] ) ->
+      []
+    _ ->
+      Debug.crash "Chord.dict: Wrong number of pairs"
+
+list : List String -> List (List Int)
+list codeList =
+  List.map listHelp codeList
+
+listHelp : String -> List Int
+listHelp code =
+  case Dict.get code flavorDict of
+    Nothing ->
+      Debug.crash
+        ("Chord.list: Unknown flavor \"" ++ code ++ "\"")
+    Just flavor ->
+      flavor
+
 flavorDict : Dict String (List Int)
 flavorDict =
   Dict.fromList flavorPairs
@@ -99,27 +140,27 @@ flavorPairs =
   [ ( "", [ 4, 7 ] )
   , ( "m", [ 3, 7 ] )
   , ( "o", [ 3, 6 ] )
-  , ( "+", [ 4, 8 ] )
-  , ( "sus4", [ 5, 7 ] )
-  , ( "sus2", [ 2, 7 ] )
   , ( "7", [ 4, 7, 10 ] )
   , ( "M7", [ 4, 7, 11 ] )
   , ( "m7", [ 3, 7, 10 ] )
-  , ( "6", [ 4, 7, 9 ] )
   , ( "0", [ 3, 6, 10 ] )
-  , ( "m6", [ 3, 7, 9 ] )
   , ( "o7", [ 3, 6, 9 ] )
   , ( "mM7", [ 3, 7, 11 ] )
-  , ( "9", [ 4, 7, 10, 14 ] ) -- 7 + 0
-  , ( "M9", [ 4, 7, 11, 14 ] ) -- M7 + m7
-  , ( "add9", [ 4, 7, 14 ] )
-  , ( "madd9", [ 3, 7, 14 ] )
-  , ( "m9", [ 3, 7, 10, 14 ] ) -- m7 + M7
-  , ( "7b9", [ 4, 7, 10, 13 ] ) -- 7 + o7
-  , ( "7addb9", [ 4, 7, 13 ] )
+  , ( "9", [ 4, 7, 10, 14 ] )
+  , ( "M9", [ 4, 7, 11, 14 ] )
+  , ( "m9", [ 3, 7, 10, 14 ] )
+  , ( "7b9", [ 4, 7, 10, 13 ] )
   , ( "13", [ 4, 7, 10, 14, 21 ] )
   , ( "M13", [ 4, 7, 11, 14, 21 ] )
   , ( "m13", [ 3, 7, 10, 14, 21 ] )
+  , ( "add9", [ 4, 7, 14 ] )
+  , ( "madd9", [ 3, 7, 14 ] )
+  , ( "addb9", [ 4, 7, 13 ] )
+  , ( "6", [ 4, 7, 9 ] )
+  , ( "m6", [ 3, 7, 9 ] )
+  , ( "+", [ 4, 8 ] )
+  , ( "sus4", [ 5, 7 ] )
+  , ( "sus2", [ 2, 7 ] )
   ]
 
 transpose : Int -> Chord -> Chord

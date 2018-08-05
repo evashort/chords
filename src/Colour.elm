@@ -66,31 +66,31 @@ type alias Scheme =
 
 schemes : Dict (List Int) Scheme
 schemes =
-  Dict.fromList
-    [ ( [ 4, 7 ], major )
-    , ( [ 3, 7 ], minor )
-    , ( [ 3, 6 ], diminished )
-    , ( [ 4, 8 ], allGray )
-    , ( [ 5, 7 ], allGray )
-    , ( [ 2, 7 ], allGray )
-    , ( [ 4, 7, 10 ], dominant7 )
-    , ( [ 4, 7, 11 ], major7 )
-    , ( [ 3, 7, 10 ], minor7 )
-    , ( [ 4, 7, 9 ], minor7 )
-    , ( [ 3, 6, 10 ], minor6 )
-    , ( [ 3, 7, 9 ], minor6 )
-    , ( [ 3, 6, 9 ], diminished )
-    , ( [ 3, 7, 11 ], minor7 )
-    , ( [ 4, 7, 10, 14 ], dominant9 )
-    , ( [ 4, 7, 11, 14 ], major9 )
-    , ( [ 3, 7, 10, 14 ], major )
-    , ( [ 4, 7, 10, 13 ], dominant9 )
-    , ( [ 4, 7, 14 ], major9 )
-    , ( [ 3, 7, 14 ], major )
-    , ( [ 4, 7, 13 ], dominant9 )
-    , ( [ 4, 7, 10, 14, 21 ], dominant7 )
-    , ( [ 4, 7, 11, 14, 21 ], major7 )
-    , ( [ 3, 7, 10, 14, 21 ], minor13 )
+  Chord.dict
+    [ ( "", major )
+    , ( "m", minor )
+    , ( "o", diminished )
+    , ( "7", dominant7 )
+    , ( "M7", major7 )
+    , ( "m7", minor7 )
+    , ( "0", minor6 )
+    , ( "o7", diminished )
+    , ( "mM7", minor7 )
+    , ( "9", dominant9 ) -- 7 + 0
+    , ( "M9", major9 ) -- M7 + m7
+    , ( "m9", major ) -- m7 + M7
+    , ( "7b9", dominant9 ) -- 7 + o7
+    , ( "13", dominant7 )
+    , ( "M13", major7 )
+    , ( "m13", minor13 )
+    , ( "add9", major9 )
+    , ( "madd9", major )
+    , ( "addb9", dominant9 )
+    , ( "6", minor7 )
+    , ( "m6", minor6 )
+    , ( "+", allGray )
+    , ( "sus4", allGray )
+    , ( "sus2", allGray )
     ]
 
 allGray : Scheme

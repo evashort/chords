@@ -173,23 +173,24 @@ addPartialScheme flavor missingPitch sharpCount chroma offset schemes =
 
 interestingFlavors : List (List Int)
 interestingFlavors =
-  [ [ 4, 7, 10 ]
-  , [ 4, 7, 11 ]
-  , [ 3, 7, 10 ]
-  , [ 3, 6, 10 ]
-  , [ 3, 6, 9 ]
-  , [ 3, 7, 11 ]
-  , [ 4, 7, 10, 14 ]
-  , [ 4, 7, 11, 14 ]
-  , [ 3, 7, 10, 14 ]
-  , [ 4, 7, 10, 13 ]
-  , [ 4, 7, 14 ]
-  , [ 3, 7, 14 ]
-  , [ 4, 7, 13 ]
-  , [ 4, 7, 10, 14, 21 ]
-  , [ 4, 7, 11, 14, 21 ]
-  , [ 3, 7, 10, 14, 21 ]
-  ]
+  Chord.list
+    [ "7"
+    , "M7"
+    , "m7"
+    , "0"
+    , "o7"
+    , "mM7"
+    , "9"
+    , "M9"
+    , "m9"
+    , "7b9"
+    , "13"
+    , "M13"
+    , "m13"
+    , "add9"
+    , "madd9"
+    , "addb9"
+    ]
 
 -- Subset search
 
