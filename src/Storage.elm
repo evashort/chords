@@ -161,14 +161,14 @@ versionRegex = Regex.regex "^([0-9]+)\\.([0-9]+)\\.([0-9]+)"
 parsePlayStyle : String -> Maybe PlayStyle
 parsePlayStyle string =
   case string of
-    "Arpeggio" ->
-      Just PlayStyle.Arpeggio
-    "StrumPattern" ->
-      Just PlayStyle.StrumPattern
     "Strum" ->
       Just PlayStyle.Strum
     "Pad" ->
       Just PlayStyle.Pad
+    "Arpeggio" ->
+      Just PlayStyle.Arpeggio
+    "StrumPattern" ->
+      Just PlayStyle.StrumPattern
     "Silent" ->
       Just PlayStyle.Silent
     _ ->
@@ -177,14 +177,14 @@ parsePlayStyle string =
 playStyleString : PlayStyle -> String
 playStyleString playStyle =
   case playStyle of
-    PlayStyle.Arpeggio ->
-      "Arpeggio"
-    PlayStyle.StrumPattern ->
-      "StrumPattern"
     PlayStyle.Strum ->
       "Strum"
     PlayStyle.Pad ->
       "Pad"
+    PlayStyle.Arpeggio ->
+      "Arpeggio"
+    PlayStyle.StrumPattern ->
+      "StrumPattern"
     PlayStyle.Silent ->
       "Silent"
 

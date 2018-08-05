@@ -519,6 +519,15 @@ update msg model =
       in let
         ( player, sequence, changes ) =
           case model.storage.playStyle of
+            PlayStyle.Strum ->
+              Player.strum
+                model.storage.strumInterval
+                lowestPitch
+                idChord
+                now
+                keyboard.player
+            PlayStyle.Pad ->
+              Player.pad lowestPitch idChord now keyboard.player
             PlayStyle.Arpeggio ->
               let
                 bpm =
@@ -544,15 +553,6 @@ update msg model =
                   idChord
                   now
                   keyboard.player
-            PlayStyle.Strum ->
-              Player.strum
-                model.storage.strumInterval
-                lowestPitch
-                idChord
-                now
-                keyboard.player
-            PlayStyle.Pad ->
-              Player.pad lowestPitch idChord now keyboard.player
             PlayStyle.Silent ->
               Debug.crash "Main.update: PlayStyle.Silent got through"
       in
@@ -1274,10 +1274,10 @@ viewPlayStyle storage playing =
             ( Radio.view
                 False
                 storage.playStyle
-                [ ( "Arpeggio", PlayStyle.Arpeggio )
-                , ( "Strum pattern", PlayStyle.StrumPattern )
-                , ( "Strum", PlayStyle.Strum )
+                [ ( "Strum", PlayStyle.Strum )
                 , ( "Pad", PlayStyle.Pad )
+                , ( "Arpeggio", PlayStyle.Arpeggio )
+                , ( "Strum pattern", PlayStyle.StrumPattern )
                 , ( "Silent", PlayStyle.Silent )
                 ]
             )
@@ -1305,6 +1305,34 @@ viewPlayStyle storage playing =
 viewPlaySettings : Storage -> Html Msg
 viewPlaySettings storage =
   case storage.playStyle of
+    PlayStyle.Strum ->
+      span
+        [ style
+            [ ( "display", "flex" )
+            , ( "align-items", "center" )
+            ]
+        ]
+        [ Html.text "Strum interval\xA0"
+        , input
+            [ type_ "range"
+            , onInput SetStrumInterval
+            , Attributes.min "10"
+            , Attributes.max "90"
+            , Attributes.step "20"
+            , value (toString (1000 * storage.strumInterval))
+            , style
+                [ ( "width", "5em" )
+                ]
+            ]
+            []
+        , Html.text
+            ( String.concat
+                [ "\xA0"
+                , toString (1000 * storage.strumInterval)
+                , "ms between notes"
+                ]
+            )
+        ]
     PlayStyle.StrumPattern ->
       span
         [ style
@@ -1324,34 +1352,6 @@ viewPlaySettings storage =
                 ]
             )
         ]
-    PlayStyle.Strum ->
-      span
-        [ style
-            [ ( "display", "flex" )
-            , ( "align-items", "center" )
-            ]
-        ]
-      [ Html.text "Strum interval\xA0"
-      , input
-          [ type_ "range"
-          , onInput SetStrumInterval
-          , Attributes.min "10"
-          , Attributes.max "90"
-          , Attributes.step "20"
-          , value (toString (1000 * storage.strumInterval))
-          , style
-              [ ( "width", "5em" )
-              ]
-          ]
-          []
-      , Html.text
-          ( String.concat
-              [ "\xA0"
-              , toString (1000 * storage.strumInterval)
-              , "ms between notes"
-              ]
-          )
-      ]
     _ ->
       span [] []
 
