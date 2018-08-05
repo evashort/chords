@@ -777,7 +777,6 @@ view model =
 "theater ."
 "buffet buffet"
 "playStyle playStyle"
-"playSettings playSettings"
 "song song"
 "keyboard keyboard"
 "paneSelector paneSelector"
@@ -855,8 +854,8 @@ view model =
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
-    , viewSong model.tour model.storage model.keyboard model.parse
     , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
+    , viewSong model.tour model.storage model.keyboard model.parse
     , Html.Lazy.lazy3
         viewKeyboard
         model.parse.scale.tonic
@@ -1254,21 +1253,20 @@ viewPlayStyle : Storage -> Bool -> Html Msg
 viewPlayStyle storage playing =
   span
     [ style
-        [ ( "position", "fixed" )
+        [ ( "grid-area", "playStyle" )
+        , ( "position", "-webkit-sticky" )
+        , ( "position", "sticky" )
+        , ( "top", "0px" )
         , ( "z-index", "2" )
-        , ( "right", "0px" )
-        , ( "bottom", "0px" )
+        , ( "justify-self", "start" )
+        , ( "margin-left", "-8px" )
+        , ( "padding", "8px" )
         , ( "background", "white" )
-        , ( "padding", "5px 8px" )
-        , ( "border-top", "1px solid darkgray" )
-        , ( "border-left", "1px solid darkgray" )
-        , ( "border-right", "1px solid darkgray" )
-        , ( "border-top-left-radius", "5px" )
-        , ( "border-top-right-radius", "5px" )
+        , ( "border-bottom-right-radius", "5px" )
+        , ( "box-shadow", "rgba(0, 0, 0, 0.5) 1px 1px 8px -1px" )
         ]
     ]
-    [ viewPlaySettings storage
-    , span
+    [ span
         []
         [ Html.text "Play chords as\xA0"
         , Html.map
@@ -1301,6 +1299,7 @@ viewPlayStyle storage playing =
             , Html.text " Stop"
             ]
         ]
+    , viewPlaySettings storage
     ]
 
 viewPlaySettings : Storage -> Html Msg

@@ -22,6 +22,7 @@ view gridArea tonic playStatus song =
         , ( "align-items", "stretch" )
         , ( "justify-items", "stretch" )
         , ( "font-size", "150%" )
+        , ( "margin-top", "5px" )
         ]
     ]
     ( List.concat
