@@ -1,5 +1,7 @@
 module PlayStatus exposing
-  (PlayStatus(..), PlayQueue, hasBorder, hasDashedBorder, hasStopButton)
+  ( PlayStatus(..), PlayQueue, hasBorder, hasDashedBorder, hasStopButton
+  , isolate
+  )
 
 type PlayStatus
   = Playing PlayQueue
@@ -37,3 +39,10 @@ hasStopButton playStatus id =
       playQueue.stopButton && id == playQueue.active
     _ ->
       False
+
+isolate : Int -> PlayStatus -> PlayStatus
+isolate id playStatus =
+  if hasBorder playStatus id then
+    playStatus
+  else
+    Cleared

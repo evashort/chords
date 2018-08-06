@@ -16,6 +16,7 @@ import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
 import Player exposing (Player)
+import PlayStatus exposing (PlayStatus)
 import PlayStyle exposing (PlayStyle)
 import Ports
 import Radio
@@ -81,6 +82,7 @@ type alias Model =
   , storage : Storage
   , playing : Bool
   , keyboard : Keyboard
+  , playStatus : PlayStatus
   , history : History
   }
 
@@ -144,6 +146,7 @@ init flags location =
       , storage = storage
       , playing = False
       , keyboard = Keyboard.init
+      , playStatus = PlayStatus.Cleared
       , history = History.init
       }
     , Cmd.batch
@@ -436,7 +439,19 @@ update msg model =
 
 
     SetStorage storage ->
-      ( { model | storage = storage }
+      ( { model
+        | storage = storage
+        , playStatus =
+            if
+              (storage.playStyle == PlayStyle.Silent) /=
+                (model.storage.playStyle == PlayStyle.Silent)
+            then
+              Keyboard.status
+                (storage.playStyle == PlayStyle.Silent)
+                model.keyboard
+            else
+              model.playStatus
+        }
       , Cmd.none
       )
 
@@ -464,31 +479,46 @@ update msg model =
           Nothing ->
             model
           Just player ->
-            let keyboard = model.keyboard in
+            let
+              keyboard = model.keyboard
+            in let
+              newKeyboard = { keyboard | player = player }
+            in
               { model
-              | keyboard =
-                  { keyboard | player = player }
+              | keyboard = newKeyboard
+              , playStatus =
+                  Keyboard.status
+                    (model.storage.playStyle == PlayStyle.Silent)
+                    newKeyboard
               }
       , Cmd.none
       )
 
     IdChordMsg (IdChord.Play idChord) ->
       if model.storage.playStyle == PlayStyle.Silent then
-        let keyboard = model.keyboard in
+        let
+          keyboard = model.keyboard
+        in let
+          newKeyboard =
+            { keyboard
+            | lastSound =
+                if keyboard.lastSound == Keyboard.PlayerSound then
+                  Keyboard.Clean
+                else
+                  Keyboard.DirtyPluck
+            , source =
+                if Keyboard.getId keyboard == Just idChord.id then
+                  Keyboard.NoChord
+                else
+                  Keyboard.ThisChord idChord
+            }
+        in
           ( { model
-            | keyboard =
-                { keyboard
-                | lastSound =
-                    if keyboard.lastSound == Keyboard.PlayerSound then
-                      Keyboard.Clean
-                    else
-                      Keyboard.DirtyPluck
-                , source =
-                    if Keyboard.getId keyboard == Just idChord.id then
-                      Keyboard.NoChord
-                    else
-                      Keyboard.ThisChord idChord
-                }
+            | keyboard = newKeyboard
+            , playStatus =
+                Keyboard.status
+                  (model.storage.playStyle == PlayStyle.Silent)
+                  newKeyboard
             }
           , if keyboard.lastSound == Keyboard.PlayerSound then
               Cmd.batch
@@ -555,15 +585,18 @@ update msg model =
                   keyboard.player
             PlayStyle.Silent ->
               Debug.crash "Main.update: PlayStyle.Silent got through"
+      in let
+        newKeyboard =
+          { keyboard
+          | player = player
+          , lastSound = Keyboard.PlayerSound
+          , source = Keyboard.LastPlayed
+          }
       in
         ( { model
           | playing = True
-          , keyboard =
-              { keyboard
-              | player = player
-              , lastSound = Keyboard.PlayerSound
-              , source = Keyboard.LastPlayed
-              }
+          , keyboard = newKeyboard
+          , playStatus = Keyboard.status False newKeyboard
           , history = History.add sequence model.history
           }
         , AudioChange.perform changes
@@ -574,10 +607,24 @@ update msg model =
         Nothing ->
           ( model, Cmd.none )
         Just newPlayer ->
-          let keyboard = model.keyboard in
+          let
+            keyboard = model.keyboard
+          in let
+            newKeyboard =
+              { keyboard | player = newPlayer }
+          in let
+            newPlayStatus =
+              Keyboard.status
+                (model.storage.playStyle == PlayStyle.Silent)
+                newKeyboard
+          in
             ( { model
-              | keyboard =
-                  { keyboard | player = newPlayer }
+              | keyboard = newKeyboard
+              , playStatus =
+                  if newPlayStatus /= model.playStatus then
+                    newPlayStatus
+                  else
+                    model.playStatus
               }
             , Cmd.none
             )
@@ -600,9 +647,19 @@ update msg model =
         ( newKeyboard, keyboardCmd ) =
           Keyboard.update keyboardMsg model.keyboard
         storage = model.storage
+      in let
+        newPlayStatus =
+          Keyboard.status
+            (storage.playStyle == PlayStyle.Silent)
+            newKeyboard
       in
         ( { model
           | keyboard = newKeyboard
+          , playStatus =
+              if newPlayStatus /= model.playStatus then
+                newPlayStatus
+              else
+                model.playStatus
           , storage =
               case keyboardMsg of
                 Keyboard.AddPitch _ ->
@@ -855,7 +912,11 @@ view model =
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
     , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
-    , viewSong model.tour model.storage model.keyboard model.parse
+    , Html.Lazy.lazy3
+        viewSong
+        model.tour
+        model.playStatus
+        model.parse
     , Html.Lazy.lazy3
         viewKeyboard
         model.parse.scale.tonic
@@ -888,13 +949,12 @@ view model =
                 viewChordsInKey
                 model.parse.scale
                 model.storage
-                model.keyboard
+                model.playStatus
             Pane.Circle ->
-              Html.Lazy.lazy3
+              Html.Lazy.lazy2
                 viewCircle
                 model.parse.scale.tonic
-                model.storage
-                model.keyboard
+                model.playStatus
             Pane.History ->
               Html.map
                 interpretHistoryMsg
@@ -1355,17 +1415,14 @@ viewPlaySettings storage =
     _ ->
       span [] []
 
-viewSong : Tour -> Storage -> Keyboard -> Parse -> Html Msg
-viewSong tour storage keyboard parse =
+viewSong : Tour -> PlayStatus -> Parse -> Html Msg
+viewSong tour playStatus parse =
   Html.map
     IdChordMsg
     ( Song.view
         "song"
         parse.scale.tonic
-        ( Keyboard.status
-            (storage.playStyle == PlayStyle.Silent)
-            keyboard
-        )
+        playStatus
         (Tour.padSong tour (Parse.song parse))
     )
 
@@ -1427,18 +1484,11 @@ interpretSearchMsg searchMsg =
     Search.IdChordMsg idChordMsg ->
       IdChordMsg idChordMsg
 
-viewChordsInKey : Scale -> Storage -> Keyboard -> Html Msg
-viewChordsInKey scale storage keyboard =
+viewChordsInKey : Scale -> Storage -> PlayStatus -> Html Msg
+viewChordsInKey scale storage playStatus =
   Html.map
     interpretChordsInKeyMsg
-    ( ChordsInKey.view
-        storage
-        scale
-        ( Keyboard.status
-            (storage.playStyle == PlayStyle.Silent)
-            keyboard
-        )
-    )
+    (ChordsInKey.view storage scale playStatus)
 
 interpretChordsInKeyMsg : ChordsInKey.Msg -> Msg
 interpretChordsInKeyMsg chordsInKeyMsg =
@@ -1448,17 +1498,11 @@ interpretChordsInKeyMsg chordsInKeyMsg =
     ChordsInKey.IdChordMsg idChordMsg ->
       IdChordMsg idChordMsg
 
-viewCircle : Int -> Storage -> Keyboard -> Html Msg
-viewCircle tonic storage keyboard =
+viewCircle : Int -> PlayStatus -> Html Msg
+viewCircle tonic playStatus =
   Html.map
     IdChordMsg
-      ( Circle.view
-          tonic
-          ( Keyboard.status
-              (storage.playStyle == PlayStyle.Silent)
-              keyboard
-          )
-      )
+    (Circle.view tonic playStatus)
 
 interpretHistoryMsg : History.Msg -> Msg
 interpretHistoryMsg historyMsg =

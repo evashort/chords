@@ -16,7 +16,7 @@ type alias Word =
   }
 
 type alias Cache =
-  { chord : Chord
+  { idChord : IdChord
   , code : String
   }
 
@@ -30,7 +30,7 @@ init id substring =
           Nothing
         Just chord ->
           Just
-            { chord = chord
+            { idChord = IdChord id chord
             , code = Name.code chord
             }
   }
@@ -59,8 +59,8 @@ highlight tonic word =
     Just cache ->
       if word.substring.s == cache.code then
         Just
-          { fg = Colour.fg cache.chord
-          , bg = Colour.swatchBg tonic cache.chord
+          { fg = Colour.fg cache.idChord.chord
+          , bg = Colour.swatchBg tonic cache.idChord.chord
           , substring = word.substring
           }
       else
@@ -76,7 +76,7 @@ meaning word =
         Nothing
     Just cache ->
       if word.substring.s == cache.code then
-        Just (Just (IdChord word.id cache.chord))
+        Just (Just cache.idChord)
       else
         Nothing
 
@@ -90,8 +90,8 @@ suggestion tonic word =
         Nothing
       else
         Just
-          ( [ { fg = Colour.fg cache.chord
-              , bg = Colour.swatchBg tonic cache.chord
+          ( [ { fg = Colour.fg cache.idChord.chord
+              , bg = Colour.swatchBg tonic cache.idChord.chord
               , s = cache.code
               }
             ]

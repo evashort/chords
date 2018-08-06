@@ -5,12 +5,15 @@ import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html, span)
 import Html.Attributes exposing (style)
+import Html.Keyed
+import Html.Lazy
 
 type alias Song = List (List (Maybe IdChord))
 
 view : String -> Int -> PlayStatus -> Song -> Html IdChord.Msg
 view gridArea tonic playStatus song =
-  span
+  Html.Keyed.node
+    "span"
     [ style
         [ ( "grid-area", gridArea )
         , ( "display", "grid" )
@@ -34,20 +37,43 @@ indexedMap2d f rows =
   List.indexedMap (List.indexedMap << f) rows
 
 viewCell :
-  Int -> PlayStatus -> Int -> Int -> Maybe IdChord -> Html IdChord.Msg
+  Int -> PlayStatus -> Int -> Int -> Maybe IdChord ->
+    (String, Html IdChord.Msg)
 viewCell tonic playStatus y x cell =
+  ( case cell of
+      Nothing ->
+        "space" ++ toString x ++ "_" ++ toString y
+      Just idChord ->
+        toString idChord.id
+  , span
+      [ style
+          [ ( "grid-row-start", toString (y + 1) )
+          , ( "grid-column-start", toString (x + 1) )
+          , ( "grid-row-end", "span 1" )
+          , ( "grid-column-end", "span 1" )
+          ]
+      ]
+      ( case cell of
+          Nothing ->
+            []
+          Just idChord ->
+            [ Html.Lazy.lazy3
+                viewIdChord
+                tonic
+                (PlayStatus.isolate idChord.id playStatus)
+                idChord
+            ]
+      )
+  )
+
+viewIdChord : Int -> PlayStatus -> IdChord -> Html IdChord.Msg
+viewIdChord tonic playStatus idChord =
   span
     [ style
-        [ ( "grid-row-start", toString (y + 1) )
-        , ( "grid-column-start", toString (x + 1) )
-        , ( "grid-row-end", "span 1" )
-        , ( "grid-column-end", "span 1" )
+        [ ( "display", "block" )
         , ( "position", "relative" )
+        , ( "width", "100%" )
+        , ( "height", "100%" )
         ]
     ]
-    ( case cell of
-        Nothing ->
-          []
-        Just idChord ->
-          IdChord.view tonic playStatus idChord
-    )
+    (IdChord.view tonic playStatus idChord)
