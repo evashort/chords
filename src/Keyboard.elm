@@ -26,6 +26,7 @@ import Html.Events exposing (onInput, onClick)
 import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
+import Svg.Lazy
 import Task
 
 type alias Keyboard =
@@ -342,7 +343,6 @@ pitchFrequency pitch =
 view : String -> Int -> Int -> Keyboard -> Html Msg
 view gridArea tonic lowestPitch keyboard =
   let
-    highestPitch = lowestPitch + 11 + Chord.maxRange
     maybeChord = getChord keyboard
     octave = getOctave keyboard
   in let
@@ -379,12 +379,11 @@ view gridArea tonic lowestPitch keyboard =
       [ Harp.view
           tonic
           lowestPitch
-          highestPitch
+          (lowestPitch + 11 + Chord.maxRange)
           pitchSet
       , viewKeys
           tonic
           lowestPitch
-          highestPitch
           pitchSet
       , span
           [ style
@@ -428,15 +427,15 @@ view gridArea tonic lowestPitch keyboard =
 
 -- the origin is the top left corner of middle C,
 -- not including its border
-viewKeys : Int -> Int -> Int -> Set Int -> Html Msg
-viewKeys tonic lowestPitch highestPitch pitchSet =
+viewKeys : Int -> Int -> Set Int -> Html Msg
+viewKeys tonic lowestPitch pitchSet =
   let
-    left = viewBoxLeft lowestPitch
+    highestPitch = lowestPitch + 11 + Chord.maxRange
   in let
+    left = viewBoxLeft lowestPitch
     right = viewBoxRight highestPitch
   in let
     width = right - left
-  in let
     height = fullHeight
   in
     Svg.svg
@@ -471,14 +470,19 @@ viewKeys tonic lowestPitch highestPitch pitchSet =
                 ]
                 []
             ]
-          , List.concatMap
-              ( viewKey
-                  tonic
-                  lowestPitch
-                  highestPitch
-                  pitchSet
+          , [ Svg.map
+                (pitchMsg lowestPitch pitchSet)
+                (Svg.Lazy.lazy2 viewStaticKeys tonic lowestPitch)
+            ]
+          , List.map
+              (Svg.map (pitchMsg lowestPitch pitchSet))
+              ( List.concatMap
+                  (viewKey tonic lowestPitch highestPitch True)
+                  ( List.filter
+                      (inRange lowestPitch highestPitch)
+                      (Set.toList pitchSet)
+                  )
               )
-              (List.range lowestPitch highestPitch)
           , [ Svg.text_
                 [ style
                     [ ( "pointer-events", "none" )
@@ -499,25 +503,33 @@ viewKeys tonic lowestPitch highestPitch pitchSet =
           ]
       )
 
-viewKey : Int -> Int -> Int -> Set Int -> Int -> List (Svg Msg)
-viewKey tonic lowestPitch highestPitch pitchSet pitch =
+pitchMsg : Int -> Set Int -> Int -> Msg
+pitchMsg lowestPitch pitchSet pitch =
+  if Set.member pitch pitchSet then
+    RemovePitch (lowestPitch, pitch)
+  else
+    AddPitch (lowestPitch, pitch)
+
+viewStaticKeys : Int -> Int -> Svg Int
+viewStaticKeys tonic lowestPitch =
   let
-    selected = Set.member pitch pitchSet
-  in let
+    highestPitch = lowestPitch + 11 + Chord.maxRange
+  in
+    Svg.g
+      []
+      ( List.concatMap
+          (viewKey tonic lowestPitch highestPitch False)
+          (List.range lowestPitch highestPitch)
+      )
+
+viewKey : Int -> Int -> Int -> Bool -> Int -> List (Svg Int)
+viewKey tonic lowestPitch highestPitch selected pitch =
+  let
     commonAttributes =
-      let
-        action =
-          if selected then
-            RemovePitch ( lowestPitch, pitch )
-          else
-            AddPitch ( lowestPitch, pitch )
-      in
-        [ onLeftDown action
-        , onKeyDown
-            [ ( 13, action )
-            , ( 32, action )
-            ]
-        ]
+      if selected then
+        []
+      else
+        [ onLeftDown pitch ]
   in
     if isWhiteKey pitch then
       let
@@ -525,7 +537,10 @@ viewKey tonic lowestPitch highestPitch pitchSet pitch =
       in
         [ Svg.path
             ( [ style
-                  [ ( "cursor", "pointer" )
+                  [ if selected then
+                      ( "pointer-events", "none" )
+                    else
+                      ( "cursor", "pointer" )
                   ]
               , SA.fill
                   ( if selected then
@@ -555,10 +570,13 @@ viewKey tonic lowestPitch highestPitch pitchSet pitch =
     else
       [ Svg.rect
           ( [ style
-                [ ( "cursor", "pointer" )
+                [ if selected then
+                    ( "pointer-events", "none" )
+                  else
+                    ( "cursor", "pointer" )
                 ]
             , SA.fill
-                ( if Set.member pitch pitchSet then
+                ( if selected then
                     Colour.pitchBg tonic pitch
                   else
                     "black"
