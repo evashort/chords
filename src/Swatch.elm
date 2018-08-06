@@ -1,4 +1,4 @@
-module Swatch exposing (Swatch, concat, view)
+module Swatch exposing (Swatch, plain, concat, view)
 
 import Html exposing (Html, mark, text)
 import Html.Attributes exposing (style)
@@ -8,6 +8,10 @@ type alias Swatch =
   , bg : String
   , s : String
   }
+
+plain : String -> Swatch
+plain s =
+  Swatch "#000000" "#ffffff" s
 
 concat : List Swatch -> String
 concat = String.concat << List.map .s

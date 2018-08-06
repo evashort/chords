@@ -50,9 +50,7 @@ sort = List.sortBy (List.map .i << .ranges)
 
 groupByReplacement : List ( List Swatch, Substring ) -> List Suggestion
 groupByReplacement suggestions =
-  List.map
-    reverseRanges
-    (Dict.values (groupByReplacementHelp suggestions))
+  Dict.values (groupByReplacementHelp suggestions)
 
 reverseRanges : Suggestion -> Suggestion
 reverseRanges suggestion =

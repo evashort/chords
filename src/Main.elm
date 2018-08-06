@@ -1291,15 +1291,9 @@ viewHighlights parse buffet =
     ]
     ( List.map
         Swatch.view
-        ( Highlight.mergeLayers
-            [ Buffet.highlights buffet
-            , parse.highlights
-            , [ Highlight
-                  "#000000"
-                  "#ffffff"
-                  (Substring 0 (parse.code ++ "\n"))
-              ]
-            ]
+        ( Highlight.toSwatches
+            (parse.code ++ "\n")
+            (Buffet.highlights buffet ++ parse.highlights)
         )
     )
 
