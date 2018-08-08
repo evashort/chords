@@ -290,7 +290,8 @@ update msg keyboard =
         else
           AudioChange.perform
             [ NoteOff
-                { t = now
+                { v = 1
+                , t = now
                 , f = pitchFrequency pitch
                 }
             ]
@@ -299,13 +300,21 @@ update msg keyboard =
     HarpPlucked pluck ->
       let
         changes =
-          ( List.map
-              ( AddGuitarNote <<
-                  Note 1 pluck.now <<
-                    pitchFrequency
-              )
-              pluck.pitches
-          )
+          (++)
+            ( List.map
+                ( NoteOff <<
+                    Note 1 pluck.now <<
+                      pitchFrequency
+                )
+                pluck.mutes
+            )
+            ( List.map
+                ( AddGuitarNote <<
+                    Note 1 pluck.now <<
+                      pitchFrequency
+                )
+                pluck.pitches
+            )
       in
         ( case
             ( Player.stop pluck.now keyboard.player

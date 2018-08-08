@@ -148,4 +148,5 @@ function reverseExpiration(a, b) {
 
 function stopAudio() {
   muteAt(0);
+  harpMuted();
 }

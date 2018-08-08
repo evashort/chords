@@ -79,6 +79,8 @@ viewRope tonic pitch =
         , SA.transform ("translate(" ++ toString x ++ " 0)")
         , SA.d ("M0,0 V" ++ toString height)
         , SA.stroke (Colour.ropeColor tonic pitch)
+        , SA.fill (Colour.ropeColor tonic pitch)
+        , SA.fillOpacity "0"
         , SA.strokeWidth "4"
         ]
         []

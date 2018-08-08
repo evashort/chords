@@ -31,6 +31,7 @@ port harpPlucked : (Pluck -> msg) -> Sub msg
 
 type alias Pluck =
   { now : Float
+  , mutes : List Int
   , pitches : List Int
   }
 

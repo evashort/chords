@@ -1,4 +1,4 @@
-module AudioChange exposing (AudioChange(..), ChangeTime, perform)
+module AudioChange exposing (AudioChange(..), perform)
 
 import Note exposing (Note)
 import Ports
@@ -9,14 +9,9 @@ type AudioChange
   = AddPianoNote Note
   | AddGuitarNote Note
   | AddPadNote Note
-  | NoteOff { t : Float, f : Float }
+  | NoteOff Note
   | Mute Float
   | Cancel Float
-
-type alias ChangeTime =
-  { t : Float
-  , before : Bool
-  }
 
 perform : List AudioChange -> Cmd msg
 perform = Ports.changeAudio << List.map toJson
