@@ -11,7 +11,7 @@ function addPianoNote(v, t, f) {
   var safeTime = Math.max(t, ac.currentTime + 0.003);
   var attack = 0.005;
   var peakTime = safeTime + attack;
-  var sawPeak = 1 * peakScale;
+  var sawPeak = 0.9 * peakScale;
   var sawDecay = 2;
 
   var filter = ac.createBiquadFilter();

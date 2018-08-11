@@ -8,7 +8,7 @@ function addPadNote(v, t, f) {
 
   var attack = 0.017;
   var peakTime = t + attack;
-  var sawPeak = 0.5 * peakScale;
+  var sawPeak = 0.44 * peakScale;
   var squarePeak = 0.5 * sawPeak;
 
   var filter = ac.createBiquadFilter();
