@@ -1,5 +1,6 @@
 port module Ports exposing
-  ( changeAudio, playing, stopAudio
+  ( changeAudio, playing, stopAudio, setVolume
+  , initMeter
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
   , initStorage
@@ -13,6 +14,9 @@ import Json.Encode as Encode
 port changeAudio : List Encode.Value -> Cmd msg
 port playing : (Bool -> msg) -> Sub msg
 port stopAudio : () -> Cmd msg
+port setVolume : Float -> Cmd msg
+
+port initMeter : () -> Cmd msg
 
 port initTheater : Encode.Value -> Cmd msg
 port focusTheater : () -> Cmd msg

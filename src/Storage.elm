@@ -16,6 +16,7 @@ init = Ports.initStorage ()
 
 type alias Storage =
   { playStyle : PlayStyle
+  , volume : Int
   , strumPattern : StrumPattern
   , strumInterval : Float
   , pane : Pane
@@ -29,6 +30,7 @@ type alias Storage =
 default : Storage
 default =
   { playStyle = PlayStyle.Arpeggio
+  , volume = 30
   , strumPattern = StrumPattern.Indie
   , strumInterval = 0.01
   , pane = Pane.Search
@@ -47,10 +49,13 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 6 0))
+      , Encode.string (versionString (Version 0 7 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
+      )
+    , ( "volume"
+      , Encode.int storage.volume
       )
     , ( "strumPattern"
       , Encode.string (strumPatternString storage.strumPattern)
@@ -94,6 +99,7 @@ v0_4Decoder =
     |> Pipeline.required
         "playStyle"
         (parseDecoder "play style" parsePlayStyle)
+    |> Pipeline.required "volume" Decode.int
     |> Pipeline.required
         "strumPattern"
         (parseDecoder "strum pattern" parseStrumPattern)

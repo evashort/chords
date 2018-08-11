@@ -1,10 +1,13 @@
 var ac = new AudioContext();
 
+var masterFader = ac.createGain();
+masterFader.connect(ac.destination);
+
 var reverb = Freeverb(ac);
 reverb.roomSize = 0.2;
 reverb.wet.value = 0.2;
 reverb.dry.value = 0.55;
-reverb.connect(ac.destination);
+reverb.connect(masterFader);
 
 var notes = [];
 
@@ -78,15 +81,12 @@ function addNote(addInstrumentNote, spec) {
   muteFrequencyAt(spec.t, spec.f);
 
   notes.push(addInstrumentNote(spec.v, spec.t, spec.f));
-
-  if (!noteCollector) {
-    noteCollector = setInterval(collectNotes, 10);
-  }
 }
 
-function collectNotes() {
+function updateAudio() {
+  var now = ac.currentTime;
   for (var i = notes.length - 1; i >= 0; i--) {
-    if (notes[i].expiration <= ac.currentTime) {
+    if (notes[i].expiration <= now) {
       for (var j = 0; j < notes[i].oscillators.length; j++) {
         notes[i].oscillators[j].stop();
       }
@@ -98,17 +98,18 @@ function collectNotes() {
   }
 
   if (notes.length == 0) {
-    clearInterval(noteCollector);
-    noteCollector = 0;
+    playing = false
     app.ports.playing.send(false);
+    clearMeters();
+  } else {
+    updateMeters()
+    requestAnimationFrame(updateAudio);
   }
 }
 
-var noteCollector = 0;
+var playing = false;
 
 function changeAudio(changes) {
-  var wasPlaying = notes.length > 0;
-
   for (var i = 0; i < changes.length; i++) {
     if (changes[i].type == "mute") {
       muteAt(changes[i].t);
@@ -129,8 +130,10 @@ function changeAudio(changes) {
 
   notes.sort(reverseExpiration);
 
-  if (notes.length > 0 && !wasPlaying) {
+  if (notes.length > 0 && !playing) {
+    playing = true;
     app.ports.playing.send(true);
+    updateAudio();
   }
 }
 
@@ -144,6 +147,15 @@ function reverseExpiration(a, b) {
   }
 
   return 0;
+}
+
+var currentVolume = 1;
+
+function setVolume(volume) {
+  var safeTime = ac.currentTime + 0.04;
+  masterFader.gain.setValueAtTime(currentVolume, safeTime);
+  masterFader.gain.linearRampToValueAtTime(volume, safeTime + 0.01);
+  currentVolume = volume;
 }
 
 function stopAudio() {

@@ -24,6 +24,7 @@
     <script src="pad.js"></script>
     <script src="freeverb.js"></script>
     <script src="audio.js"></script>
+    <script src="meter.js"></script>
     <script src="theater.js"></script>
     <script src="storage.js"></script>
     <script src="harp.js"></script>
@@ -165,6 +166,8 @@
 
       app.ports.changeAudio.subscribe(changeAudio);
       app.ports.stopAudio.subscribe(stopAudio);
+      app.ports.setVolume.subscribe(setVolume);
+      app.ports.initMeter.subscribe(initMeter);
       app.ports.initTheater.subscribe(initTheater);
       app.ports.focusTheater.subscribe(focusTheater);
       app.ports.replace.subscribe(replace);

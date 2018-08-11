@@ -6,12 +6,12 @@ function addPianoNote(v, t, f) {
   var peakScale = (0.0529162 * lnf - 0.785209) * lnf + 3.57215
   var decayScale = 0.15;
   var frequencyCenter = 146.8;
-  var filterOffset = 0.5 * (f - frequencyCenter);
+  var filterOffset = 0.3 * (f - frequencyCenter);
 
   var safeTime = Math.max(t, ac.currentTime + 0.003);
   var attack = 0.005;
   var peakTime = safeTime + attack;
-  var sawPeak = 0.5 * peakScale;
+  var sawPeak = 1 * peakScale;
   var sawDecay = 2;
 
   var filter = ac.createBiquadFilter();

@@ -36,10 +36,11 @@ import AnimationFrame
 import Dom
 import Html exposing
   ( Html, a, button, div, pre, span, input, select, option, label
+  , canvas
   )
 import Html.Attributes as Attributes exposing
-  ( attribute, href, style, id, type_, value, selected, checked, disabled
-  , placeholder
+  ( attribute, href, style, id, type_, value, selected, checked
+  , disabled, placeholder
   )
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
@@ -81,6 +82,7 @@ type alias Model =
   , buffet : Buffet
   , storage : Storage
   , playing : Bool
+  , dragVolume : Maybe Int
   , keyboard : Keyboard
   , playStatus : PlayStatus
   , history : History
@@ -145,12 +147,14 @@ init flags location =
       , buffet = Buffet.init parse.suggestions
       , storage = storage
       , playing = False
+      , dragVolume = Nothing
       , keyboard = Keyboard.init
       , playStatus = PlayStatus.Cleared
       , history = History.init
       }
     , Cmd.batch
-        [ Theater.init
+        [ Ports.initMeter ()
+        , Theater.init
             { text = code
             , selectionStart = String.length code
             , selectionEnd = String.length code
@@ -204,6 +208,8 @@ type Msg
   | Play (IdChord, Float)
   | FinishSequence Float
   | Playing Bool
+  | DragVolume String
+  | SetVolume String
   | KeyboardMsg Keyboard.Msg
   | AddLine String
   | SetShouldStore Bool
@@ -637,6 +643,30 @@ update msg model =
       , Cmd.none
       )
 
+    DragVolume volumeString ->
+      case String.toInt volumeString of
+        Ok volume ->
+          ( { model | dragVolume = Just volume }
+          , Ports.setVolume (toFloat volume / 30)
+          )
+        Err _ ->
+          Debug.crash
+            ("Main.update: Bad volume: " ++ volumeString)
+
+    SetVolume volumeString ->
+      case String.toInt volumeString of
+        Ok volume ->
+          ( let storage = model.storage in
+              { model
+              | storage = { storage | volume = volume }
+              , dragVolume = Nothing
+              }
+          , Ports.setVolume (toFloat volume / 30)
+          )
+        Err _ ->
+          Debug.crash
+            ("Main.update: Bad volume: " ++ volumeString)
+
     KeyboardMsg (Keyboard.AddWord word) ->
       replace
         (Parse.addWord word model.parse)
@@ -911,7 +941,15 @@ view model =
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
-    , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
+    , case model.dragVolume of
+        Nothing ->
+          Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
+        Just volume ->
+          let storage = model.storage in
+            Html.Lazy.lazy2
+              viewPlayStyle
+              { storage | volume = volume }
+              model.playing
     , Html.Lazy.lazy3
         viewSong
         model.tour
@@ -1318,10 +1356,15 @@ viewPlayStyle storage playing =
         , ( "background", "white" )
         , ( "border-bottom-right-radius", "5px" )
         , ( "box-shadow", "rgba(0, 0, 0, 0.5) 1px 1px 8px -1px" )
+        , ( "min-height", "calc(1.7em + 16px)" )
         ]
     ]
     [ span
-        []
+        [ style
+            [ ( "display", "flex" )
+            , ( "align-items", "center" )
+            ]
+        ]
         [ Html.text "Play chords as\xA0"
         , Html.map
             (\x -> SetStorage { storage | playStyle = x })
@@ -1335,7 +1378,7 @@ viewPlayStyle storage playing =
                 , ( "Silent", PlayStyle.Silent )
                 ]
             )
-        , Html.text " "
+        , Html.text "\xA0"
         , button
             [ onClick (IdChordMsg IdChord.Stop)
             , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
@@ -1351,6 +1394,48 @@ viewPlayStyle storage playing =
                 ]
                 []
             , Html.text " Stop"
+            ]
+        , Html.text "\xA0Vol.\xA0"
+        , span
+            [ style
+                [ ( "position", "relative" )
+                ]
+            ]
+            [ input
+                [ type_ "range"
+                , onInput DragVolume
+                , onChange SetVolume
+                , value (toString storage.volume)
+                , Attributes.min "0"
+                , Attributes.max "30"
+                , style
+                    [ ( "width", "8em" )
+                    , ( "display", "block" )
+                    , ( "padding-bottom", "0" )
+                    ]
+                ]
+                []
+            , canvas
+                [ style
+                    [ ( "position", "absolute" )
+                    , ( "left", "6px" )
+                    , ( "width", "calc(100% - 12px)" )
+                    , ( "top", "100%" )
+                    , ( "height", "1em" )
+                    ]
+                , Attributes.width 100
+                , Attributes.height 11
+                , id "meter"
+                ]
+                []
+            ]
+        , Html.text "\xA0"
+        , span
+            [ style
+                [ ( "min-width", "2ch" )
+                ]
+            ]
+            [ Html.text (toString storage.volume)
             ]
         ]
     , viewPlaySettings storage

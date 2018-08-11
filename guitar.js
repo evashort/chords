@@ -6,19 +6,19 @@ function addGuitarNote(v, t, f) {
   var peakScale = (0.0529162 * lnf - 0.785209) * lnf + 3.57215
   var decayScale = 0.15;
   var frequencyCenter = 146.8;
-  var filterOffset = 0.7 * (f - frequencyCenter);
+  var filterOffset = 0.3 * (f - frequencyCenter);
   var filterScale = 1 * (v - 1) + 1;
 
   var safeTime = Math.max(t, ac.currentTime + 0.003);
   var attack = 0.001;
   var peakTime = safeTime + attack;
-  var sawPeak = 0.3 * peakScale;
+  var sawPeak = 0.416 * peakScale;
   var sawDecay = 10;
 
   var filter = ac.createBiquadFilter();
   filter.connect(fader);
   filter.frequency.value =
-    Math.max(1, (132 + filterOffset) * filterScale);
+    Math.max(1, (170 + filterOffset) * filterScale);
   filter.detune.value = 2000;
   filter.detune.setTargetAtTime(0, peakTime, 4 * decayScale);
 
