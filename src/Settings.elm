@@ -31,7 +31,7 @@ view canStore shouldStore storage =
             , onCheck SetShouldStore
             ]
             []
-        , text " Remember my settings"
+        , text " Remember my settings (recommended)"
         ]
     , br [] []
     , label

@@ -1356,7 +1356,7 @@ viewPlayStyle storage playing =
         , ( "background", "white" )
         , ( "border-bottom-right-radius", "5px" )
         , ( "box-shadow", "rgba(0, 0, 0, 0.5) 1px 1px 8px -1px" )
-        , ( "min-height", "calc(1.7em + 16px)" )
+        , ( "min-height", "2.8em" )
         ]
     ]
     [ span

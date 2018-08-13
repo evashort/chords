@@ -5,6 +5,7 @@ module Tour exposing
 
 import Buffet exposing (Buffet)
 import Pane exposing (Pane)
+import Path
 import Ports
 import Song exposing (Song)
 
@@ -19,7 +20,10 @@ import Svg.Attributes as SA
 
 shadowBuffet : Tour -> Buffet -> Buffet
 shadowBuffet tour buffet =
-  if tour.visible && tour.pageNumber == 2 then
+  if
+    tour.visible &&
+      getTitle tour.pageNumber == "Replacements"
+  then
     { suggestions =
         [ { swatches =
               [ { fg = "#000000"
@@ -40,8 +44,8 @@ padSong tour song =
   if tour.visible then
     let
       newLength =
-        case tour.pageNumber of
-          3 -> 1
+        case getTitle tour.pageNumber of
+          "Chord progression" -> 1
           _ -> 0
     in
       (++)
@@ -56,8 +60,9 @@ padSong tour song =
 paneShadow : Tour -> Maybe Pane
 paneShadow tour =
   if tour.visible then
-    case tour.pageNumber of
-      8 -> Just Pane.Settings
+    case getTitle tour.pageNumber of
+      "Search results" -> Just Pane.Search
+      "Settings" -> Just Pane.Settings
       _ -> Nothing
   else
     Nothing
@@ -76,7 +81,7 @@ init =
 view : Bool -> Tour -> Html Tour
 view mac tour =
   if tour.visible then
-    if mac && tour.pageNumber == macPageNumber then
+    if mac && getTitle tour.pageNumber == "Text-based parameters" then
       macPageView
     else
       case List.drop (tour.pageNumber - 1) pageViews of
@@ -98,6 +103,17 @@ view mac tour =
 macPageNumber : Int
 macPageNumber = 5
 
+getTitle : Int -> String
+getTitle pageNumber =
+  case List.drop (pageNumber - 1) pages of
+    [] ->
+      Debug.crash
+        ( "Tour.getTitle: Page number out of range: " ++
+            toString pageNumber
+        )
+    page :: _ ->
+      page.title
+
 macPageView : Html Tour
 macPageView =
   viewPage
@@ -118,19 +134,28 @@ viewPage pageCount pageIndex page =
         [ ( "grid-area", page.gridArea )
         , ( "position", "absolute" )
         , ( "z-index", "3" )
-        , if page.above then
-            ( "bottom"
-            , "calc(100% + 32px + " ++ toString page.distance ++ "em)"
-            )
-          else
-            ( "top"
-            , "calc(100% + 32px + " ++ toString page.distance ++ "em)"
-            )
+        , case ( page.orientation, page.anchor ) of
+            ( Above, BottomOf ) ->
+              ( "bottom"
+              , "calc(32px + " ++ toString page.y ++ "em)"
+              )
+            ( Below, TopOf ) ->
+              ( "top"
+              , "calc(32px + " ++ toString page.y ++ "em)"
+              )
+            ( Above, TopOf ) ->
+              ( "bottom"
+              , "calc(100% + 32px + " ++ toString page.y ++ "em)"
+              )
+            ( Below, BottomOf ) ->
+              ( "top"
+              , "calc(100% + 32px + " ++ toString page.y ++ "em)"
+              )
         , ( "left"
-          , if page.center then
-              toString (page.left - 15) ++ "em"
+          , if page.justify == CenterAt then
+              toString (page.x - 15) ++ "em"
             else
-              toString page.left ++ "em"
+              toString page.x ++ "em"
           )
         , ( "background", "white" )
         , ( "border", "1px solid" )
@@ -148,15 +173,14 @@ viewPage pageCount pageIndex page =
         , SA.viewBox "-9 -9 56 56"
         , style
             [ ( "position", "absolute" )
-            , if page.above then
+            , if page.orientation == Above then
                 ( "bottom", "-46px" )
               else
                 ( "top", "-42px" )
             , ( "left"
-              , if page.center then
-                  "calc(50% - 26px)"
-                else
-                  "14px"
+              , case page.justify of
+                  LeftAt -> "14px"
+                  CenterAt -> "calc(50% - 26px)"
               )
             , ( "pointer-events", "none" )
             ]
@@ -190,25 +214,25 @@ viewPage pageCount pageIndex page =
         , path
             [ SA.fill "black"
             , SA.opacity "0.5"
-            , if page.above then
+            , if page.orientation == Above then
                 SA.filter "url(#aboveBlur)"
               else
                 SA.filter "url(#belowBlur)"
-            , if page.above then
-                SA.d (pointer "m2,2 " 34 page.center page.above)
+            , if page.orientation == Above then
+                SA.d (pointer 2 2 34 page.justify page.orientation)
               else
-                SA.d (pointer "m2,2 " 30 page.center page.above)
+                SA.d (pointer 2 2 30 page.justify page.orientation)
             ]
             []
         , path
             [ SA.fill "white"
-            , SA.d (pointer "" 33 page.center page.above)
+            , SA.d (pointer 0 0 33 page.justify page.orientation)
             ]
             []
         , path
             [ SA.stroke "black"
             , SA.fill "none"
-            , SA.d (pointer "" 32 page.center page.above)
+            , SA.d (pointer 0 0 32 page.justify page.orientation)
             ]
             []
         ]
@@ -218,15 +242,15 @@ viewPage pageCount pageIndex page =
             [ ( "position", "absolute" )
             , ( "pointer-events", "none" )
             , ( "top"
-              , if not page.above then
-                  toString -page.extension ++ "em"
+              , if page.orientation == Below then
+                  "calc(-32px + " ++ toString -page.extension ++ "em)"
                 else
                   "0em"
               )
             , ( "left", "0em" )
             , ( "bottom"
-              , if page.above then
-                  toString -page.extension ++ "em"
+              , if page.orientation == Above then
+                  "calc(-32px + " ++ toString -page.extension ++ "em)"
                 else
                   "0em"
               )
@@ -316,55 +340,52 @@ viewPage pageCount pageIndex page =
         ]
     ]
 
-pointer : String -> Int -> Bool -> Bool -> String
-pointer offset height center above =
-  if center then
-    let
-      h = toString height
-    in let
-      half = toString (0.5 * toFloat height)
-    in
-      if above then
-        String.concat
-          [ "M17,33.5 ", offset
-          , "m-" , half , ",-" , h
-          , "l" , half , "," , h
-          , "l" , half , ",-" , h
-          ]
-      else
-        String.concat
-          [ "M17,0.5 ", offset
-          , "m-" , half , "," , h
-          , "l" , half , ",-" , h
-          , "l" , half , "," , h
-          ]
-  else
-    if above then
+pointer : Float -> Float -> Float -> Justify -> Orientation -> String
+pointer dx dy height justify orientation =
+  case ( justify, orientation ) of
+    ( CenterAt, Above ) ->
       String.join
-        (toString height)
-        [ "M0.5,33.5 " ++ offset ++ "m0,-"
-        , " v"
-        , " l"
-        , ",-"
-        , ""
+        " "
+        [ Path.bigM (17 + dx - 0.5 * height) (33.5 + dy - height)
+        , Path.l (0.5 * height) height
+        , Path.l (0.5 * height) -height
         ]
-    else
+    ( CenterAt, Below ) ->
       String.join
-        (toString height)
-        [ "M0.5,0.5 " ++ offset ++ "m0,"
-        , " v-"
-        , " l"
-        , ","
-        , ""
+        " "
+          [ Path.bigM (17 + dx - 0.5 * height) (0.5 + dy + height)
+          , Path.l (0.5 * height) -height
+          , Path.l (0.5 * height) height
+          ]
+    ( LeftAt, Above ) ->
+      String.join
+        " "
+        [ Path.bigM (0.5 + dx) (33.5 + dy - height)
+        , Path.v height
+        , Path.l height -height
+        ]
+    ( LeftAt, Below ) ->
+      String.join
+        " "
+        [ Path.bigM (0.5 + dx) (0.5 + dy + height)
+        , Path.v -height
+        , Path.l height height
         ]
 
+type Orientation = Above | Below
+type Anchor = TopOf | BottomOf
+type Justify = LeftAt | CenterAt
+type ExtendDummy = ExtendBy
+
 type alias Page =
-  { center : Bool
-  , above : Bool
-  , distance : Float
-  , left : Float
-  , extension : Float
+  { y : Float
+  , orientation : Orientation
+  , anchor : Anchor
   , gridArea : String
+  , justify : Justify
+  , x : Float
+  , extendDummy : ExtendDummy
+  , extension : Float
   , title : String
   , paragraphs : List (Html Tour)
   }
@@ -372,14 +393,18 @@ type alias Page =
 macDependentPage : Bool -> Page
 macDependentPage mac =
   Page
-    False False -0.4 1.9 7.3
-    "lowest"
+    -0.4 Below BottomOf "lowest" LeftAt 1.9 ExtendBy 5.4
     "Text-based parameters"
     [ p
         []
-        [ text "All settings above the textbox are stored as "
+        [ em [] [ text "Tempo" ]
+        , text ", "
+        , em [] [ text "Key" ]
+        , text ", and "
+        , em [] [ text "Lowest scale degree" ]
+        , text " are stored as "
         , code [] [ text "key: value" ]
-        , text " pairs in the textbox itself. The textbox is the single source of truth for these parameters; the controls just make it easier to adjust them."
+        , text " pairs in the textbox. The textbox is the single source of truth for these parameters; the controls just make it easier to adjust them."
         ]
     , p
         []
@@ -396,60 +421,152 @@ macDependentPage mac =
         ]
     ]
 
+playStyleHeight : Float
+playStyleHeight = 4.8
+
 pages : List Page
 pages =
   [ Page
-      False False -1 2 7
-      "theater"
-      "Textbox"
+      -0.9 Below BottomOf "brand" CenterAt 18 ExtendBy 1.9
+      "Basics"
       [ p
           []
-          [ text "This is the textbox for writing chord progressions. For example,"
+          [ text "A chord is a group of notes played together. A chord progression is a sequence of chords. This website helps you discover chords and write chord progressions."
+          ]
+      , p
+          []
+          [ text "You can close this tour window at any time and then click "
+          , em [] [ text "Resume tour" ]
+          , text " at the top of the page to continue where you left off."
+          ]
+      ]
+  , Page
+      -2.5 Below BottomOf "keyboard" CenterAt 16 ExtendBy (15 + playStyleHeight)
+      "Discovering chords"
+      [ p
+          []
+          [ text "Select piano keys to create a custom chord. Then drag across the strings to play the notes together."
+          ]
+      ]
+  , Page
+      5.6 Below TopOf "pane" LeftAt 6 ExtendBy (7.5 + playStyleHeight)
+      "Search results"
+      [ p
+          []
+          [ text "Chords similar to your custom chord will appear in the "
+          , em [] [ text "Search results" ]
+          , text " view. You can click these chords to play them."
+          ]
+      , p
+          []
+          [ em [] [ text "Show custom chord" ]
+          , text " will take you back to your original chord."
+          ]
+      ]
+  , Page
+      -0.4 Below BottomOf "keyboard" LeftAt 3 ExtendBy (1.5 + playStyleHeight)
+      "Adding chords"
+      [ p
+          []
+          [ text "This textbox shows the most recently played chord. Click "
+          , em [] [ text "Add" ]
+          , text " to add it to your chord progression."
+          ]
+      , p
+          []
+          [ text "Unknown chords are displayed as a series of numbers and cannot be added to the progression."
+          ]
+      ]
+  , Page
+      -1 Below BottomOf "song" LeftAt 6 ExtendBy (9 + playStyleHeight)
+      "Chord progression"
+      [ p
+          []
+          [ text "The chords you add will be displayed here. To hear your progression, just click each chord in left-to-right order."
+          ]
+      ]
+  , Page
+      -0.5 Below BottomOf "playStyle" LeftAt 1 ExtendBy (playStyleHeight - 0.5)
+      "Play styles"
+      [ p
+          []
+          [ text "This bar controls how chords are played when you click them."
+          ]
+      , p
+          []
+          [ text "In "
+          , em [] [ text "Pad" ]
+          , text " mode, chords play continuously until you click them again to stop."
+          ]
+      , p
+          []
+          [ text "In the "
+          , em [] [ text "Arpeggio" ]
+          , text " and "
+          , em [] [ text "Strum pattern" ]
+          , text " modes, you can queue up a second chord while the first one is still playing so the chord change lines up with the beat."
+          ]
+      ]
+  , Page
+      -1 Below BottomOf "theater" LeftAt 2 ExtendBy 8.9
+      "Editing"
+      [ p
+          []
+          [ text "In spite of the colorful highlighting, this is just a regular textbox. Your chord progression is stored here in text format, allowing you to edit it directly."
+          ]
+      , p
+          []
+          [ text "In addition to chord names, you can type"
           ]
       , ul
           []
           [ li
               []
-              [ text "B♭"
-              , sup [] [ text "sus4" ]
-              , text " is written as "
-              , code [] [ text "Bbsus4" ]
-              , text "."
-              ]
-          , li
-              []
-              [ text "Diminished chords like B"
-              , sup [] [ text "o" ]
-              , text " are written as "
-              , code [] [ text "Bo" ]
-              , text " with a lowercase o."
-              ]
-          , li
-              []
-              [ text "Half-diminished chords like B"
-              , sup [] [ text "ø" ]
-              , text " (also known as B"
-              , sup [] [ text "7♭5" ]
-              , text ") are written as "
-              , code [] [ text "B0" ]
-              , text " with a zero."
-              ]
-          , li
-              []
-              [ text "An underscore "
+              [ text "an underscore "
               , code [] [ text "_" ]
-              , text " creates a space or a blank line."
+              , text " to create a space or a blank line."
               ]
           , li
               []
-              [ text "Two slashes "
+              [ text "two slashes "
               , code [] [ text "//" ]
-              , text " begin a comment."
+              , text " to begin a comment."
               ]
+          ]
+      ]
+  , Page
+      -0.4 Below BottomOf "buffet" CenterAt 17.8 ExtendBy 7.5
+      "Replacements"
+      [ p
+          []
+          [ text "Each chord has only one accepted spelling. If you use a lowercase letter or an enharmonic equivalent like "
+          , code [] [ text "A#" ]
+          , text " instead of "
+          , code [] [ text "Bb" ]
+          , text ", this button will appear to automatically replace it with the accepted spelling."
+          ]
+      ]
+  , Page
+      -0.4 Below BottomOf "title" LeftAt 3 ExtendBy 1.5
+      "Saving"
+      [ p
+          []
+          [ em [] [ text "Save in URL" ]
+          , text " puts the entire text of your chord progression in the address bar as a URL parameter. After clicking "
+          , em [] [ text "Save in URL" ]
+          , text ", you can add the page to your bookmarks, send the link to someone, or just close the page and find it later in your browsing history."
           ]
       , p
           []
-          [ text "Chords are highlighted based on their harmonic function:"
+          [ text "By default, the page title will contain the first few chords of the progression. You can enter a custom title here."
+          ]
+      ]
+  , Page
+      -0.4 Below BottomOf "scale" LeftAt 2.5 ExtendBy 1.6
+      "Key"
+      [ p
+          []
+          [ text "Chords are colored based on their harmonic function in the current key:"
           ]
       , ul
           [ style
@@ -459,35 +576,89 @@ pages =
           ]
           [ li
               []
-              [ span
-                  [ class "colorLegend"
-                  , style
-                      [ ( "background", "linear-gradient(to right, #d0a0ff, #b7caff, #a2e1ff)" )
+              [ mark
+                  [ style
+                      [ ( "background", "#d0a0ff" )
+                      , ( "border-top-left-radius", "3px" )
+                      , ( "border-bottom-left-radius", "3px" )
                       ]
                   ]
-                  []
+                  [ text "\xA0\xA0\xA0"
+                  ]
+              , mark
+                  [ style
+                      [ ( "background", "#b7caff" )
+                      ]
+                  ]
+                  [ text "\xA0\xA0\xA0"
+                  ]
+              , mark
+                  [ style
+                      [ ( "background", "#a2e1ff" )
+                      , ( "border-top-right-radius", "3px" )
+                      , ( "border-bottom-right-radius", "3px" )
+                      ]
+                  ]
+                  [ text "\xA0\xA0\xA0"
+                  ]
               , text " = tonic"
               ]
           , li
               []
-              [ span
-                  [ class "colorLegend"
-                  , style
-                      [ ( "background", "linear-gradient(to right, #9effd3, #bdff8e, #d6f446)" )
+              [ mark
+                  [ style
+                      [ ( "background", "#9effd3" )
+                      , ( "border-top-left-radius", "3px" )
+                      , ( "border-bottom-left-radius", "3px" )
                       ]
                   ]
-                  []
+                  [ text "\xA0\xA0\xA0"
+                  ]
+              , mark
+                  [ style
+                      [ ( "background", "#bdff8e" )
+                      ]
+                  ]
+                  [ text "\xA0\xA0\xA0"
+                  ]
+              , mark
+                  [ style
+                      [ ( "background", "#d6f446" )
+                      , ( "border-top-right-radius", "3px" )
+                      , ( "border-bottom-right-radius", "3px" )
+                      ]
+                  ]
+                  [ text "\xA0\xA0\xA0"
+                  ]
               , text " = subdominant"
               ]
           , li
               []
-              [ span
-                  [ class "colorLegend"
-                  , style
-                      [ ( "background", "linear-gradient(to right, #ffad4c, #ff997f, #ff7da5)" )
+              [ mark
+                  [ style
+                      [ ( "background", "#ffad4c" )
+                      , ( "border-top-left-radius", "3px" )
+                      , ( "border-bottom-left-radius", "3px" )
                       ]
                   ]
-                  []
+                  [ text "\xA0\xA0\xA0"
+                  ]
+              , mark
+                  [ style
+                      [ ( "background", "#ff997f" )
+                      ]
+                  ]
+                  [ text "\xA0\xA0\xA0"
+                  ]
+              , mark
+                  [ style
+                      [ ( "background", "#ff7da5" )
+                      , ( "border-top-right-radius", "3px" )
+                      , ( "border-bottom-right-radius", "3px" )
+                      ]
+                  ]
+                  [ text "\xA0\xA0\xA0"
+                  ]
               , text " = dominant"
               ]
           , li
@@ -506,88 +677,24 @@ pages =
           ]
       , p
           []
-          [ text "You can visit the \"View on Github\" link for more information about the colors."
-          ]
-      ]
-  , Page
-      True False -0.4 17.8 9.5
-      "buffet"
-      "Replacements"
-      [ p
-          []
-          [ text "Each chord has only one accepted spelling. If you use a lowercase letter or an enharmonic equivalent like "
-          , code [] [ text "A#" ]
-          , text " instead of "
-          , code [] [ text "Bb" ]
-          , text ", this button will appear to automatically replace it with the accepted spelling."
-          ]
-      ]
-  , Page
-      False False -1 6 6
-      "song"
-      "Play buttons"
-      [ p
-          []
-          [ text "Instead of a single button that plays the entire progression, there is a separate play button for each chord you type. To hear the progression, you have to click each button in order."
-          ]
-      , p
-          []
-          [ text "There are several playback modes. In the arpeggio and strum pattern modes, you can queue up a second chord while the first one is still playing so the chord change lines up with the beat."
-          ]
-      ]
-  , Page
-      False False -0.4 3 3.5
-      "title"
-      "Saving your work"
-      [ p
-          []
-          [ text "The \"Save in URL\" button puts the entire text of your chord progression in the address bar as a URL parameter. After clicking \"Save in URL\", you can add the page to your bookmarks, send the link to someone, or just close the page and find it later in your browsing history."
-          ]
-      , p
-          []
-          [ text "By default, the page title will contain the first several chords in the textbox. You can enter a custom title here."
+          [ text "Choosing a key from this dropdown menu will transpose all chords in the progression while keeping their colors the same. To change key without transposing, add a line like "
+          , code [] [ text "key: G" ]
+          , text " or "
+          , code [] [ text "key: C#m" ]
+          , text " before your progression."
           ]
       ]
   , macDependentPage False
   , Page
-      False False -0.4 2.5 3.6
-      "scale"
-      "Key"
-      [ p
-          []
-          [ text "Choosing a key from this dropdown menu will transpose all chords in the textbox. It will also set the "
-          , code [] [ text "key" ]
-          , text " parameter, which mainly affects how the chords are colored."
-          ]
-      , p
-          []
-          [ text "If you wanted to switch to G Major without transposing, you could type "
-          , code [] [ text "key: G" ]
-          , text " at the start of the textbox."
-          ]
-      ]
-  , Page
-      True False -0.6 15.5 3.3
-      "lowest"
-      "Lowest scale degree"
-      [ p
-          []
-          [ text "This slider adjusts the range of the piano keyboard. Moving it up will transpose the lowest chords up one octave."
-          ]
-      , p
-          []
-          [ text "In the textbox, this parameter is stored as a number which always represents a "
-          , em [] [ text "major" ]
-          , text " scale degree."
-          ]
-      ]
-  , Page
-      False True -0.6 1 7.5
-      "pane"
+      -0.6 Above TopOf "pane" LeftAt 1 ExtendBy 5.5
       "Settings"
       [ p
           []
-          [ text "You'll probably want to check \"Remember my settings\" so you don't have to switch to your preferred playback mode every time you visit the site."
+          [ text "By default, this website doesn't store any data. If you want it to remember things like volume level and playback mode, go to the "
+          , em [] [ text "Settings" ]
+          , text " view and check "
+          , em [] [ text "Remember my settings" ]
+          , text "."
           ]
       ]
   ]

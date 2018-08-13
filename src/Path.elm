@@ -1,4 +1,4 @@
-module Path exposing (m, bigM, h, bigH, v, bigV, partialC, c, a, bigZ)
+module Path exposing (m, bigM, l, h, bigH, v, bigV, partialC, c, a, bigZ)
 
 m : Float -> Float -> String
 m dx dy =
@@ -7,6 +7,10 @@ m dx dy =
 bigM : Float -> Float -> String
 bigM x y =
   "M" ++ toString x ++ "," ++ toString y
+
+l : Float -> Float -> String
+l dx dy =
+  "l" ++ toString dx ++ "," ++ toString dy
 
 h : Float -> String
 h dx =
