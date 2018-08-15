@@ -168,6 +168,7 @@
       app.ports.replace.subscribe(replace);
       app.ports.undoAndReplace.subscribe(undoAndReplace);
       app.ports.hardUndo.subscribe(hardUndo);
+      app.ports.initHarp.subscribe(initHarp);
       app.ports.initStorage.subscribe(initStorage);
       app.ports.setTitle.subscribe(
         function(title) {
@@ -187,8 +188,6 @@
           withElement(id, scrollIntoView);
         }
       );
-
-      app.ports.setHarpExistence.subscribe(setHarpExistence);
 
       onbeforeunload = function(event) {
         var warning = document.getElementById("warning");

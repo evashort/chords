@@ -160,6 +160,7 @@ init flags location =
             , selectionEnd = String.length code
             }
         , Theater.focus
+        , Ports.initHarp ()
         , if title == "" then
             Ports.setTitle parse.defaultTitle
           else
@@ -168,7 +169,6 @@ init flags location =
             Storage.init
           else
             Cmd.none
-        , Ports.setHarpExistence True
         ]
     )
 

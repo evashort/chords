@@ -37,64 +37,85 @@ function withElementHelp(id, f, expiration, now) {
   }
 }
 
-var harpExists = false;
+var harp = null;
 var dragPos = null;
-var plucks = {};
+var ropes = {}
 var pulls = {};
+var plucks = {};
 var ropeRadius = 2;
 var maxExtraLength = 1;
 
-function setHarpExistence(newHarpExistence) {
-  if (newHarpExistence != harpExists) {
-    harpExists = newHarpExistence;
-
-    if (harpExists) {
-      withElement("harp", initHarp);
-    }
-  }
+function initHarp() {
+  withElement("harp", initHarpHelp);
 }
 
-function initHarp(harp) {
+function initHarpHelp(argHarp) {
+  harp = argHarp;
+
   harp.addEventListener("mousedown", harpClicked);
-  dragPos = null;
+
+  var observer = new MutationObserver(harpChanged);
+  observer.observe(
+    harp,
+    {
+      attributes: true,
+      attributeFilter: ["spec"]
+    }
+  );
+
+  harpChanged();
+}
+
+function harpChanged() {
+  harpSpec = JSON.parse(harp.getAttribute("spec"));
+  ropes = harpSpec.ropes;
+  if (harp.width != harpSpec.width) {
+    harp.width = harpSpec.width;
+  }
+
+  for (var pitch in pulls) {
+    if (!(pitch in ropes)) {
+      delete pulls[pitch];
+    }
+  }
+
+  for (var pitch in plucks) {
+    if (!(pitch in ropes)) {
+      delete plucks[pitch];
+    }
+  }
+
+  for (var pitch in plucks) {
+    return;
+  }
+
+  paintStaticHarp();
 }
 
 function harpClicked(event) {
   event.preventDefault();
 
-  var harp = document.getElementById("harp");
-  if (harp == null) {
-    return;
-  }
-
   var rect = harp.getBoundingClientRect();
-  var viewBox = harp.viewBox.baseVal;
   dragPos = {
-    x: viewBox.x + (event.clientX - rect.left) * viewBox.width / rect.width,
-    y: (event.clientY - rect.top) * viewBox.height / rect.height
+    x: (event.clientX - rect.left) * harp.width / rect.width,
+    y: (event.clientY - rect.top) * harp.height / rect.height
   }
 }
 
 var translationRegex = /translate\s*\(\s*([^\s,)]+)[ ,)]/;
 
 function harpDragged(event) {
-  if (dragPos == null) {
-    return;
-  }
-
-  var harp = document.getElementById("harp");
-  if (harp == null) {
+  if (dragPos == null || harp == null) {
     return;
   }
 
   var rect = harp.getBoundingClientRect();
-  var viewBox = harp.viewBox.baseVal;
-  var height = viewBox.height;
+  var height = harp.height;
 
   var oldDragPos = dragPos;
   dragPos = {
-    x: viewBox.x + (event.clientX - rect.left) * viewBox.width / rect.width,
-    y: (event.clientY - rect.top) * viewBox.height / rect.height
+    x: (event.clientX - rect.left) * harp.width / rect.width,
+    y: (event.clientY - rect.top) * height / rect.height
   };
 
   var upper = oldDragPos;
@@ -132,58 +153,34 @@ function harpDragged(event) {
       oldInsidePos = lower;
     }
 
-    var ropes = harp.getElementsByClassName("rope");
-    for (var i = 0; i < ropes.length; i++) {
-      var pitch = parseInt(ropes[i].getAttribute("name"));
-      if (pitch in pulls) {
-        var pull = pulls[pitch];
-        if (
-          (pull.right && dragPos.x < pull.x) ||
-            (!pull.right && dragPos.x > pull.x)
-        ) {
-          pull.rope.setAttribute(
-            "d",
-            [Path.bigM(0, 0), Path.bigV(height)].join(" ")
-          );
+    for (var pitch in ropes) {
+      var rope = ropes[pitch];
+      var left = rope.x - ropeRadius;
+      var right = rope.x + ropeRadius;
 
+      if (pitch in pulls) {
+        var pulledRight = pulls[pitch];
+        if (
+          (pulledRight && dragPos.x < left) ||
+            (!pulledRight && dragPos.x > right)
+        ) {
           delete pulls[pitch];
         }
-
-        continue;
-      }
-
-      var transform = ropes[i].getAttribute("transform");
-      var coordinates = translationRegex.exec(transform);
-      var x = parseFloat(coordinates[1]);
-      var leftX = x - ropeRadius;
-      var rightX = x + ropeRadius;
-      if (oldInsidePos.x <= leftX && insidePos.x > leftX) {
-        muteCandidates.push(pitch);
-
-        pulls[pitch] = {
-          rope: ropes[i],
-          x: leftX,
-          right: true
-        }
-
+      } else if (oldInsidePos.x <= left && insidePos.x > left) {
+        muteCandidates.push(parseInt(pitch));
+        pulls[pitch] = true;
         delete plucks[pitch];
-      } else if (oldInsidePos.x >= rightX && insidePos.x < rightX) {
-        muteCandidates.push(pitch);
-
-        pulls[pitch] = {
-          rope: ropes[i],
-          x: rightX,
-          right: false
-        }
-
+      } else if (oldInsidePos.x >= right && insidePos.x < right) {
+        muteCandidates.push(parseInt(pitch));
+        pulls[pitch] = false;
         delete plucks[pitch];
       }
     }
   }
 
-  var wasEmpty = true;
+  var wasStatic = true;
   for (var pitch in plucks) {
-    wasEmpty = false;
+    wasStatic = false;
     break;
   }
 
@@ -191,13 +188,18 @@ function harpDragged(event) {
   var now = performance.now();
 
   for (var pitch in pulls) {
-    var pull = pulls[pitch];
+    var rope = ropes[pitch];
+    var left = rope.x - ropeRadius;
+    var right = rope.x + ropeRadius;
+
+    var pulledRight = pulls[pitch];
+    var edge = pulledRight ? left : right;
 
     var yRadius = 0.5 * (height + maxExtraLength);
     var xRadius =
       Math.sqrt(yRadius * yRadius - 0.25 * height * height);
 
-    var x1 = (oldDragPos.x - pull.x) / xRadius;
+    var x1 = (oldDragPos.x - edge) / xRadius;
     var y1 = (oldDragPos.y - 0.5 * height) / yRadius;
 
     var dx = (dragPos.x - oldDragPos.x) / xRadius;
@@ -222,30 +224,14 @@ function harpDragged(event) {
       pitches.push(parseInt(pitch));
 
       plucks[pitch] = {
-        rope: pull.rope,
-        maxStretch: pull.right ? xRadius : -xRadius,
-        stretch: (1 - t) * oldDragPos.x + t * dragPos.x - pull.x,
+        maxStretch: pulledRight ? xRadius : -xRadius,
+        stretch: (1 - t) * oldDragPos.x + t * dragPos.x - edge,
         y: (1 - t) * oldDragPos.y + t * dragPos.y,
         start: now
       };
 
-      pull.rope.setAttribute("fill-opacity", "0.5");
-
       delete pulls[pitch];
-      continue;
     }
-
-    var d = [
-      Path.bigM(0, 0),
-      Path.l(dragPos.x - pull.x, dragPos.y),
-      Path.bigL(0, height),
-    ].join(" ");
-    pull.rope.setAttribute("d", d);
-    pull.rope.setAttribute("fill-opacity", "0");
-  }
-
-  if (wasEmpty && pitches.length > 0) {
-    updatePlucks(now);
   }
 
   if (pitches.length > 0 || muteCandidates.length > 0) {
@@ -263,79 +249,98 @@ function harpDragged(event) {
       }
     );
   }
+
+  if (wasStatic) {
+    if (pitches.length > 0) {
+      startPaintingHarp(now);
+    } else {
+      paintStaticHarp();
+    }
+  }
 }
 
 function harpReleased() {
-  dragPos = null;
-
-  var harp = document.getElementById("harp");
-  if (harp == null) {
+  if (dragPos == null || harp == null) {
     return;
   }
 
-  var height = harp.viewBox.baseVal.height;
+  dragPos = null;
+  pulls = {};
 
-  for (pitch in pulls) {
-    pulls[pitch].rope.setAttribute(
-      "d",
-      [Path.bigM(0, 0), Path.bigV(height)].join(" ")
-    );
+  for (pitch in plucks) {
+    return;
   }
 
-  pulls = {};
+  paintStaticHarp();
 }
 
 function harpMuted() {
-  var harp = document.getElementById("harp");
-  if (harp == null) {
-    return;
-  }
-
-  var height = harp.viewBox.baseVal.height;
-
-  for (pitch in plucks) {
-    plucks[pitch].rope.setAttribute(
-      "d",
-      [Path.bigM(0, 0), Path.bigV(height)].join(" ")
-    );
-  }
-
   plucks = {};
+
+  paintStaticHarp();
 }
 
 window.addEventListener("mousemove", harpDragged);
 
 window.addEventListener("mouseup", harpReleased);
 
-function updatePlucks(now) {
-  var harp = document.getElementById("harp");
-  if (harp == null) {
+function startPaintingHarp(now) {
+  var wasStatic = true;
+  for (var pitch in plucks) {
+    wasStatic = false;
+  }
+
+  if (wasStatic) {
     return;
   }
 
-  var height = harp.viewBox.baseVal.height;
+  var height = harp.height;
 
-  for (var pitch in plucks) {
-    var pluck = plucks[pitch];
+  var dc = harp.getContext("2d");
+  dc.fillStyle = "#eeeeee";
+  dc.fillRect(0, 0, harp.width, height);
 
-    if (pluck.rope.parentNode == null) {
-      delete plucks[pitch];
+  dc.lineWidth = 2 * ropeRadius;
+
+  for (var pitch in ropes) {
+    rope = ropes[pitch];
+    dc.strokeStyle = rope.color;
+    dc.fillStyle = rope.color;
+
+    if (pitch in pulls) {
+      dc.beginPath();
+      dc.moveTo(rope.x, 0);
+      if (pulls[pitch]) {
+        dc.lineTo(dragPos.x + ropeRadius, dragPos.y);
+      } else {
+        dc.lineTo(dragPos.x - ropeRadius, dragPos.y);
+      }
+
+      dc.lineTo(rope.x, height);
+      dc.stroke();
+
       continue;
     }
+
+    if (pitch in plucks && now - plucks[pitch].start > 6000) {
+      delete plucks[pitch];
+    }
+
+    if (!(pitch in plucks)) {
+      dc.beginPath();
+      dc.moveTo(rope.x, 0);
+      dc.lineTo(rope.x, height);
+      dc.stroke();
+
+      continue;
+    }
+
+    var pluck = plucks[pitch];
 
     var t = now - pluck.start;
     var stretchPhase = Math.exp(-0.0005 * t);
     var yPhase = Math.exp(-0.005 * t);
     var cornerPhase = yPhase;
-    if (t > 6000) {
-      pluck.rope.setAttribute(
-        "d",
-        [Path.bigM(0, 0), Path.bigV(height)].join(" ")
-      );
-
-      delete plucks[pitch];
-      continue;
-    }
 
     // fudge the stretch to make strings plucked at the end have the
     // same asymptotic decay behavior as those plucked in the middle
@@ -347,61 +352,69 @@ function updatePlucks(now) {
     var curveTop = y * cornerPhase;
 
     var curvePhase = 1 - cornerPhase;
-    var curveHeight = height * curvePhase;
+    var curveBottom = height * curvePhase + y * cornerPhase;
     var tightness = 8 / (3 * Math.PI); // this value is closest to a sinusoid
     var controlWidth = stretch * curvePhase * tightness;
     var upperControlHeight = y * curvePhase * tightness;
     var lowerControlHeight = (height - y) * curvePhase * tightness;
 
-    var d = [
-      Path.bigM(0, 0),
-      Path.l(curveLeft, curveTop),
-      Path.c(
-        controlWidth, upperControlHeight,
-        controlWidth, curveHeight - lowerControlHeight,
-        0, curveHeight
-      ),
-      Path.bigL(0, height),
-      Path.l(-curveLeft, -curveTop),
-      Path.c(
-        -controlWidth, -upperControlHeight,
-        -controlWidth, lowerControlHeight - curveHeight,
-        0, -curveHeight
-      ),
-      Path.bigZ()
-    ].join(" ");
-    pluck.rope.setAttribute("d", d);
+    dc.beginPath();
+    dc.moveTo(rope.x, 0);
+    dc.lineTo(rope.x + curveLeft, curveTop);
+    dc.bezierCurveTo(
+      rope.x + curveLeft + controlWidth, curveTop + upperControlHeight,
+      rope.x + curveLeft + controlWidth, curveBottom - lowerControlHeight,
+      rope.x + curveLeft, curveBottom
+    );
+    dc.lineTo(rope.x, height);
+    dc.lineTo(rope.x - curveLeft, height - curveTop);
+    dc.bezierCurveTo(
+      rope.x - curveLeft - controlWidth,
+      height - curveTop - upperControlHeight,
+      rope.x - curveLeft - controlWidth,
+      height - curveBottom + lowerControlHeight,
+      rope.x - curveLeft,
+      height - curveBottom
+    );
+    dc.closePath();
+    dc.globalAlpha = 0.5;
+    dc.fill();
+    dc.globalAlpha = 1;
+    dc.stroke();
   }
 
-  for (var pitch in plucks) {
-    requestAnimationFrame(updatePlucks);
-    break;
-  }
+  requestAnimationFrame(startPaintingHarp);
 }
 
-var Path = {
-  bigM: function(x, y) {
-    return "M" + x.toString() + "," + y.toString();
-  },
-  l: function(dx, dy) {
-    return "l" + dx.toString() + "," + dy.toString();
-  },
-  bigL: function(x, y) {
-    return "L" + x.toString() + "," + y.toString();
-  },
-  v: function(dy) {
-    return "v" + dy.toString();
-  },
-  bigV: function(y) {
-    return "V" + y.toString();
-  },
-  c: function(dx1, dy1, dx2, dy2, dx, dy) {
-    return "c" +
-      dx1.toString() + "," + dy1.toString() + " " +
-      dx2.toString() + "," + dy2.toString() + " " +
-      dx.toString() + "," + dy.toString();
-  },
-  bigZ: function() {
-    return "Z";
+function paintStaticHarp() {
+  var height = harp.height;
+
+  var dc = harp.getContext("2d");
+  dc.fillStyle = "#eeeeee";
+  dc.fillRect(0, 0, harp.width, height);
+
+  dc.lineWidth = 2 * ropeRadius;
+
+  for (var pitch in ropes) {
+    rope = ropes[pitch];
+    dc.strokeStyle = rope.color;
+
+    if (pitch in pulls) {
+      dc.beginPath();
+      dc.moveTo(rope.x, 0);
+      if (pulls[pitch]) {
+        dc.lineTo(dragPos.x + ropeRadius, dragPos.y);
+      } else {
+        dc.lineTo(dragPos.x - ropeRadius, dragPos.y);
+      }
+
+      dc.lineTo(rope.x, height);
+      dc.stroke();
+    } else {
+      dc.beginPath();
+      dc.moveTo(rope.x, 0);
+      dc.lineTo(rope.x, height);
+      dc.stroke();
+    }
   }
-};
+}

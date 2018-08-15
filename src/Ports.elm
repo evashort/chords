@@ -3,9 +3,9 @@ port module Ports exposing
   , initMeter
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
+  , initHarp, harpPlucked, Pluck
   , initStorage
   , setTitle
-  , setHarpExistence, harpPlucked, Pluck
   , scrollIntoView, escape
   )
 
@@ -26,12 +26,12 @@ port hardUndo : () -> Cmd msg
 
 port text : (String -> msg) -> Sub msg
 
+port initHarp : () -> Cmd msg
+port harpPlucked : (Pluck -> msg) -> Sub msg
+
 port initStorage : () -> Cmd msg
 
 port setTitle : String -> Cmd msg
-
-port setHarpExistence : Bool -> Cmd msg
-port harpPlucked : (Pluck -> msg) -> Sub msg
 
 type alias Pluck =
   { now : Float
