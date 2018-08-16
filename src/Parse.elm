@@ -191,7 +191,10 @@ addWord word parse =
       else
         case Paragraph.lastWordEnd parse.paragraph of
           Nothing ->
-            "\n"
+            if String.isEmpty parse.code then
+              ""
+            else
+              "\n"
           Just lastWordEnd ->
             if lastWordEnd == String.length parse.code then
               " "
