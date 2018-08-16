@@ -32,6 +32,11 @@ Try it in your browser: http://evanshort.name/chords/
 - More arpeggio styles
 - Mobile-friendly interface
 - Suggestions for next chord in progression
+- Support for selected slash chords
+- Show chords on musical staff
+- Show guitar chord diagrams
+- Somehow indicate which notes are in the current key signature
+- Allow focusing chords using arrow keys
 
 ## Color choices
 The chord colors basically follow this scheme:
