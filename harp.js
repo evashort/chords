@@ -383,6 +383,16 @@ function startPaintingHarp(now) {
     dc.stroke();
   }
 
+  var text = "Select piano keys to create strings";
+  for (var pitch in ropes) {
+    text = "Drag across strings to strum";
+  }
+
+  dc.font = "16px Arial, \"Helvetica Neue\", Helvetica, sans-serif";
+  dc.fillStyle = "#6d6d6d";
+  dc.textAlign = "center";
+  dc.fillText(text, 0.5 * harp.width, 0.5 * height + 6);
+
   requestAnimationFrame(startPaintingHarp);
 }
 
@@ -417,4 +427,14 @@ function paintStaticHarp() {
       dc.stroke();
     }
   }
+
+  var text = "Select piano keys to create strings";
+  for (var pitch in ropes) {
+    text = "Drag across strings to strum";
+  }
+
+  dc.font = "16px Arial, \"Helvetica Neue\", Helvetica, sans-serif";
+  dc.fillStyle = "#6d6d6d";
+  dc.textAlign = "center";
+  dc.fillText(text, 0.5 * harp.width, 0.5 * height + 6);
 }
