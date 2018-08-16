@@ -123,6 +123,10 @@ function updateAudio() {
 }
 
 function changeAudio(changes) {
+  ac.resume().then(changeAudioHelp(changes));
+}
+
+function changeAudioHelp(changes) {
   var wasPlaying = notes.length > 0;
   var wasUpdating = notes.length > 0 || alarms.length > 0;
 
