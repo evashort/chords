@@ -101,7 +101,7 @@ view mac tour =
       []
 
 macPageNumber : Int
-macPageNumber = 5
+macPageNumber = 11
 
 getTitle : Int -> String
 getTitle pageNumber =
