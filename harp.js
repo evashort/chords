@@ -322,7 +322,9 @@ function startPaintingHarp(now) {
       continue;
     }
 
-    if (pitch in plucks && now - plucks[pitch].start > 6000) {
+    // Cut it just short enough to avoid the chrome rendering glitch
+    // where only the fill is visible
+    if (pitch in plucks && now - plucks[pitch].start > 5850) {
       delete plucks[pitch];
     }
 
