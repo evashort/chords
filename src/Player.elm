@@ -172,8 +172,10 @@ strum strumInterval lowestPitch { id, chord } now player =
         sequence { player | unfinishedCount = 0 }
       else
         []
-    , (::)
-        (Mute now)
+    , (++)
+        [ Mute now
+        , AddAlarm (now + 2.25)
+        ]
         ( List.map
             ( AddGuitarNote <<
                 Note.mapTime ((+) now << (*) strumInterval)
@@ -209,8 +211,11 @@ arp beatInterval lowestPitch { id, chord } now player =
         sequence { player | unfinishedCount = 0 }
       else
         []
-    , (::)
-        (Mute startTime)
+    , (++)
+        [ Mute startTime
+        , AddAlarm startTime
+        , AddAlarm (startTime + 4 * beatInterval)
+        ]
         ( List.map
             ( AddPianoNote <<
                 Note.mapTime
@@ -272,8 +277,11 @@ strumPattern pattern beatInterval lowestPitch { id, chord } now player =
         sequence { player | unfinishedCount = 0 }
       else
         []
-    , (::)
-        (Mute startTime)
+    , (++)
+        [ Mute startTime
+        , AddAlarm startTime
+        , AddAlarm (startTime + beatCount * beatInterval)
+        ]
         ( List.map
             ( AddGuitarNote <<
                 processStrumNote startTime beatInterval

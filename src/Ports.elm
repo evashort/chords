@@ -1,5 +1,5 @@
 port module Ports exposing
-  ( changeAudio, playing, stopAudio, setVolume
+  ( changeAudio, playing, stopAudio, setVolume, currentTime
   , initMeter
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
@@ -15,6 +15,7 @@ port changeAudio : List Encode.Value -> Cmd msg
 port playing : (Bool -> msg) -> Sub msg
 port stopAudio : () -> Cmd msg
 port setVolume : Float -> Cmd msg
+port currentTime : (Float -> msg) -> Sub msg
 
 port initMeter : () -> Cmd msg
 

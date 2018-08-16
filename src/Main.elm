@@ -32,7 +32,6 @@ import Swatch
 import Theater
 import Tour exposing (Tour)
 
-import AnimationFrame
 import Dom
 import Html exposing
   ( Html, a, button, div, pre, span, input, select, option, label
@@ -202,7 +201,6 @@ type Msg
   | BuffetMsg Buffet.Msg
   | SetStorage Storage
   | SetStrumInterval String
-  | RequestTime
   | CurrentTime Float
   | IdChordMsg IdChord.Msg
   | Play (IdChord, Float)
@@ -476,9 +474,6 @@ update msg model =
               ("Main.update: Bad strum interval: " ++ strumIntervalString)
       , Cmd.none
       )
-
-    RequestTime ->
-      ( model, Task.perform CurrentTime AudioTime.now )
 
     CurrentTime now ->
       ( case Player.setTime now model.keyboard.player of
@@ -832,7 +827,7 @@ subscriptions model =
     [ Ports.text TextChanged
     , Ports.playing Playing
     , if Player.willChange model.keyboard.player then
-        AnimationFrame.times (always RequestTime)
+        Ports.currentTime CurrentTime
       else
         Sub.none
     , if model.tour.visible then

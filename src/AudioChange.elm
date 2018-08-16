@@ -12,6 +12,7 @@ type AudioChange
   | NoteOff Note
   | Mute Float
   | Cancel Float
+  | AddAlarm Float
 
 perform : List AudioChange -> Cmd msg
 perform = Ports.changeAudio << List.map toJson
@@ -54,5 +55,10 @@ toJson change =
     Cancel t ->
       Encode.object
         [ ( "type", Encode.string "cancel" )
+        , ( "t", Encode.float t )
+        ]
+    AddAlarm t ->
+      Encode.object
+        [ ( "type", Encode.string "alarm" )
         , ( "t", Encode.float t )
         ]

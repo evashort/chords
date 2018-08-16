@@ -10,6 +10,7 @@ reverb.dry.value = 0.55;
 reverb.connect(masterFader);
 
 var notes = [];
+var alarms = [];
 
 function muteNoteAt(t, note) {
   var muteTime = ac.currentTime + 0.04;
@@ -84,6 +85,8 @@ function addNote(addInstrumentNote, spec) {
 }
 
 function updateAudio() {
+  var wasPlaying = notes.length > 0;
+
   var now = ac.currentTime;
   for (var i = notes.length - 1; i >= 0; i--) {
     if (notes[i].expiration <= now) {
@@ -97,19 +100,32 @@ function updateAudio() {
     }
   }
 
-  if (notes.length == 0) {
-    playing = false
-    app.ports.playing.send(false);
-    clearMeters();
-  } else {
-    updateMeters()
+  if (wasPlaying) {
+    if (notes.length > 0) {
+      updateMeters()
+    } else {
+      app.ports.playing.send(false);
+      clearMeters();
+    }
+  }
+
+  if (alarms[alarms.length - 1] <= now) {
+    app.ports.currentTime.send(now);
+  }
+
+  while (alarms[alarms.length - 1] <= now) {
+    alarms.pop();
+  }
+
+  if (notes.length > 0 || alarms.length > 0) {
     requestAnimationFrame(updateAudio);
   }
 }
 
-var playing = false;
-
 function changeAudio(changes) {
+  var wasPlaying = notes.length > 0;
+  var wasUpdating = notes.length > 0 || alarms.length > 0;
+
   for (var i = 0; i < changes.length; i++) {
     if (changes[i].type == "mute") {
       muteAt(changes[i].t);
@@ -125,16 +141,33 @@ function changeAudio(changes) {
       addNote(addPadNote, changes[i]);
     } else if (changes[i].type == "noteOff") {
       muteFrequencyAt(changes[i].t, changes[i].f);
+    } else if (changes[i].type == "alarm") {
+      alarms.push(changes[i].t);
     }
   }
 
   notes.sort(reverseExpiration);
+  alarms.sort(reverseNumbers);
 
-  if (notes.length > 0 && !playing) {
-    playing = true;
+  if (notes.length > 0 && !wasPlaying) {
     app.ports.playing.send(true);
+  }
+
+  if ((notes.length > 0 || alarms.length > 0) && !wasUpdating) {
     updateAudio();
   }
+}
+
+function reverseNumbers(a, b) {
+  if (a > b) {
+    return -1;
+  }
+
+  if (a < b) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function reverseExpiration(a, b) {
@@ -160,5 +193,6 @@ function setVolume(volume) {
 
 function stopAudio() {
   muteAt(0);
+  alarms = [];
   harpMuted();
 }
