@@ -49,7 +49,7 @@ encoder : Storage -> Encode.Value
 encoder storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 0 7 0))
+      , Encode.string (versionString (Version 1 0 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -91,10 +91,10 @@ decoderHelp version =
     Decode.fail
       ("Incompatible major version: " ++ toString version.major)
   else
-    v0_4Decoder
+    v1_0Decoder
 
-v0_4Decoder : Decoder Storage
-v0_4Decoder =
+v1_0Decoder : Decoder Storage
+v1_0Decoder =
   Pipeline.decode Storage
     |> Pipeline.required
         "playStyle"
