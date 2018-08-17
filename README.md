@@ -6,6 +6,8 @@ can use like an instrument.
 
 Try it in your browser: http://evanshort.name/chords/
 
+[Get an invite](https://join.slack.com/t/chordsite/shared_invite/enQtNDIwMTU5ODM5MzM0LWVkZDhhODllOGNjMDdmMzZjMDRmYTExNTY5YTg0NWRhZWViMTUyYWIxYmRiNmY3YTkyNjA3NjczZTFlMTZkMTI) to slack channel, chordsite.slack.com
+
 ## Current features
 - Chords in textbox are colored to match play buttons
 - Play chords as arpeggio, strum pattern, continuous pad, or basic strum
