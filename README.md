@@ -25,6 +25,10 @@ Try it in your browser: http://evanshort.name/chords/
 ## Planned features
 - Option to input chords as roman numerals
 - Tap to set tempo
+- Syntax to set duration of each chord
+- Chord duration saved in "Recently played" view
+- Export progression as MIDI
+- Buttons to play entire line of progression
 - View different Greek modes in chord table
 - 7th chords displayed within circle of 5ths, with show/hide option
 
