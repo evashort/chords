@@ -3,7 +3,7 @@ module Settings exposing (Msg(..), view)
 import Storage exposing (Storage)
 
 import Html exposing (Html, span, label, input, text, br)
-import Html.Attributes exposing (style, id, type_, disabled, checked)
+import Html.Attributes exposing (style, class, id, type_, disabled, checked)
 import Html.Events exposing (onCheck)
 
 type Msg
@@ -16,7 +16,8 @@ view canStore shouldStore storage =
     [ id "settingsPane"
     ]
     [ label
-        [ style
+        [ class "checkboxLabel"
+        , style
             [ ( "color"
               , if not canStore then
                   "GrayText"
@@ -36,7 +37,8 @@ view canStore shouldStore storage =
         ]
     , br [] []
     , label
-        [ style
+        [ class "checkboxLabel"
+        , style
             [ ( "color"
               , if not shouldStore then
                   "GrayText"
@@ -56,7 +58,8 @@ view canStore shouldStore storage =
         ]
     , br [] []
     , label
-        [ style
+        [ class "checkboxLabel"
+        , style
             [ ( "color"
               , if not shouldStore then
                   "GrayText"

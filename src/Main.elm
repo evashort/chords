@@ -1074,14 +1074,16 @@ viewBrand tour =
                 (Tour.viewPageOptions tour.pageNumber)
             , Html.text "\xA0"
             , button
-                [ onClick CloseTour
+                [ class "button"
+                , onClick CloseTour
                 ]
                 [ Html.text "Close tour"
                 ]
             ]
           else
             [ button
-                [ onClick (SetTour { tour | visible = True })
+                [ class "button"
+                , onClick (SetTour { tour | visible = True })
                 ]
                 [ if tour.pageNumber == 1 then
                     Html.text "Start tour"
@@ -1114,7 +1116,8 @@ viewTitle defaultTitle title saveState =
     ]
     [ Html.text "Title "
     , input
-        [ type_ "text"
+        [ class "textInput"
+        , type_ "text"
         , onInput SetTitle
         , placeholder defaultTitle
         , value title
@@ -1122,7 +1125,8 @@ viewTitle defaultTitle title saveState =
         []
     , Html.text " "
     , button
-        [ onClick Save
+        [ class "button"
+        , onClick Save
         , disabled (saveState /= Unsaved)
         ]
         [ Html.text "Save in URL"
@@ -1144,6 +1148,7 @@ viewBpm hasBackup bpm maybeDefaultBpm useDefault =
         [ Html.text "Tempo\xA0" ]
     , input
         [ type_ "range"
+        , class "range"
         , disabled useDefault
         , onInput DragBpm
         , onChange SetBpm
@@ -1171,7 +1176,8 @@ viewBpm hasBackup bpm maybeDefaultBpm useDefault =
         [ Html.text ("\xA0" ++ toString bpm ++ " BPM") ]
     , Html.text "\xA0"
     , label
-        []
+        [ class "checkboxLabel"
+        ]
         [ input
             [ type_ "checkbox"
             , checked useDefault
@@ -1259,6 +1265,7 @@ viewLowest hasBackup lowest parse =
         [ Html.text "Lowest scale degree\xA0" ]
     , input
         [ type_ "range"
+        , class "range"
         , disabled (parse.lowest == Nothing)
         , onInput DragLowest
         , onChange SetLowest
@@ -1287,7 +1294,8 @@ viewLowest hasBackup lowest parse =
         ( Html.text "\xA0" :: Lowest.view parse.scale lowest )
     , Html.text "\xA0"
     , label
-        []
+        [ class "checkboxLabel"
+        ]
         ( (::)
             ( input
                 [ type_ "checkbox"
@@ -1383,7 +1391,8 @@ viewPlayStyle storage playing =
             )
         , Html.text "\xA0"
         , button
-            [ onClick (IdChordMsg IdChord.Stop)
+            [ class "button"
+            , onClick (IdChordMsg IdChord.Stop)
             , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
             , disabled (not playing)
             ]
@@ -1406,6 +1415,7 @@ viewPlayStyle storage playing =
             ]
             [ input
                 [ type_ "range"
+                , class "range"
                 , onInput DragVolume
                 , onChange SetVolume
                 , value (toString storage.volume)
@@ -1457,6 +1467,7 @@ viewPlaySettings storage =
         [ Html.text "Strum interval\xA0"
         , input
             [ type_ "range"
+            , class "range"
             , onInput SetStrumInterval
             , Attributes.min "10"
             , Attributes.max "90"

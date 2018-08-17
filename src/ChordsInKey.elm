@@ -8,7 +8,7 @@ import Scale exposing (Scale)
 import Storage exposing (Storage)
 
 import Html exposing (Html, span, text, sup, label, input)
-import Html.Attributes exposing (style, id, type_, checked)
+import Html.Attributes exposing (style, class, id, type_, checked)
 import Html.Events exposing (onCheck)
 
 type Msg
@@ -39,7 +39,8 @@ view storage scale playStatus =
             )
         , Html.text " "
         , label
-            []
+            [ class "checkboxLabel"
+            ]
             [ input
                 [ type_ "checkbox"
                 , checked storage.harmonicMinor

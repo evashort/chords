@@ -6,7 +6,7 @@ import Name
 import Storage exposing (Storage)
 
 import Html exposing (Html, span, button, text, mark, label, input)
-import Html.Attributes exposing (style, id, disabled, type_, checked)
+import Html.Attributes exposing (style, class, id, disabled, type_, checked)
 import Html.Events exposing (onClick, onCheck)
 
 type alias History =
@@ -43,7 +43,8 @@ view tonic storage history sequence finished =
         ]
     ]
     [ label
-        []
+        [ class "checkboxLabel"
+        ]
         [ input
             [ type_ "checkbox"
             , checked storage.shortenSequences
@@ -123,7 +124,8 @@ viewSequence shorten finished tonic index sequence =
             ]
         ]
         [ button
-            [ disabled (not finished)
+            [ class "button"
+            , disabled (not finished)
             , onClick
                 ( AddLine
                     ( String.join

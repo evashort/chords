@@ -21,7 +21,7 @@ import PlayStatus exposing (PlayStatus)
 import Ports exposing (Pluck)
 
 import Html exposing (Html, span, text, input, button)
-import Html.Attributes as Attributes exposing (attribute, style, id)
+import Html.Attributes as Attributes exposing (attribute, style, class, id)
 import Html.Events exposing (onInput, onClick)
 import Set exposing (Set)
 import Svg exposing (Svg)
@@ -402,13 +402,15 @@ view gridArea tonic lowestPitch keyboard =
           ]
           [ text "Chord "
           , input
-              [ Attributes.type_ "text"
+              [ class "textInput"
+              , Attributes.type_ "text"
               , onInput SetCode
               , Attributes.value (getCode keyboard)
               ]
               []
           , button
-              [ case Maybe.map Name.code maybeChord of
+              [ class "button"
+              , case Maybe.map Name.code maybeChord of
                   Just "unknown" ->
                     Attributes.disabled True
                   Just word ->
@@ -420,7 +422,8 @@ view gridArea tonic lowestPitch keyboard =
               ]
           , text " Octave "
           , input
-              [ Attributes.type_ "number"
+              [ class "numberInput"
+              , Attributes.type_ "number"
               , Attributes.disabled
                   (maxOctave <= 0 && octave == 0)
               , onIntInput octave SetOctave

@@ -8,7 +8,7 @@ import IdChord exposing (IdChord)
 import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html, span, button)
-import Html.Attributes exposing (style, id, disabled)
+import Html.Attributes exposing (style, classList, id, disabled)
 
 type Msg
   = ShowCustomChord Bool
@@ -106,7 +106,11 @@ viewCustomChord tonic showCustomChord noCustomChord colorChord =
           ]
       ]
       [ span
-          [ style
+          [ classList
+              [ ( "chordBorder", True )
+              , ( "hasBorder", showCustomChord )
+              ]
+          , style
               [ ( "position", "absolute" )
               , ( "top", "-5px" )
               , ( "left", "-5px" )

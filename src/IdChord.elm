@@ -8,7 +8,7 @@ import PlayStatus exposing (PlayStatus)
 
 import Dict exposing (Dict)
 import Html exposing (Html, span, button)
-import Html.Attributes as Attributes exposing (style)
+import Html.Attributes as Attributes exposing (style, class, classList)
 
 type alias IdChord =
   { id : Int
@@ -42,7 +42,16 @@ reversedTuple x y =
 view : Int -> PlayStatus -> IdChord -> List (Html Msg)
 view tonic playStatus { id, chord } =
   [ span
-    [ style
+    [ classList
+        [ ( "chordBorder", True )
+        , ( "hasBorder"
+          , PlayStatus.hasBorder playStatus id
+          )
+        , ( "hasDashedBorder"
+          , PlayStatus.hasDashedBorder playStatus id
+          )
+        ]
+    , style
         [ ( "position", "absolute" )
         , ( "top", "-5px" )
         , ( "left", "-5px" )
@@ -79,6 +88,7 @@ view tonic playStatus { id, chord } =
             [ ( 13, action )
             , ( 32, action )
             ]
+        , class "chordButton"
         , style
             [ ( "width", "100%" )
             , ( "height", "100%" )

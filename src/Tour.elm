@@ -317,7 +317,8 @@ viewPage pageCount pageIndex page =
             ]
         ]
         [ button
-            [ onClick (Tour True pageIndex)
+            [ class "button"
+            , onClick (Tour True pageIndex)
             , disabled (pageIndex == 0)
             ]
             [ text "Back"
@@ -325,14 +326,16 @@ viewPage pageCount pageIndex page =
         , text " "
         , if pageIndex + 1 == pageCount then
             button
-              [ id "tourNext"
+              [ class "button"
+              , id "tourNext"
               , onClick (Tour False 1)
               ]
               [ text "Finish"
               ]
           else
             button
-              [ id "tourNext"
+              [ class "button"
+              , id "tourNext"
               , onClick (Tour True (pageIndex + 2))
               ]
               [ text "Next"
