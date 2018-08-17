@@ -21,7 +21,7 @@ import PlayStatus exposing (PlayStatus)
 import Ports exposing (Pluck)
 
 import Html exposing (Html, span, text, input, button)
-import Html.Attributes as Attributes exposing (attribute, style)
+import Html.Attributes as Attributes exposing (attribute, style, id)
 import Html.Events exposing (onInput, onClick)
 import Set exposing (Set)
 import Svg exposing (Svg)
@@ -380,7 +380,8 @@ view gridArea tonic lowestPitch keyboard =
       Chord.toPitchSet lowestPitch octave maybeChord
   in
     span
-      [ style
+      [ id gridArea
+      , style
           [ ( "grid-area", gridArea )
           , ( "margin-top", "5px" )
           ]

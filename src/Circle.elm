@@ -8,7 +8,7 @@ import PlayStatus exposing (PlayStatus)
 import Name
 
 import Html exposing (Html)
-import Html.Attributes exposing (attribute, style)
+import Html.Attributes as Attributes exposing (attribute, style)
 import Svg exposing (Svg, svg, defs, linearGradient, path, text_, rect)
 import Svg.Attributes exposing
   ( width, height, viewBox
@@ -44,7 +44,8 @@ view tonic playStatus =
         (List.range 0 11)
   in
     Html.span
-      [ style
+      [ Attributes.id "circlePane"
+      , style
           [ ( "position", "relative" )
           , ( "display", "block" )
           ]

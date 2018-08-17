@@ -6,7 +6,7 @@ import Name
 import Storage exposing (Storage)
 
 import Html exposing (Html, span, button, text, mark, label, input)
-import Html.Attributes exposing (style, disabled, type_, checked)
+import Html.Attributes exposing (style, id, disabled, type_, checked)
 import Html.Events exposing (onClick, onCheck)
 
 type alias History =
@@ -37,7 +37,8 @@ type Msg
 view : Int -> Storage -> History -> List Chord -> Bool -> Html Msg
 view tonic storage history sequence finished =
   span
-    [ style
+    [ id "historyPane"
+    , style
         [ ( "display", "block" )
         ]
     ]

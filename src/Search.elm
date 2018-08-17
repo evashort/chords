@@ -8,7 +8,7 @@ import IdChord exposing (IdChord)
 import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html, span, button)
-import Html.Attributes exposing (style, disabled)
+import Html.Attributes exposing (style, id, disabled)
 
 type Msg
   = ShowCustomChord Bool
@@ -50,7 +50,8 @@ view tonic showCustomChord customCode playStatus =
           Chord [] 0
   in
     span
-      [ style
+      [ id "searchPane"
+      , style
           [ ( "display", "flex" )
           , ( "align-items", "flex-end" )
           ]

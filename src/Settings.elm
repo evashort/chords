@@ -3,7 +3,7 @@ module Settings exposing (Msg(..), view)
 import Storage exposing (Storage)
 
 import Html exposing (Html, span, label, input, text, br)
-import Html.Attributes exposing (style, type_, disabled, checked)
+import Html.Attributes exposing (style, id, type_, disabled, checked)
 import Html.Events exposing (onCheck)
 
 type Msg
@@ -13,7 +13,8 @@ type Msg
 view :  Bool -> Bool -> Storage -> Html Msg
 view canStore shouldStore storage =
   span
-    []
+    [ id "settingsPane"
+    ]
     [ label
         [ style
             [ ( "color"

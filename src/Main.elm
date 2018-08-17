@@ -38,7 +38,7 @@ import Html exposing
   , canvas
   )
 import Html.Attributes as Attributes exposing
-  ( attribute, href, style, id, type_, value, selected, checked
+  ( attribute, href, style, id, class, type_, value, selected, checked
   , disabled, placeholder
   )
 import Html.Events exposing (onClick, onInput, onCheck)
@@ -961,7 +961,8 @@ view model =
         model.parse.scale
         model.storage
     , span
-        [ style
+        [ id "pane"
+        , style
             [ ( "grid-area", "pane" )
             , ( "min-height", "32em" )
             ]
@@ -1048,7 +1049,8 @@ viewStorage shouldStore storage =
 viewBrand : Tour -> Html Msg
 viewBrand tour =
   span
-    [ style
+    [ id "brand"
+    , style
         [ ( "grid-area", "brand" )
         , ( "display", "flex" )
         , ( "align-items", "center" )
@@ -1105,7 +1107,8 @@ viewBrand tour =
 viewTitle : String -> String -> SaveState -> Html Msg
 viewTitle defaultTitle title saveState =
   span
-    [ style
+    [ id "title"
+    , style
         [ ( "grid-area", "title" )
         ]
     ]
@@ -1129,7 +1132,8 @@ viewTitle defaultTitle title saveState =
 viewBpm : Bool -> Float -> Maybe Float -> Bool -> Html Msg
 viewBpm hasBackup bpm maybeDefaultBpm useDefault =
   span
-    [ style
+    [ id "bpm"
+    , style
         [ ( "grid-area", "bpm" )
         , yellowIf hasBackup
         , ( "display", "flex" )
@@ -1191,7 +1195,8 @@ viewBpm hasBackup bpm maybeDefaultBpm useDefault =
 viewScale : Bool -> Scale -> Html Msg
 viewScale hasBackup scale =
   span
-    [ style
+    [ id "scale"
+    , style
         [ ( "grid-area", "scale" )
         , yellowIf hasBackup
         ]
@@ -1242,7 +1247,8 @@ viewTonicOption scale namesake =
 viewLowest : Bool -> Int -> Parse -> Html Msg
 viewLowest hasBackup lowest parse =
   span
-    [ style
+    [ id "lowest"
+    , style
         [ ( "grid-area", "lowest" )
         , yellowIf hasBackup
         , ( "display", "flex" )
@@ -1309,7 +1315,8 @@ yellowIf condition =
 viewHighlights : Parse -> Buffet -> Html Msg
 viewHighlights parse buffet =
   pre
-    [ style
+    [ id "highlights"
+    , style
         [ ( "grid-area", "theater" )
         , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
         , ( "font-size", "160%" )
@@ -1339,7 +1346,8 @@ viewBuffet tour buffet =
 viewPlayStyle : Storage -> Bool -> Html Msg
 viewPlayStyle storage playing =
   span
-    [ style
+    [ id "playStyle"
+    , style
         [ ( "grid-area", "playStyle" )
         , ( "position", "-webkit-sticky" )
         , ( "position", "sticky" )
@@ -1512,7 +1520,8 @@ viewPaneSelector tour scale storage =
     paneShadow = Tour.paneShadow tour
   in
     span
-      [ style
+      [ id "paneSelector"
+      , style
           [ ( "grid-area", "paneSelector" )
           ]
       ]

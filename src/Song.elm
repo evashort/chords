@@ -4,7 +4,7 @@ import IdChord exposing (IdChord)
 import PlayStatus exposing (PlayStatus)
 
 import Html exposing (Html, span)
-import Html.Attributes exposing (style)
+import Html.Attributes exposing (style, id)
 import Html.Keyed
 import Html.Lazy
 
@@ -14,7 +14,8 @@ view : String -> Int -> PlayStatus -> Song -> Html IdChord.Msg
 view gridArea tonic playStatus song =
   Html.Keyed.node
     "span"
-    [ style
+    [ id gridArea
+    , style
         [ ( "grid-area", gridArea )
         , ( "display", "grid" )
         , ( "position", "relative" )
