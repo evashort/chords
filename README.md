@@ -6,7 +6,9 @@ can use like an instrument.
 
 Try it in your browser: http://evanshort.name/chords/
 
-[Get an invite](https://join.slack.com/t/chordsite/shared_invite/enQtNDIwMTU5ODM5MzM0LWVkZDhhODllOGNjMDdmMzZjMDRmYTExNTY5YTg0NWRhZWViMTUyYWIxYmRiNmY3YTkyNjA3NjczZTFlMTZkMTI) to slack channel, chordsite.slack.com
+chordsite.slack.com is the Slack channel for discussing this project.
+
+[Follow this link](https://join.slack.com/t/chordsite/shared_invite/enQtNDIwMTU5ODM5MzM0LWVkZDhhODllOGNjMDdmMzZjMDRmYTExNTY5YTg0NWRhZWViMTUyYWIxYmRiNmY3YTkyNjA3NjczZTFlMTZkMTI) for a Slack invite.
 
 ## Current features
 - Chords in textbox are colored to match play buttons
