@@ -12,6 +12,7 @@ import History exposing (History)
 import IdChord exposing (IdChord)
 import Keyboard exposing (Keyboard)
 import Lowest
+import Midi
 import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
@@ -135,7 +136,7 @@ init flags location =
       , mac = flags.mac
       , title = title
       , dragBpm = Nothing
-      , customBpm = 100
+      , customBpm = 120
       , dragLowest = Nothing
       , customLowest = 9
       , canStore = flags.canStore
@@ -188,6 +189,7 @@ type Msg
   | CloseTour
   | SetTitle String
   | Save
+  | Download
   | DragBpm String
   | SetBpm String
   | UseDefaultBpm Bool
@@ -283,6 +285,22 @@ update msg model =
                 , Url.percentEncode model.parse.code
                 ]
             )
+      )
+
+    Download ->
+      ( model
+      , Ports.download
+          { name =
+              if model.title == "" then
+                model.parse.defaultTitle ++ ".mid"
+              else
+                model.title ++ ".mid"
+          , base16 =
+              Midi.fromChords
+                (Maybe.withDefault 120 model.parse.bpm)
+                (Lowest.pitch model.parse.scale.tonic model.parse.lowest)
+                (Parse.chords model.parse)
+          }
       )
 
     DragBpm bpmString ->
@@ -1130,6 +1148,13 @@ viewTitle defaultTitle title saveState =
         , disabled (saveState /= Unsaved)
         ]
         [ Html.text "Save in URL"
+        ]
+    , Html.text " "
+    , button
+        [ class "button"
+        , onClick Download
+        ]
+        [ Html.text "Download as MIDI"
         ]
     ]
 

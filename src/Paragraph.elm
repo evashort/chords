@@ -1,5 +1,5 @@
 module Paragraph exposing
-  ( Paragraph, init, update, highlights, song, suggestions, mapChords
+  ( Paragraph, init, update, highlights, song, suggestions, chords, mapChords
   , defaultTitle, lastWordEnd
   )
 
@@ -78,6 +78,13 @@ suggestions tonic paragraph =
         (Word.suggestion tonic)
         (Train.flatten paragraph.words)
     )
+
+chords : Paragraph -> List Chord
+chords paragraph =
+  ( List.filterMap
+      Word.getChord
+      (Train.flatten paragraph.words)
+  )
 
 mapChords : (Chord -> Chord) -> List Substring -> List Replacement
 mapChords f lines =

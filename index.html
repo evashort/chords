@@ -29,6 +29,7 @@
     <script src="theater.js"></script>
     <script src="storage.js"></script>
     <script src="harp.js"></script>
+    <script src="download.js"></script>
     <script src="elm.js"></script>
     <style>
     button {
@@ -141,6 +142,21 @@
   </head>
   <body>
     <script>
+      function setTitle(title) {
+        document.title = title + " - Chords";
+      }
+
+      function scrollIntoView(id) {
+        withElement(id, scrollIntoViewHelp);
+      }
+
+      function scrollIntoViewHelp(element) {
+        element.scrollIntoView(
+          { block: "nearest"
+          }
+        );
+      }
+
       var storage = "";
       var canStore = typeof(Storage) !== "undefined";
       if (canStore) {
@@ -171,26 +187,12 @@
       app.ports.hardUndo.subscribe(hardUndo);
       app.ports.initHarp.subscribe(initHarp);
       app.ports.initStorage.subscribe(initStorage);
-      app.ports.setTitle.subscribe(
-        function(title) {
-          document.title = title + " - Chords";
-        }
-      );
+      app.ports.initStorage.subscribe(initStorage);
+      app.ports.setTitle.subscribe(setTitle);
+      app.ports.download.subscribe(download);
+      app.ports.scrollIntoView.subscribe(scrollIntoView);
 
-      function scrollIntoView(element) {
-        element.scrollIntoView(
-          { block: "nearest"
-          }
-        );
-      }
-
-      app.ports.scrollIntoView.subscribe(
-        function(id) {
-          withElement(id, scrollIntoView);
-        }
-      );
-
-      onbeforeunload = function(event) {
+      window.onbeforeunload = function(event) {
         var warning = document.getElementById("warning");
         if (warning != null && warning.getAttribute("value") == "true") {
           event.preventDefault();

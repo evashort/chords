@@ -6,6 +6,7 @@ port module Ports exposing
   , initHarp, harpPlucked, Pluck
   , initStorage
   , setTitle
+  , download, File
   , scrollIntoView, escape
   )
 
@@ -29,15 +30,20 @@ port text : (String -> msg) -> Sub msg
 
 port initHarp : () -> Cmd msg
 port harpPlucked : (Pluck -> msg) -> Sub msg
+type alias Pluck =
+  { now : Float
+  , mutes : List Int
+  , pitches : List Int
+  }
 
 port initStorage : () -> Cmd msg
 
 port setTitle : String -> Cmd msg
 
-type alias Pluck =
-  { now : Float
-  , mutes : List Int
-  , pitches : List Int
+port download : File -> Cmd msg
+type alias File =
+  { name : String
+  , base16 : String
   }
 
 port scrollIntoView : String -> Cmd msg

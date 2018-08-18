@@ -1,5 +1,7 @@
 module Word exposing
-  (Word, init, update, highlight, meaning, suggestion, mapChord, code)
+  ( Word, init, update, highlight, meaning, suggestion, getChord, mapChord
+  , code
+  )
 
 import Chord exposing (Chord)
 import Colour
@@ -97,6 +99,17 @@ suggestion tonic word =
             ]
           , word.substring
           )
+
+getChord : Word -> Maybe Chord
+getChord word =
+  case word.cache of
+    Nothing ->
+      Nothing
+    Just cache ->
+      if word.substring.s == cache.code then
+        Just cache.idChord.chord
+      else
+        Nothing
 
 mapChord : (Chord -> Chord) -> String -> String
 mapChord f string =

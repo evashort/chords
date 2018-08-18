@@ -1,6 +1,6 @@
 module Chord exposing
   ( Chord, fromCode, fromCodeExtended, maxRange, transpose, toPitchSet
-  , fromPitchSet, dict, list, flavors
+  , fromPitchSet, toPitches, dict, list, flavors
   )
 
 import Pitch
@@ -198,3 +198,11 @@ fromPitchSet lowestPitch pitchSet =
           ) //
             12
         )
+
+toPitches : Int -> Chord -> List Int
+toPitches lowestPitch chord =
+  let
+    rootPitch =
+      (chord.root - lowestPitch) % 12 + lowestPitch
+  in
+    rootPitch :: List.map ((+) rootPitch) chord.flavor

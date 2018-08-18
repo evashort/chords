@@ -1,8 +1,8 @@
 module Parse exposing
-  (Parse, init, update, song, setBpm, setScale, setLowest, addWord)
+  (Parse, init, update, song, chords, setBpm, setScale, setLowest, addWord)
 
 import Bpm
-import Chord
+import Chord exposing (Chord)
 import Comment
 import Flag
 import Flags
@@ -102,6 +102,10 @@ update code parse =
 song : Parse -> Song
 song parse =
   Paragraph.song parse.paragraph
+
+chords : Parse -> List Chord
+chords parse =
+  Paragraph.chords parse.paragraph
 
 setBpm : Maybe Float -> String -> Maybe Replacement
 setBpm bpm code =
