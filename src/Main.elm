@@ -153,7 +153,8 @@ init flags location =
       , history = History.init
       }
     , Cmd.batch
-        [ Ports.initMeter ()
+        [ Ports.setVolume (toFloat storage.volume / 30)
+        , Ports.initMeter ()
         , Theater.init
             { text = code
             , selectionStart = String.length code
