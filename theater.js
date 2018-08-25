@@ -223,9 +223,10 @@ function handleKeydown(event) {
 }
 
 function handleUndo(event) {
+  var node = event.currentTarget;
   if (
-    event.target.index == present.index &&
-    event.target.value == event.target.firstFrame.text &&
+    node.index == present.index &&
+    node.value == node.firstFrame.text &&
     timeout == 0
   ) {
     timeout = setTimeout(timeoutWrapper(undo), 5);
@@ -234,10 +235,11 @@ function handleUndo(event) {
 }
 
 function handleRedo(event) {
+  var node = event.currentTarget;
   if (
-    event.target.index == present.index &&
-    event.target.lastFrame != null &&
-    event.target.value == event.target.lastFrame.text &&
+    node.index == present.index &&
+    node.lastFrame != null &&
+    node.value == node.lastFrame.text &&
     timeout == 0
   ) {
     timeout = setTimeout(timeoutWrapper(redo), 5);
@@ -246,27 +248,28 @@ function handleRedo(event) {
 }
 
 function handleInput(event) {
-  if (event.target.index == present.index) {
+  var node = event.currentTarget;
+  if (node.index == present.index) {
     if (timeout != 0) {
       // Check that value has changed because Firefox sends
       // an input event even when undo is disabled
       if (
         timeoutIsRedo ?
-        event.target.value != event.target.lastFrame.text :
-        event.target.value != event.target.firstFrame.text
+        node.value != node.lastFrame.text :
+        node.value != node.firstFrame.text
       ) {
         clearTimeout(timeout);
         timeout = 0;
       }
     }
 
-    app.ports.text.send(event.target.value);
-  } else if (event.target.index < present.index) {
-    if (event.target.value != event.target.lastFrame.text) {
+    app.ports.text.send(node.value);
+  } else if (node.index < present.index) {
+    if (node.value != node.lastFrame.text) {
       document.execCommand("redo", true, null);
     }
-  } else if (event.target.index > present.index) {
-    if (event.target.value != event.target.firstFrame.text) {
+  } else if (node.index > present.index) {
+    if (node.value != node.firstFrame.text) {
       document.execCommand("undo", true, null);
     }
   }

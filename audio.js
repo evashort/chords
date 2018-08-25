@@ -8,7 +8,7 @@ function initAudioTimeButton(node) {
 function audioTimeButtonMouseDown(event) {
   ac.resume().then(
     function() {
-      dispatchClickWithAudioTime(event.target);
+      dispatchClickWithAudioTime(event.currentTarget);
     }
   );
 }
@@ -17,19 +17,19 @@ function audioTimeButtonKeyDown(event) {
   if (event.key == " " || event.key == "Enter") {
     ac.resume().then(
       function() {
-        dispatchClickWithAudioTime(event.target);
+        dispatchClickWithAudioTime(event.currentTarget);
       }
     );
   }
 }
 
-function dispatchClickWithAudioTime(target) {
+function dispatchClickWithAudioTime(node) {
   var clickWithAudioTime =
     new CustomEvent(
       "clickWithAudioTime",
       { detail: ac.currentTime }
     );
-  target.dispatchEvent(clickWithAudioTime);
+  node.dispatchEvent(clickWithAudioTime);
 }
 
 function initAudioTimeInput(node) {
@@ -39,23 +39,23 @@ function initAudioTimeInput(node) {
 function audioTimeInputInput(event) {
   ac.resume().then(
     function() {
-      dispatchInputWithAudioTime(event.target);
+      dispatchInputWithAudioTime(event.currentTarget);
     }
   );
 }
 
-function dispatchInputWithAudioTime(target) {
+function dispatchInputWithAudioTime(node) {
   var inputWithAudioTime =
     new CustomEvent(
       "inputWithAudioTime",
       {
         detail: {
-          value: target.value,
+          value: node.value,
           audioTime: ac.currentTime
         }
       }
     );
-  target.dispatchEvent(inputWithAudioTime);
+  node.dispatchEvent(inputWithAudioTime);
 }
 
 var masterFader = ac.createGain();
