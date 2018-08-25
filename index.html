@@ -193,7 +193,7 @@
 
       function showUnsavedWarning(event) {
         var warning = document.getElementById("warning");
-        if (warning != null && warning.getAttribute("value") == "true") {
+        if (warning != null && warning.shouldWarn) {
           event.preventDefault();
           return "true";
         }

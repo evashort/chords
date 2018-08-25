@@ -32,6 +32,7 @@ import Substring exposing (Substring)
 import Swatch
 import Theater
 import Tour exposing (Tour)
+import Warning
 
 import Dom
 import Html exposing
@@ -830,7 +831,7 @@ view model =
         ]
     ]
     [ Html.Lazy.lazy
-        viewShouldWarn
+        Warning.view
         ( model.storage.unsavedWarning &&
             model.saveState /= Saved &&
             model.parse.code /= ""
@@ -964,21 +965,6 @@ hasBackup action model =
       False
     Just backup ->
       backup.action == action
-
-viewShouldWarn : Bool -> Html msg
-viewShouldWarn shouldWarn =
-  span
-    [ id "warning"
-    , style [ ( "display", "none" ) ]
-    , attribute
-        "value"
-        ( if shouldWarn then
-            "true"
-          else
-            ""
-        )
-    ]
-    []
 
 viewBrand : Tour -> Html Msg
 viewBrand tour =
