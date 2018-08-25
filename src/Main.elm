@@ -44,12 +44,13 @@ import Html.Attributes as Attributes exposing
   )
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
+import Json.Encode as Encode
 import Navigation exposing (Location)
 import Task
 import Url
 
 type alias Flags =
-  { storage : String
+  { storage : Encode.Value
   , canStore : Bool
   , mac : Bool
   }
@@ -82,7 +83,6 @@ type alias Model =
   , buffet : Buffet
   , storage : Storage
   , playing : Bool
-  , dragVolume : Maybe Int
   , keyboard : Keyboard
   , playStatus : PlayStatus
   , history : History
@@ -102,16 +102,13 @@ init : Flags -> Location -> ( Model, Cmd Msg )
 init flags location =
   let
     maybeStorage =
-      if flags.storage == "" then
-        Nothing
-      else
-        case Storage.deserialize flags.storage of
-          Ok storage ->
-            Just storage
-          Err message ->
-            always
-              Nothing
-              (Debug.log message flags.storage)
+      case Storage.decode flags.storage of
+        Ok x ->
+          x
+        Err message ->
+          always
+            Nothing
+            (Debug.log message flags.storage)
   in let
     storage =
       Maybe.withDefault Storage.default maybeStorage
@@ -147,7 +144,6 @@ init flags location =
       , buffet = Buffet.init parse.suggestions
       , storage = storage
       , playing = False
-      , dragVolume = Nothing
       , keyboard = Keyboard.init
       , playStatus = PlayStatus.Cleared
       , history = History.init
@@ -166,10 +162,6 @@ init flags location =
             Ports.setTitle parse.defaultTitle
           else
             Ports.setTitle title
-        , if flags.canStore then
-            Storage.init
-          else
-            Cmd.none
         ]
     )
 
@@ -203,12 +195,9 @@ type Msg
   | UrlChanged Location
   | BuffetMsg Buffet.Msg
   | SetStorage Storage
-  | SetStrumInterval String
   | CurrentTime Float
   | IdChordMsg IdChord.Msg
   | Playing Bool
-  | DragVolume String
-  | SetVolume String
   | KeyboardMsg Keyboard.Msg
   | AddLine String
   | SetShouldStore Bool
@@ -473,23 +462,16 @@ update msg model =
             else
               model.playStatus
         }
-      , Cmd.none
-      )
-
-    SetStrumInterval strumIntervalString ->
-      ( case String.toFloat strumIntervalString of
-          Ok strumInterval ->
-            let storage = model.storage in
-              { model
-              | storage =
-                  { storage
-                  | strumInterval = 0.001 * strumInterval
-                  }
-              }
-          Err _ ->
-            Debug.crash
-              ("Main.update: Bad strum interval: " ++ strumIntervalString)
-      , Cmd.none
+      , Cmd.batch
+          [ if model.shouldStore then
+              Storage.save storage
+            else
+              Cmd.none
+          , if storage.volume /= model.storage.volume then
+              Ports.setVolume (toFloat storage.volume / 30)
+            else
+              Cmd.none
+          ]
       )
 
     CurrentTime now ->
@@ -604,30 +586,6 @@ update msg model =
       , Cmd.none
       )
 
-    DragVolume volumeString ->
-      case String.toInt volumeString of
-        Ok volume ->
-          ( { model | dragVolume = Just volume }
-          , Ports.setVolume (toFloat volume / 30)
-          )
-        Err _ ->
-          Debug.crash
-            ("Main.update: Bad volume: " ++ volumeString)
-
-    SetVolume volumeString ->
-      case String.toInt volumeString of
-        Ok volume ->
-          ( let storage = model.storage in
-              { model
-              | storage = { storage | volume = volume }
-              , dragVolume = Nothing
-              }
-          , Ports.setVolume (toFloat volume / 30)
-          )
-        Err _ ->
-          Debug.crash
-            ("Main.update: Bad volume: " ++ volumeString)
-
     KeyboardMsg (Keyboard.AddWord word) ->
       replace
         (Parse.addWord word model.parse)
@@ -637,12 +595,25 @@ update msg model =
       let
         ( newKeyboard, keyboardCmd ) =
           Keyboard.update keyboardMsg model.keyboard
-        storage = model.storage
+        newPane =
+          case keyboardMsg of
+            Keyboard.AddPitch _ ->
+              Pane.Search
+            Keyboard.RemovePitch _ ->
+              Pane.Search
+            _ ->
+              model.storage.pane
       in let
         newPlayStatus =
           Keyboard.status
-            (storage.playStyle == PlayStyle.Silent)
+            (model.storage.playStyle == PlayStyle.Silent)
             newKeyboard
+        newStorage =
+          if newPane /= model.storage.pane then
+            let storage = model.storage in
+              { storage | pane = newPane }
+          else
+            model.storage
       in
         ( { model
           | keyboard = newKeyboard
@@ -651,16 +622,15 @@ update msg model =
                 newPlayStatus
               else
                 model.playStatus
-          , storage =
-              case keyboardMsg of
-                Keyboard.AddPitch _ ->
-                  { storage | pane = Pane.Search }
-                Keyboard.RemovePitch _ ->
-                  { storage | pane = Pane.Search }
-                _ ->
-                  storage
+          , storage = newStorage
           }
-        , Cmd.map KeyboardMsg keyboardCmd
+        , Cmd.batch
+            [ Cmd.map KeyboardMsg keyboardCmd
+            , if model.shouldStore && newPane /= model.storage.pane then
+                Storage.save newStorage
+              else
+                Cmd.none
+            ]
         )
 
     AddLine line ->
@@ -680,7 +650,10 @@ update msg model =
 
     SetShouldStore shouldStore ->
       ( { model | shouldStore = shouldStore }
-      , Cmd.none
+      , if shouldStore then
+          Storage.save model.storage
+        else
+          Storage.delete
       )
 
 replace : Replacement -> Model -> ( Model, Cmd msg )
@@ -856,11 +829,7 @@ view model =
           )
         ]
     ]
-    [ Html.Lazy.lazy2
-        viewStorage
-        model.shouldStore
-        model.storage
-    , Html.Lazy.lazy
+    [ Html.Lazy.lazy
         viewShouldWarn
         ( model.storage.unsavedWarning &&
             model.saveState /= Saved &&
@@ -924,15 +893,7 @@ view model =
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
-    , case model.dragVolume of
-        Nothing ->
-          Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
-        Just volume ->
-          let storage = model.storage in
-            Html.Lazy.lazy2
-              viewPlayStyle
-              { storage | volume = volume }
-              model.playing
+    , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
     , Html.Lazy.lazy3
         viewSong
         model.tour
@@ -1013,21 +974,6 @@ viewShouldWarn shouldWarn =
         "value"
         ( if shouldWarn then
             "true"
-          else
-            ""
-        )
-    ]
-    []
-
-viewStorage : Bool -> Storage -> Html msg
-viewStorage shouldStore storage =
-  span
-    [ id "storage"
-    , style [ ( "display", "none" ) ]
-    , attribute
-        "value"
-        ( if shouldStore then
-            Storage.serialize storage
           else
             ""
         )
@@ -1411,8 +1357,7 @@ viewPlayStyle storage playing =
             [ input
                 [ type_ "range"
                 , class "range"
-                , onInput DragVolume
-                , onChange SetVolume
+                , onInput (SetStorage << Storage.setVolume storage)
                 , value (toString storage.volume)
                 , Attributes.min "0"
                 , Attributes.max "30"
@@ -1463,7 +1408,7 @@ viewPlaySettings storage =
         , input
             [ type_ "range"
             , class "range"
-            , onInput SetStrumInterval
+            , onInput (SetStorage << Storage.setStrumInterval storage)
             , Attributes.min "10"
             , Attributes.max "90"
             , Attributes.step "20"

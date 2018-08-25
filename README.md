@@ -82,10 +82,8 @@ build command found in
 
 To run, open `index.html` in your browser.
 
-In Microsoft Edge, accessing local storage from a page that is loaded from
-your filesystem causes an internal error. To test on Microsoft Edge, edit
-[`index.html`](https://github.com/evanshort73/chords/blob/master/index.html)
-and set `canStore` to `false`.
+When testing locally on Microsoft Edge, local storage is disabled due to an
+internal browser error.
 
 ## Implementation details
 On the JS side, I use the Web Audio API to create a new chain of audio nodes

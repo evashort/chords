@@ -27,7 +27,6 @@
     <script src="audio.js"></script>
     <script src="meter.js"></script>
     <script src="theater.js"></script>
-    <script src="storage.js"></script>
     <script src="harp.js"></script>
     <script src="download.js"></script>
     <script src="elm.js"></script>
@@ -192,13 +191,36 @@
         );
       }
 
-      var storage = "";
+      var storage = null;
       var canStore = typeof(Storage) !== "undefined";
       if (canStore) {
-        storage = localStorage.getItem("storage");
-        if (storage == null) {
-          storage = "";
+        try {
+          var storageString = localStorage.getItem("storage");
+        } catch (e) {
+          // work around internal error when testing locally on Microsoft Edge
+          canStore = false;
         }
+      }
+
+      if (canStore) {
+        try {
+          storage = JSON.parse(storageString);
+        } catch (e) {
+          if (e instanceof SyntaxError) {
+          } else {
+            throw e;
+          }
+        }
+      }
+
+      function saveStorage(newStorage) {
+        storage = newStorage;
+        localStorage.setItem("storage", JSON.stringify(storage))
+      }
+
+      function deleteStorage() {
+        storage = null;
+        localStorage.removeItem("storage");
       }
 
       var mac = navigator.userAgent.indexOf("Mac OS X") != -1;
@@ -221,8 +243,8 @@
       app.ports.hardUndo.subscribe(hardUndo);
       app.ports.initHarp.subscribe(initHarp);
       app.ports.clearPlucks.subscribe(clearPlucks);
-      app.ports.initStorage.subscribe(initStorage);
-      app.ports.initStorage.subscribe(initStorage);
+      app.ports.saveStorage.subscribe(saveStorage);
+      app.ports.deleteStorage.subscribe(deleteStorage);
       app.ports.setTitle.subscribe(setTitle);
       app.ports.download.subscribe(download);
       app.ports.scrollIntoView.subscribe(scrollIntoView);

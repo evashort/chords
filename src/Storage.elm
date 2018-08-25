@@ -1,4 +1,5 @@
-module Storage exposing (Storage, init, default, serialize, deserialize)
+module Storage exposing
+  (Storage, default, delete, save, decode, setVolume, setStrumInterval)
 
 import Pane exposing (Pane)
 import PlayStyle exposing (PlayStyle)
@@ -10,9 +11,6 @@ import Json.Encode as Encode
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Pipeline
 import Regex exposing (Regex)
-
-init : Cmd msg
-init = Ports.initStorage ()
 
 type alias Storage =
   { playStyle : PlayStyle
@@ -41,12 +39,15 @@ default =
   , unsavedWarning = False
   }
 
-serialize : Storage -> String
-serialize storage =
-  Encode.encode 0 (encoder storage)
+delete : Cmd msg
+delete = Ports.deleteStorage ()
 
-encoder : Storage -> Encode.Value
-encoder storage =
+save : Storage -> Cmd msg
+save storage =
+  Ports.saveStorage (encode storage)
+
+encode : Storage -> Encode.Value
+encode storage =
   Encode.object
     [ ( "version"
       , Encode.string (versionString (Version 1 0 0))
@@ -73,8 +74,13 @@ encoder storage =
     , ( "unsavedWarning", Encode.bool storage.unsavedWarning )
     ]
 
-deserialize : String -> Result String Storage
-deserialize = Decode.decodeString decoder
+decode : Encode.Value -> Result String (Maybe Storage)
+decode blob =
+  case Decode.decodeValue (Decode.null Nothing) blob of
+    Err _ ->
+      Result.map Just (Decode.decodeValue decoder blob)
+    nothingResult ->
+      nothingResult
 
 decoder : Decoder Storage
 decoder =
@@ -245,3 +251,23 @@ parsePane string =
       Just Pane.Settings
     _ ->
       Nothing
+
+setStrumInterval : Storage -> String -> Storage
+setStrumInterval storage strumIntervalString =
+  case String.toFloat strumIntervalString of
+    Ok strumInterval ->
+      { storage | strumInterval = 0.001 * strumInterval }
+    Err _ ->
+      Debug.crash
+        ( "Storage.setStrumInterval: Bad strum interval: " ++
+            strumIntervalString
+        )
+
+setVolume : Storage -> String -> Storage
+setVolume storage volumeString =
+  case String.toInt volumeString of
+    Ok volume ->
+      { storage | volume = volume }
+    Err _ ->
+      Debug.crash
+        ("Storage.setVolume: Bad volume: " ++ volumeString)

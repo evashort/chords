@@ -4,7 +4,7 @@ port module Ports exposing
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
   , initHarp, clearPlucks, harpPlucked, Pluck
-  , initStorage
+  , saveStorage, deleteStorage
   , setTitle
   , download, File
   , scrollIntoView, escape
@@ -37,7 +37,8 @@ type alias Pluck =
   , pitches : List Int
   }
 
-port initStorage : () -> Cmd msg
+port saveStorage : Encode.Value -> Cmd msg
+port deleteStorage : () -> Cmd msg
 
 port setTitle : String -> Cmd msg
 
