@@ -6,18 +6,20 @@ function initAudioTimeButton(node) {
 }
 
 function audioTimeButtonMouseDown(event) {
+  var node = event.currentTarget;
   ac.resume().then(
     function() {
-      dispatchClickWithAudioTime(event.currentTarget);
+      dispatchClickWithAudioTime(node);
     }
   );
 }
 
 function audioTimeButtonKeyDown(event) {
   if (event.key == " " || event.key == "Enter") {
+    var node = event.currentTarget;
     ac.resume().then(
       function() {
-        dispatchClickWithAudioTime(event.currentTarget);
+        dispatchClickWithAudioTime(node);
       }
     );
   }
@@ -37,9 +39,10 @@ function initAudioTimeInput(node) {
 }
 
 function audioTimeInputInput(event) {
+  var node = event.currentTarget;
   ac.resume().then(
     function() {
-      dispatchInputWithAudioTime(event.currentTarget);
+      dispatchInputWithAudioTime(node);
     }
   );
 }
