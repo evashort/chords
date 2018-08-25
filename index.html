@@ -191,6 +191,20 @@
         );
       }
 
+      function showUnsavedWarning(event) {
+        var warning = document.getElementById("warning");
+        if (warning != null && warning.getAttribute("value") == "true") {
+          event.preventDefault();
+          return "true";
+        }
+      }
+
+      function sendEscape(event) {
+        if (event.key == "Escape") {
+          app.ports.escape.send(null);
+        }
+      }
+
       var storage = null;
       var canStore = typeof(Storage) !== "undefined";
       if (canStore) {
@@ -248,20 +262,8 @@
       app.ports.setTitle.subscribe(setTitle);
       app.ports.download.subscribe(download);
       app.ports.scrollIntoView.subscribe(scrollIntoView);
-
-      window.onbeforeunload = function(event) {
-        var warning = document.getElementById("warning");
-        if (warning != null && warning.getAttribute("value") == "true") {
-          event.preventDefault();
-          return "true";
-        }
-      };
-
-      window.onkeydown = function(event) {
-        if (event.keyCode == 27) {
-          app.ports.escape.send(null);
-        }
-      };
+      onbeforeunload = showUnsavedWarning;
+      addEventListener("keydown", sendEscape);
     </script>
   </body>
 </html>
