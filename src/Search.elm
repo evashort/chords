@@ -3,7 +3,7 @@ module Search exposing (Msg(..), view)
 import Chord exposing (Chord)
 import Chroma
 import Colour
-import CustomEvents exposing (onKeyDown, onLeftDown)
+import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
 import PlayStatus exposing (PlayStatus)
 
@@ -11,7 +11,7 @@ import Html exposing (Html, span, button)
 import Html.Attributes exposing (style, classList, id, disabled)
 
 type Msg
-  = ShowCustomChord Bool
+  = ShowCustomChord (Bool, Float)
   | IdChordMsg IdChord.Msg
 
 view : Int -> Bool -> String -> PlayStatus -> Html Msg
@@ -95,7 +95,8 @@ view tonic showCustomChord customCode playStatus =
 viewCustomChord : Int -> Bool -> Bool -> Chord -> Html Msg
 viewCustomChord tonic showCustomChord noCustomChord colorChord =
   let
-    action = ShowCustomChord (not showCustomChord)
+    action =
+      ShowCustomChord << (,) (not showCustomChord)
   in
     span
       [ style
@@ -130,11 +131,8 @@ viewCustomChord tonic showCustomChord noCustomChord colorChord =
           ]
           []
       , button
-          [ onLeftDown action
-          , onKeyDown
-              [ ( 13, action )
-              , ( 32, action )
-              ]
+          [ isAudioTimeButton True
+          , onClickWithAudioTime action
           , disabled noCustomChord
           , style
               [ ( "width", "100%" )

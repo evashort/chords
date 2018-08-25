@@ -2,11 +2,11 @@ module Main exposing (..)
 
 import Arp
 import AudioChange
-import AudioTime
 import Buffet exposing (Buffet, LensChange)
 import ChordsInKey
 import Circle
-import CustomEvents exposing (onChange, onLeftDown, onKeyDown)
+import CustomEvents exposing
+  (onChange, isAudioTimeButton, onClickWithAudioTime)
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
@@ -206,8 +206,6 @@ type Msg
   | SetStrumInterval String
   | CurrentTime Float
   | IdChordMsg IdChord.Msg
-  | Play (IdChord, Float)
-  | FinishSequence Float
   | Playing Bool
   | DragVolume String
   | SetVolume String
@@ -498,76 +496,18 @@ update msg model =
       ( case Player.setTime now model.keyboard.player of
           Nothing ->
             model
-          Just player ->
-            let
-              keyboard = model.keyboard
-            in let
-              newKeyboard = { keyboard | player = player }
-            in
-              { model
-              | keyboard = newKeyboard
-              , playStatus =
-                  Keyboard.status
-                    (model.storage.playStyle == PlayStyle.Silent)
-                    newKeyboard
-              }
+          Just newPlayer ->
+            setPlayer newPlayer model
       , Cmd.none
       )
 
-    IdChordMsg (IdChord.Play idChord) ->
-      if model.storage.playStyle == PlayStyle.Silent then
-        let
-          keyboard = model.keyboard
-        in let
-          newKeyboard =
-            { keyboard
-            | lastSound =
-                if keyboard.lastSound == Keyboard.PlayerSound then
-                  Keyboard.Clean
-                else
-                  Keyboard.DirtyPluck
-            , source =
-                if Keyboard.getId keyboard == Just idChord.id then
-                  Keyboard.NoChord
-                else
-                  Keyboard.ThisChord idChord
-            }
-        in
-          ( { model
-            | keyboard = newKeyboard
-            , playStatus =
-                Keyboard.status
-                  (model.storage.playStyle == PlayStyle.Silent)
-                  newKeyboard
-            }
-          , if keyboard.lastSound == Keyboard.PlayerSound then
-              Cmd.batch
-                [ Task.perform FinishSequence AudioTime.now
-                , Ports.stopAudio ()
-                ]
-            else
-              Cmd.none
-          )
-      else
-        ( model
-        , Task.perform (Play << (,) idChord) AudioTime.now
-        )
-
-    IdChordMsg IdChord.Stop ->
-      ( { model | playing = False }
-      , Cmd.batch
-          [ Task.perform FinishSequence AudioTime.now
-          , Ports.stopAudio ()
-          ]
-      )
-
-    Play ( idChord, now ) ->
+    IdChordMsg (IdChord.Play (idChord, now)) ->
       let
         lowestPitch =
           Lowest.pitch model.parse.scale.tonic model.parse.lowest
         keyboard = model.keyboard
       in let
-        ( player, sequence, changes ) =
+        ( newPlayer, sequence, changes ) =
           case model.storage.playStyle of
             PlayStyle.Strum ->
               Player.strum
@@ -604,50 +544,57 @@ update msg model =
                   now
                   keyboard.player
             PlayStyle.Silent ->
-              Debug.crash "Main.update: PlayStyle.Silent got through"
+              ( Player.stop now keyboard.player
+              , []
+              , if keyboard.lastSound == Keyboard.PlayerSound then
+                  [ AudioChange.Mute now ]
+                else
+                  []
+              )
       in let
         newKeyboard =
           { keyboard
-          | player = player
-          , lastSound = Keyboard.PlayerSound
-          , source = Keyboard.LastPlayed
+          | player = newPlayer
+          , lastSound =
+              if model.storage.playStyle /= PlayStyle.Silent then
+                Keyboard.PlayerSound
+              else if keyboard.lastSound == Keyboard.PlayerSound then
+                Keyboard.Clean
+              else
+                Keyboard.DirtyPluck
+          , source =
+              if model.storage.playStyle /= PlayStyle.Silent then
+                Keyboard.LastPlayed
+              else if Keyboard.getId keyboard == Just idChord.id then
+                Keyboard.NoChord
+              else
+                Keyboard.ThisChord idChord
           }
       in
         ( { model
           | playing = True
           , keyboard = newKeyboard
-          , playStatus = Keyboard.status False newKeyboard
-          , history = History.add sequence model.history
-          }
-        , AudioChange.perform changes
-        )
-
-    FinishSequence now ->
-      case Player.stop now model.keyboard.player of
-        Nothing ->
-          ( model, Cmd.none )
-        Just newPlayer ->
-          let
-            keyboard = model.keyboard
-          in let
-            newKeyboard =
-              { keyboard | player = newPlayer }
-          in let
-            newPlayStatus =
+          , playStatus =
               Keyboard.status
                 (model.storage.playStyle == PlayStyle.Silent)
                 newKeyboard
-          in
-            ( { model
-              | keyboard = newKeyboard
-              , playStatus =
-                  if newPlayStatus /= model.playStatus then
-                    newPlayStatus
-                  else
-                    model.playStatus
-              }
-            , Cmd.none
-            )
+          , history = History.add sequence model.history
+          }
+        , if List.isEmpty changes then
+            Cmd.none
+          else
+            AudioChange.perform changes
+        )
+
+    IdChordMsg (IdChord.Stop now) ->
+      ( setPlayer
+          (Player.stop now model.keyboard.player)
+          { model | playing = False }
+      , Cmd.batch
+          [ AudioChange.perform [ AudioChange.Mute now ]
+          , Ports.clearPlucks ()
+          ]
+      )
 
     Playing playing ->
       ( if playing /= model.playing then
@@ -837,6 +784,28 @@ codeChanged model parse =
       else
         Cmd.none
     ]
+
+setPlayer : Player -> Model -> Model
+setPlayer newPlayer model =
+  let
+    keyboard = model.keyboard
+  in let
+    newKeyboard =
+      { keyboard | player = newPlayer }
+  in let
+    newPlayStatus =
+      Keyboard.status
+        (model.storage.playStyle == PlayStyle.Silent)
+        newKeyboard
+  in
+    { model
+    | keyboard = newKeyboard
+    , playStatus =
+        if newPlayStatus /= model.playStatus then
+          newPlayStatus
+        else
+          model.playStatus
+    }
 
 -- SUBSCRIPTIONS
 
@@ -1418,8 +1387,8 @@ viewPlayStyle storage playing =
         , Html.text "\xA0"
         , button
             [ class "button"
-            , onClick (IdChordMsg IdChord.Stop)
-            , CustomEvents.onLeftDown (IdChordMsg IdChord.Stop)
+            , isAudioTimeButton True
+            , onClickWithAudioTime (IdChordMsg << IdChord.Stop)
             , disabled (not playing)
             ]
             [ span
@@ -1599,8 +1568,8 @@ viewSearch tonic storage keyboard =
 interpretSearchMsg : Search.Msg -> Msg
 interpretSearchMsg searchMsg =
   case searchMsg of
-    Search.ShowCustomChord showCustomChord ->
-      KeyboardMsg (Keyboard.ShowCustomChord showCustomChord)
+    Search.ShowCustomChord blob ->
+      KeyboardMsg (Keyboard.ShowCustomChord blob)
     Search.IdChordMsg idChordMsg ->
       IdChordMsg idChordMsg
 

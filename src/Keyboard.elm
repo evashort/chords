@@ -4,10 +4,12 @@ module Keyboard exposing
   )
 
 import AudioChange exposing (AudioChange(..))
-import AudioTime
 import Chord exposing (Chord)
 import Colour
-import CustomEvents exposing (onLeftDown, onKeyDown, onIntInput)
+import CustomEvents exposing
+  ( isAudioTimeButton, onClickWithAudioTime
+  , isAudioTimeInput, onInputWithAudioTime, onIntInputWithAudioTime
+  )
 import Harp exposing
   ( viewBoxLeft, viewBoxRight, isWhiteKey, neckLeft, headLeft
   , borderWidth, headWidth, scale
@@ -27,7 +29,6 @@ import Set exposing (Set)
 import Svg exposing (Svg)
 import Svg.Attributes as SA
 import Svg.Lazy
-import Task
 
 type alias Keyboard =
   { player : Player
@@ -120,23 +121,21 @@ getId keyboard =
       Nothing
 
 type Msg
-  = ShowCustomChord Bool
-  | SetCode String
-  | SetOctave Int
-  | AddPitch (Int, Int)
-  | RemovePitch (Int, Int)
-  | Stop Float
-  | PlayNote (Bool, Int, Float)
-  | StopNote (Bool, Int, Float)
+  = ShowCustomChord (Bool, Float)
+  | SetCode (String, Float)
+  | SetOctave (Int, Float)
+  | AddPitch (Int, Int, Float)
+  | RemovePitch (Int, Int, Float)
   | HarpPlucked Pluck
   | AddWord String
 
 update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
 update msg keyboard =
   case msg of
-    ShowCustomChord showCustomChord ->
+    ShowCustomChord ( showCustomChord, now ) ->
       ( { keyboard
-        | lastSound = Clean
+        | player = Player.stop now keyboard.player
+        , lastSound = Clean
         , source =
             if showCustomChord then
               CustomChord
@@ -144,14 +143,15 @@ update msg keyboard =
               NoChord
         }
       , if keyboard.lastSound == PlayerSound then
-          Task.perform Stop AudioTime.now
+          AudioChange.perform [ Mute now ]
         else
           Cmd.none
       )
 
-    SetCode code ->
+    SetCode ( code, now ) ->
       ( { keyboard
-        | lastSound = Clean
+        | player = Player.stop now keyboard.player
+        , lastSound = Clean
         , source =
             if code == "" then
               NoChord
@@ -161,25 +161,26 @@ update msg keyboard =
         , customOctave = getOctave keyboard
         }
       , if keyboard.lastSound == PlayerSound then
-          Task.perform Stop AudioTime.now
+          AudioChange.perform [ Mute now ]
         else
           Cmd.none
       )
 
-    SetOctave octave ->
+    SetOctave ( octave, now ) ->
       ( { keyboard
-        | lastSound = Clean
+        | player = Player.stop now keyboard.player
+        , lastSound = Clean
         , source = CustomChord
         , customCode = getCode keyboard
         , customOctave = octave
         }
       , if keyboard.lastSound == PlayerSound then
-          Task.perform Stop AudioTime.now
+          AudioChange.perform [ Mute now ]
         else
           Cmd.none
       )
 
-    AddPitch ( lowestPitch, pitch ) ->
+    AddPitch ( lowestPitch, pitch, now ) ->
       let
         pitchSet =
           Chord.toPitchSet
@@ -204,19 +205,28 @@ update msg keyboard =
                 "Keyboard.update: Pitch set empty after inserting pitch"
       in
         ( { keyboard
-          | lastSound = Clean
+          | player = Player.stop now keyboard.player
+          , lastSound = Clean
           , source = CustomChord
           , customCode = Name.codeExtended newChord
           , customOctave = newOctave
           }
-        , Task.perform
-            ( PlayNote <<
-                (,,) (keyboard.lastSound /= Clean) pitch
-            )
-            AudioTime.now
+        , let
+            changes =
+              [ AddPianoNote
+                  { v = 1
+                  , t = now
+                  , f = pitchFrequency pitch
+                  }
+              ]
+          in
+            if keyboard.lastSound == Clean then
+              AudioChange.perform changes
+            else
+              AudioChange.perform (Mute now :: changes)
         )
 
-    RemovePitch ( lowestPitch, pitch ) ->
+    RemovePitch ( lowestPitch, pitch, now ) ->
       let
         pitchSet =
           Chord.toPitchSet
@@ -230,72 +240,31 @@ update msg keyboard =
         ( case Chord.fromPitchSet lowestPitch newPitchSet of
             Just ( newChord, newOctave ) ->
               { keyboard
-              | lastSound = Clean
+              | player = Player.stop now keyboard.player
+              , lastSound = Clean
               , source = CustomChord
               , customCode = Name.codeExtended newChord
               , customOctave = newOctave
               }
             Nothing ->
               { keyboard
-              | lastSound = Clean
+              | player = Player.stop now keyboard.player
+              , lastSound = Clean
               , source = NoChord
               , customCode = ""
               , customOctave = 0
               }
-        , Task.perform
-            ( StopNote <<
-                (,,) (keyboard.lastSound /= Clean) pitch
-            )
-            AudioTime.now
-        )
-
-    Stop now ->
-      ( case Player.stop now keyboard.player of
-          Nothing ->
-            keyboard
-          Just newPlayer ->
-            { keyboard | player = newPlayer }
-      , AudioChange.perform [ Mute now ]
-      )
-
-    PlayNote ( dirty, pitch, now ) ->
-      let
-        changes =
-          [ AddPianoNote
-              { v = 1
-              , t = now
-              , f = pitchFrequency pitch
-              }
-          ]
-      in
-        ( case Player.stop now keyboard.player of
-            Nothing ->
-              keyboard
-            Just newPlayer ->
-              { keyboard | player = newPlayer }
-        , if dirty then
-            AudioChange.perform (Mute now :: changes)
+        , if keyboard.lastSound == Clean then
+            AudioChange.perform
+              [ NoteOff
+                  { v = 1
+                  , t = now
+                  , f = pitchFrequency pitch
+                  }
+              ]
           else
-            AudioChange.perform changes
+            AudioChange.perform [ Mute now ]
         )
-
-    StopNote ( dirty, pitch, now ) ->
-      ( case Player.stop now keyboard.player of
-          Nothing ->
-            keyboard
-          Just newPlayer ->
-            { keyboard | player = newPlayer }
-      , if dirty then
-          AudioChange.perform [ Mute now ]
-        else
-          AudioChange.perform
-            [ NoteOff
-                { v = 1
-                , t = now
-                , f = pitchFrequency pitch
-                }
-            ]
-      )
 
     HarpPlucked pluck ->
       let
@@ -316,22 +285,10 @@ update msg keyboard =
                 pluck.pitches
             )
       in
-        ( case
-            ( Player.stop pluck.now keyboard.player
-            , keyboard.lastSound
-            )
-          of
-            ( Nothing, Clean ) ->
-              keyboard
-            ( Nothing, _ ) ->
-              { keyboard
-              | lastSound = Clean
-              }
-            ( Just newPlayer, _ ) ->
-              { keyboard
-              | player = newPlayer
-              , lastSound = Clean
-              }
+        ( { keyboard
+          | player = Player.stop pluck.now keyboard.player
+          , lastSound = Clean
+          }
         , if keyboard.lastSound /= Clean then
             AudioChange.perform (Mute pluck.now :: changes)
           else
@@ -404,7 +361,8 @@ view gridArea tonic lowestPitch keyboard =
           , input
               [ class "textInput"
               , Attributes.type_ "text"
-              , onInput SetCode
+              , isAudioTimeInput True
+              , onInputWithAudioTime SetCode
               , Attributes.value (getCode keyboard)
               ]
               []
@@ -426,7 +384,8 @@ view gridArea tonic lowestPitch keyboard =
               , Attributes.type_ "number"
               , Attributes.disabled
                   (maxOctave <= 0 && octave == 0)
-              , onIntInput octave SetOctave
+              , isAudioTimeInput True
+              , onIntInputWithAudioTime octave SetOctave
               , Attributes.value (toString octave)
               , Attributes.min "0"
               , Attributes.max (toString maxOctave)
@@ -516,14 +475,14 @@ viewKeys tonic lowestPitch pitchSet =
           ]
       )
 
-pitchMsg : Int -> Set Int -> Int -> Msg
-pitchMsg lowestPitch pitchSet pitch =
+pitchMsg : Int -> Set Int -> (Int, Float) -> Msg
+pitchMsg lowestPitch pitchSet ( pitch, now ) =
   if Set.member pitch pitchSet then
-    RemovePitch (lowestPitch, pitch)
+    RemovePitch (lowestPitch, pitch, now)
   else
-    AddPitch (lowestPitch, pitch)
+    AddPitch (lowestPitch, pitch, now)
 
-viewStaticKeys : Int -> Int -> Svg Int
+viewStaticKeys : Int -> Int -> Svg (Int, Float)
 viewStaticKeys tonic lowestPitch =
   let
     highestPitch = lowestPitch + 11 + Chord.maxRange
@@ -535,14 +494,16 @@ viewStaticKeys tonic lowestPitch =
           (List.range lowestPitch highestPitch)
       )
 
-viewKey : Int -> Int -> Int -> Bool -> Int -> List (Svg Int)
+viewKey : Int -> Int -> Int -> Bool -> Int -> List (Svg (Int, Float))
 viewKey tonic lowestPitch highestPitch selected pitch =
   let
     commonAttributes =
       if selected then
         []
       else
-        [ onLeftDown pitch ]
+        [ isAudioTimeButton True
+        , onClickWithAudioTime ((,) pitch)
+        ]
   in
     if isWhiteKey pitch then
       let

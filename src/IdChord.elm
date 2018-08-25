@@ -2,7 +2,7 @@ module IdChord exposing (IdChord, Msg(..), fromChord, count, view)
 
 import Chord exposing (Chord)
 import Colour
-import CustomEvents exposing (onLeftDown, onKeyDown)
+import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import Name
 import PlayStatus exposing (PlayStatus)
 
@@ -16,8 +16,8 @@ type alias IdChord =
   }
 
 type Msg
-  = Play IdChord
-  | Stop
+  = Play (IdChord, Float)
+  | Stop Float
 
 fromChord : Chord -> Maybe IdChord
 fromChord chord =
@@ -80,14 +80,11 @@ view tonic playStatus { id, chord } =
         if PlayStatus.hasStopButton playStatus id then
           Stop
         else
-          Play (IdChord id chord)
+          Play << (,) (IdChord id chord)
     in
       button
-        [ onLeftDown action
-        , onKeyDown
-            [ ( 13, action )
-            , ( 32, action )
-            ]
+        [ isAudioTimeButton True
+        , onClickWithAudioTime action
         , class "chordButton"
         , style
             [ ( "width", "100%" )

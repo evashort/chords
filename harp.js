@@ -79,15 +79,7 @@ function harpChanged() {
     }
   }
 
-  for (var pitch in plucks) {
-    if (!(pitch in ropes)) {
-      delete plucks[pitch];
-    }
-  }
-
-  for (var pitch in plucks) {
-    return;
-  }
+  plucks = {};
 
   paintStaticHarp();
 }
@@ -274,7 +266,7 @@ function harpReleased() {
   paintStaticHarp();
 }
 
-function harpMuted() {
+function clearPlucks() {
   plucks = {};
 
   paintStaticHarp();

@@ -1,5 +1,63 @@
 var ac = new AudioContext();
 
+function initAudioTimeButton(node) {
+  node.addEventListener("mousedown", audioTimeButtonMouseDown);
+  node.addEventListener("keydown", audioTimeButtonKeyDown);
+}
+
+function audioTimeButtonMouseDown(event) {
+  ac.resume().then(
+    function() {
+      dispatchClickWithAudioTime(event.target);
+    }
+  );
+}
+
+function audioTimeButtonKeyDown(event) {
+  if (event.key == " " || event.key == "Enter") {
+    ac.resume().then(
+      function() {
+        dispatchClickWithAudioTime(event.target);
+      }
+    );
+  }
+}
+
+function dispatchClickWithAudioTime(target) {
+  var clickWithAudioTime =
+    new CustomEvent(
+      "clickWithAudioTime",
+      { detail: ac.currentTime }
+    );
+  target.dispatchEvent(clickWithAudioTime);
+}
+
+function initAudioTimeInput(node) {
+  node.addEventListener("input", audioTimeInputInput);
+}
+
+function audioTimeInputInput(event) {
+  ac.resume().then(
+    function() {
+      dispatchInputWithAudioTime(event.target);
+    }
+  );
+}
+
+function dispatchInputWithAudioTime(target) {
+  var inputWithAudioTime =
+    new CustomEvent(
+      "inputWithAudioTime",
+      {
+        detail: {
+          value: target.value,
+          audioTime: ac.currentTime
+        }
+      }
+    );
+  target.dispatchEvent(inputWithAudioTime);
+}
+
 var masterFader = ac.createGain();
 masterFader.connect(ac.destination);
 
@@ -123,10 +181,6 @@ function updateAudio() {
 }
 
 function changeAudio(changes) {
-  ac.resume().then(changeAudioHelp(changes));
-}
-
-function changeAudioHelp(changes) {
   var wasPlaying = notes.length > 0;
   var wasUpdating = notes.length > 0 || alarms.length > 0;
 
@@ -193,10 +247,4 @@ function setVolume(volume) {
   masterFader.gain.setValueAtTime(currentVolume, safeTime);
   masterFader.gain.linearRampToValueAtTime(volume, safeTime + 0.01);
   currentVolume = volume;
-}
-
-function stopAudio() {
-  muteAt(0);
-  alarms = [];
-  harpMuted();
 }

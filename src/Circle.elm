@@ -2,7 +2,7 @@ module Circle exposing (view)
 
 import Chord exposing (Chord)
 import Colour
-import CustomEvents exposing (onLeftDown, onKeyDown)
+import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
 import PlayStatus exposing (PlayStatus)
 import Name
@@ -170,19 +170,16 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
       else
         Nothing
     , let
-        play =
+        action =
           if PlayStatus.hasStopButton playStatus id then
             IdChord.Stop
           else
-            IdChord.Play (IdChord id chord)
+            IdChord.Play << (,) (IdChord id chord)
       in
         Just
           ( path
-              [ onLeftDown play
-              , onKeyDown
-                  [ ( 13, play )
-                  , ( 32, play )
-                  ]
+              [ isAudioTimeButton True
+              , onClickWithAudioTime action
               , fill (Colour.bg tonic chord)
               , attribute "tabindex" "0"
               , style [ ( "cursor", "pointer" ) ]

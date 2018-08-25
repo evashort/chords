@@ -142,6 +142,41 @@
   </head>
   <body>
     <script>
+      function initNode(node) {
+        if (node.isAudioTimeButton) {
+          initAudioTimeButton(node);
+        } else if (node.isAudioTimeInput) {
+          initAudioTimeInput(node);
+        }
+      }
+
+      function initTree(node) {
+        for (var i = 0; i < node.childNodes.length; i++) {
+          initTree(node.childNodes[i]);
+        }
+
+        initNode(node);
+      }
+
+      function initNodes(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          if (mutations[i].type == "childList") {
+            for (var j = 0; j < mutations[i].addedNodes.length; j++) {
+              initTree(mutations[i].addedNodes[j]);
+            }
+          }
+        }
+      }
+
+      var observer = new MutationObserver(initNodes);
+      observer.observe(
+        document.body,
+        {
+          subtree: true,
+          childList: true
+        }
+      );
+
       function setTitle(title) {
         document.title = title + " - Chords";
       }
@@ -177,7 +212,6 @@
       );
 
       app.ports.changeAudio.subscribe(changeAudio);
-      app.ports.stopAudio.subscribe(stopAudio);
       app.ports.setVolume.subscribe(setVolume);
       app.ports.initMeter.subscribe(initMeter);
       app.ports.initTheater.subscribe(initTheater);
@@ -186,6 +220,7 @@
       app.ports.undoAndReplace.subscribe(undoAndReplace);
       app.ports.hardUndo.subscribe(hardUndo);
       app.ports.initHarp.subscribe(initHarp);
+      app.ports.clearPlucks.subscribe(clearPlucks);
       app.ports.initStorage.subscribe(initStorage);
       app.ports.initStorage.subscribe(initStorage);
       app.ports.setTitle.subscribe(setTitle);

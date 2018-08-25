@@ -1,59 +1,71 @@
-module CustomEvents exposing (onChange, onLeftDown, onKeyDown, onIntInput)
+module CustomEvents exposing
+  ( onChange
+  , isAudioTimeButton, onClickWithAudioTime
+  , isAudioTimeInput, onInputWithAudioTime, onIntInputWithAudioTime
+  )
 
 import Html exposing (Attribute)
+import Html.Attributes exposing (property)
 import Html.Events exposing (on, targetValue)
 import Json.Decode as Decode exposing (Decoder)
+import Json.Encode as Encode
 
 onChange : (String -> msg) -> Attribute msg
 onChange tag =
   on "change" (Decode.map tag targetValue)
 
-onLeftDown : msg -> Attribute msg
-onLeftDown message =
+isAudioTimeButton : Bool -> Attribute msg
+isAudioTimeButton value =
+  property "isAudioTimeButton" (Encode.bool value)
+
+onClickWithAudioTime : (Float -> msg) -> Attribute msg
+onClickWithAudioTime tag =
   on
-    "mousedown"
-    ( Decode.andThen
-        (requireLeftButton message)
-        (Decode.field "button" Decode.int)
-    )
-
-requireLeftButton : msg -> Int -> Decoder msg
-requireLeftButton message button =
-  case button of
-    0 ->
-      Decode.succeed message
-    _ ->
-      Decode.fail ("ignoring button " ++ toString button)
-
-onKeyDown : List ( Int, msg ) -> Attribute msg
-onKeyDown messageMap =
-  on
-    "keydown"
-    ( Decode.andThen
-        (pickMessage messageMap)
-        (Decode.field "which" Decode.int)
-    )
-
-pickMessage : List ( Int, msg ) -> Int -> Decoder msg
-pickMessage messageMap which =
-  case messageMap of
-    ( key, message ) :: rest ->
-      if key == which then
-        Decode.succeed message
-      else
-        pickMessage rest which
-    [] ->
-      Decode.fail ("ignoring key " ++ toString which)
-
-onIntInput : Int -> (Int -> msg) -> Attribute msg
-onIntInput current message =
-  on
-    "input"
+    "clickWithAudioTime"
     ( Decode.map
-        message
-        ( Decode.andThen
-            (requireDifferentInt current)
-            targetValue
+        tag
+        (Decode.field "detail" Decode.float)
+    )
+
+isAudioTimeInput : Bool -> Attribute msg
+isAudioTimeInput value =
+  property "isAudioTimeInput" (Encode.bool value)
+
+onInputWithAudioTime : ((String, Float) -> msg) -> Attribute msg
+onInputWithAudioTime tag =
+  on
+    "inputWithAudioTime"
+    ( Decode.map
+        tag
+        ( Decode.field
+            "detail"
+            ( Decode.map2
+                (,)
+                (Decode.field "value" Decode.string)
+                (Decode.field "audioTime" Decode.float)
+            )
+        )
+    )
+
+onIntInputWithAudioTime : Int -> ((Int, Float) -> msg) -> Attribute msg
+onIntInputWithAudioTime current tag =
+  on
+    "inputWithAudioTime"
+    ( Decode.map
+        tag
+        ( Decode.field
+            "detail"
+            ( Decode.map2
+                (,)
+                ( Decode.field
+                    "value"
+                    ( Decode.andThen
+                        (requireDifferentInt current)
+                        Decode.string
+                    )
+                )
+                (Decode.field "audioTime" Decode.float)
+            )
         )
     )
 

@@ -1,9 +1,9 @@
 port module Ports exposing
-  ( changeAudio, playing, stopAudio, setVolume, currentTime
+  ( changeAudio, playing, setVolume, currentTime
   , initMeter
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
-  , initHarp, harpPlucked, Pluck
+  , initHarp, clearPlucks, harpPlucked, Pluck
   , initStorage
   , setTitle
   , download, File
@@ -29,6 +29,7 @@ port hardUndo : () -> Cmd msg
 port text : (String -> msg) -> Sub msg
 
 port initHarp : () -> Cmd msg
+port clearPlucks : () -> Cmd msg
 port harpPlucked : (Pluck -> msg) -> Sub msg
 type alias Pluck =
   { now : Float
