@@ -18,8 +18,8 @@ type alias Chord =
 fromCode : String -> Maybe Chord
 fromCode code =
   case submatches regex code of
-    [ Just rootCode, Just flavorCode ] ->
-      case Dict.get flavorCode flavorDict of
+    [ Just rootCode, maybeFlavorCode ] ->
+      case Dict.get (Maybe.withDefault "" maybeFlavorCode) flavorDict of
         Nothing ->
           Nothing
         Just flavor ->

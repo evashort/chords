@@ -8,4 +8,4 @@ type alias Rule = (String, Fixer)
 
 fromFlag : Flag a -> Rule
 fromFlag flag =
-  ( flag.key, Maybe.map flag.code << flag.fromCode )
+  ( flag.key, Maybe.map flag.toCode << flag.fromCode )

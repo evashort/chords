@@ -562,7 +562,7 @@ update msg model =
           }
       in
         ( { model
-          | playing = True
+          | playing = model.storage.playStyle /= PlayStyle.Silent
           , keyboard = newKeyboard
           , playStatus =
               Keyboard.status

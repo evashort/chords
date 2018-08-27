@@ -26,8 +26,8 @@ flag =
 fromCode : String -> Maybe Scale
 fromCode code =
   case submatches regex code of
-    [ Just namesakeCode, Just flavorCode ] ->
-      case Dict.get flavorCode flavors of
+    [ Just namesakeCode, maybeFlavorCode ] ->
+      case Dict.get (Maybe.withDefault "" maybeFlavorCode) flavors of
         Nothing ->
           Nothing
         Just minor ->

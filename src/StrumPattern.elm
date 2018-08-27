@@ -96,7 +96,7 @@ stringFrequency frequencies string =
             ( "StrumPattern.stringFrequency: Bad string: " ++
                 Debug.toString string
             )
-    octave = modBy 10 string
+    octave = string // 10
   in
     lowFrequency * toFloat (2 ^ octave)
 

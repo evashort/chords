@@ -89,8 +89,12 @@ getSuggestions book lines =
 lineSuggestion : Rulebook -> Substring -> Maybe (List Swatch, Substring)
 lineSuggestion book line =
   case submatches suggestionRegex line.s of
-    [ Just key, Just afterKey, Just beforeValue, Just value ] ->
-      let lowerKey = String.toLower key in
+    [ Just key, Just afterKey, maybeBeforeValue, maybeValue ] ->
+      let
+        lowerKey = String.toLower key
+        beforeValue = Maybe.withDefault "" maybeBeforeValue
+        value = Maybe.withDefault "" maybeValue
+      in
         case Dict.get lowerKey book of
           Nothing ->
             Nothing
