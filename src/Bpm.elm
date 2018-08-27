@@ -6,7 +6,7 @@ flag : Flag (Maybe Float)
 flag =
   { key = "bpm"
   , fromCode = fromCode
-  , code = code
+  , toCode = toCode
   , default = Nothing
   }
 
@@ -16,15 +16,15 @@ fromCode code =
     Just Nothing
   else
     case String.toFloat code of
-      Err _ ->
+      Nothing ->
         Nothing
-      Ok bpm ->
+      Just bpm ->
         Just (Just (max 20 bpm))
 
-code : Maybe Float -> String
-code maybeBpm =
+toCode : Maybe Float -> String
+toCode maybeBpm =
   case maybeBpm of
     Nothing ->
       "default"
     Just bpm ->
-      toString bpm
+      String.fromFloat bpm

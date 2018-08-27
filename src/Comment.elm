@@ -3,15 +3,15 @@ module Comment exposing (highlights, remove)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 
-import Regex exposing (Regex, HowMany(..))
+import Regex exposing (Regex)
 
 highlights : Substring -> List Highlight
 highlights whole =
-  case Substring.find (AtMost 1) initialCommentRegex whole of
+  case Substring.find initialCommentRegex whole of
     [] ->
       List.map
         (highlight << Substring.dropLeft 1)
-        (Substring.find All commentRegex whole)
+        (Substring.find commentRegex whole)
     initialComment :: _ ->
       let
         rest =
@@ -20,13 +20,15 @@ highlights whole =
         highlight initialComment ::
           List.map
             (highlight << Substring.dropLeft 1)
-            (Substring.find All commentRegex rest)
+            (Substring.find commentRegex rest)
 
 initialCommentRegex : Regex
-initialCommentRegex = Regex.regex "^\\/\\/.*"
+initialCommentRegex =
+  Maybe.withDefault Regex.never (Regex.fromString "^\\/\\/.*")
 
 commentRegex : Regex
-commentRegex = Regex.regex "[ \\n]\\/\\/.*"
+commentRegex =
+  Maybe.withDefault Regex.never (Regex.fromString "[ \\n]\\/\\/.*")
 
 highlight : Substring -> Highlight
 highlight = Highlight "#008000" "#ffffff"
@@ -39,21 +41,23 @@ remove whole =
   in
     List.map
       removeFromLine
-      (Substring.regexSplit All lineBreak wholeAndNewline)
+      (Substring.regexSplit lineBreak wholeAndNewline)
 
 removeFromLine : Substring -> Substring
 removeFromLine line =
   if String.startsWith "//" line.s then
     { line | s = "" }
   else
-    case Regex.find (AtMost 1) commentStart line.s of
+    case Regex.findAtMost 1 commentStart line.s of
       match :: _ ->
         Substring.left match.index line
       _ ->
         line
 
 lineBreak : Regex
-lineBreak = Regex.regex " *\\n"
+lineBreak =
+  Maybe.withDefault Regex.never (Regex.fromString " *\\n")
 
 commentStart : Regex
-commentStart = Regex.regex " +\\/\\/"
+commentStart =
+  Maybe.withDefault Regex.never (Regex.fromString " +\\/\\/")

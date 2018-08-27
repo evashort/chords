@@ -4,7 +4,7 @@ import List1 exposing (List1)
 import Replacement exposing (Replacement)
 import Substring exposing (Substring)
 
-import Regex exposing (Regex, HowMany(..))
+import Regex exposing (Regex)
 
 mapCells : (String -> String) -> List Substring -> List Replacement
 mapCells f lines =
@@ -21,10 +21,11 @@ type alias Row = List1 Replacement
 toRow : (String -> String) -> Substring -> Maybe Row
 toRow f line =
   List1.fromList
-    (List.map (toCell f) (Substring.find All wordRegex line))
+    (List.map (toCell f) (Substring.find wordRegex line))
 
 wordRegex : Regex
-wordRegex = Regex.regex "[^ ]+"
+wordRegex =
+  Maybe.withDefault Regex.never (Regex.fromString "[^ ]+")
 
 toCell : (String -> String) -> Substring -> Replacement
 toCell f old =
@@ -34,9 +35,9 @@ mapCellsHelp : List Row -> List (List String)
 mapCellsHelp rows =
   let
     groups = groupByWidth [] rows
-  in let
+  in
+  let
     branches = List.concatMap mapGroupCells groups
-  in let
     leaves = List.map rowLeaf rows
   in
     withDefaults branches leaves
@@ -58,13 +59,14 @@ groupByWidth past rows =
         second :: _ ->
           let
             width = second.old.i - row.first.old.i
-          in let
+          in
+          let
             currentGroup =
               takeWhile (compatibleWith width) rest
-          in let
             pastGroup =
               takeWhile (compatibleWith width) past
-          in let
+          in
+          let
             groupRows =
               List1.extendLeft
                 (List.reverse pastGroup)
@@ -98,17 +100,17 @@ mapGroupCells : Group -> List (List String)
 mapGroupCells group =
   let
     rest = List1.filterMap List1.tail1 group.rows
-  in let
+  in
+  let
     suffixes = mapCellsHelp rest
-  in let
     oldMaxLength =
       List1.maximum
         (List1.map (String.length << .s << .old << .first) group.rows)
-  in let
     newMaxLength =
       List1.maximum
         (List1.map (String.length << .new << .first) group.rows)
-  in let
+  in
+  let
     newWidth =
       if group.width > oldMaxLength + 1 then
         max group.width (newMaxLength + 1)

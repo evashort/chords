@@ -38,9 +38,7 @@ view : Int -> Storage -> History -> List Chord -> Bool -> Html Msg
 view tonic storage history sequence finished =
   span
     [ id "historyPane"
-    , style
-        [ ( "display", "block" )
-        ]
+    , style "display" "block"
     ]
     [ label
         [ class "checkboxLabel"
@@ -60,14 +58,12 @@ view tonic storage history sequence finished =
         viewNonEmpty tonic storage.shortenSequences history sequence finished
       else
         span
-          [ style
-              [ ( "display", "block" )
-              , ( "color", "GrayText" )
-              , ( "background", indexBackground 0 )
-              , ( "padding", "calc(0.22em + 5px) 10px" )
-              , ( "white-space", "initial" )
-              , ( "line-height", "initial" )
-              ]
+          [ style "display" "block"
+          , style "color" "GrayText"
+          , style "background" (indexBackground 0)
+          , style "padding" "calc(0.22em + 5px) 10px"
+          , style "white-space" "initial"
+          , style "line-height" "initial"
           ]
           [ text
               "Sequences of two or more chords played consecutively will appear here."
@@ -77,10 +73,8 @@ view tonic storage history sequence finished =
 viewNonEmpty : Int -> Bool -> History -> List Chord -> Bool -> Html Msg
 viewNonEmpty tonic shorten history sequence finished =
   span
-    [ style
-        [ ( "display", "grid" )
-        , ( "grid-template-columns", "auto 1fr" )
-        ]
+    [ style "display" "grid"
+    , style "grid-template-columns" "auto 1fr"
     ]
     ( List.concat
         [ if List.length sequence >= 2 then
@@ -114,14 +108,12 @@ viewSequence shorten finished tonic index sequence =
           sequence
   in
     [ span
-        [ style
-            [ ( "background", indexBackground index )
-            , ( "grid-column", "1" )
-            , ( "padding", "5px" )
-            , ( "padding-right", "10px" )
-            , ( "display", "flex" )
-            , ( "align-items", "center" )
-            ]
+        [ style "background" (indexBackground index)
+        , style "grid-column" "1"
+        , style "padding" "5px"
+        , style "padding-right" "10px"
+        , style "display" "flex"
+        , style "align-items" "center"
         ]
         [ button
             [ class "button"
@@ -138,16 +130,14 @@ viewSequence shorten finished tonic index sequence =
             ]
         ]
     , span
-        [ style
-            [ ( "background", indexBackground index )
-            , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-            , ( "font-size", "160%" )
-            , ( "line-height", "initial" )
-            , ( "white-space", "initial" )
-            , ( "padding", "5px" )
-            , ( "padding-left", "0px" )
-            , ( "grid-column", "2" )
-            ]
+        [ style "background" (indexBackground index)
+        , style "font-family" "\"Lucida Console\", Monaco, monospace"
+        , style "font-size" "160%"
+        , style "line-height" "initial"
+        , style "white-space" "initial"
+        , style "padding" "5px"
+        , style "padding-left" "0px"
+        , style "grid-column" "2"
         ]
         ( List.concat
             [ if shorten && List.length sequence > 8 then
@@ -170,7 +160,7 @@ viewSequence shorten finished tonic index sequence =
 
 indexBackground : Int -> String
 indexBackground index =
-  if index % 2 == 1 then
+  if modBy 2 index == 1 then
     "#ffffff"
   else
     "#eeeeee"
@@ -178,11 +168,9 @@ indexBackground index =
 viewChord : Int -> Chord -> Html msg
 viewChord tonic chord =
   mark
-    [ style
-        [ ( "background", Colour.swatchBg tonic chord )
-        , ( "color", Colour.fg chord )
-        , ( "border-radius", "3px" )
-        ]
+    [ style "background" (Colour.swatchBg tonic chord)
+    , style "color" (Colour.fg chord)
+    , style "border-radius" "3px"
     ]
     [ text (Name.code chord)
     ]

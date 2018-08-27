@@ -28,19 +28,15 @@ view swatches =
     , onFocus (Focus True)
     , onBlur (Focus False)
     , onClick Replace
-    , style
-        [ ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "160%" )
-        , ( "padding", "0" )
-        , ( "min-width", "3ch" )
-        ]
+    , style "font-family" "\"Lucida Console\", Monaco, monospace"
+    , style "font-size" "160%"
+    , style "padding" "0"
+    , style "min-width" "3ch"
     ]
     [ span
-        [ style
-            [ ( "background", "white" )
-            , ( "padding", "0 8px" )
-            , ( "display", "block" )
-            ]
+        [ style "background" "white"
+        , style "padding" "0 8px"
+        , style "display" "block"
         ]
         (List.map Swatch.view swatches)
     ]
@@ -68,8 +64,8 @@ groupByReplacementHelp suggestions =
         (groupByReplacementHelp rest)
 
 addRange : List Swatch -> Substring -> Maybe Suggestion -> Maybe Suggestion
-addRange swatches range suggestion =
-  case suggestion of
+addRange swatches range maybeSuggestion =
+  case maybeSuggestion of
     Nothing ->
       Just { swatches = swatches, ranges = [ range ] }
     Just suggestion ->

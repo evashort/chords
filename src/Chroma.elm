@@ -15,7 +15,7 @@ search chord =
       []
     Just schemeList ->
       List.map
-        ((,) "Inversion" << addId << Chord.transpose chord.root)
+        (Tuple.pair "Inversion" << addId << Chord.transpose chord.root)
         (List.filter (differentFlavor chord) schemeList)
 
 differentFlavor : Chord -> Chord -> Bool
@@ -26,15 +26,15 @@ addId : Chord -> IdChord
 addId chord =
   case IdChord.fromChord chord of
     Nothing ->
-      Debug.crash
-        ("Chroma.addId: Unknown chord " ++ toString chord)
+      Debug.todo
+        ("Chroma.addId: Unknown chord " ++ Debug.toString chord)
     Just idChord ->
       idChord
 
 fromFlavor : List Int -> List Int
 fromFlavor flavor =
   removeDuplicates
-    (List.sort (List.map mod12 (0 :: flavor)))
+    (List.sort (List.map (modBy 12) (0 :: flavor)))
 
 removeDuplicates : List a -> List a
 removeDuplicates xs =
@@ -57,7 +57,8 @@ addSchemes :
 addSchemes flavor schemes =
   let
     chroma = fromFlavor flavor
-  in let
+  in
+  let
     offsets =
       case flavor of
         [ 3, 6, 9 ] ->
@@ -75,14 +76,10 @@ addScheme :
 addScheme flavor chroma offset schemes =
   Dict.update
     ( List.sort
-        (List.map (mod12 << (+) -offset) chroma)
+        (List.map (modBy 12 << (+) -offset) chroma)
     )
     (addToList (Chord flavor -offset))
     schemes
-
-mod12 : Int -> Int
-mod12 x =
-  x % 12
 
 addToList : a -> Maybe (List a) -> Maybe (List a)
 addToList item maybeList =
@@ -109,7 +106,7 @@ interpretPartialScheme chord scheme =
   ( String.concat
       [ Pitch.view
           scheme.sharpCount
-          ((chord.root + scheme.missingPitch) % 12)
+          (modBy 12 (chord.root + scheme.missingPitch))
       , " added"
       ]
   , addId (Chord.transpose chord.root scheme.chord)
@@ -126,14 +123,16 @@ addPartialSchemes flavor schemes =
   let
     chroma = fromFlavor flavor
     sharpCount = Name.sharpCount flavor
-  in let
+  in
+  let
     sharpCounts =
       SharpCount.fromFlavor sharpCount flavor
-  in let
+  in
+  let
     missingPitches =
       List.map2
-        (,)
-        (List.map mod12 (0 :: flavor))
+        Tuple.pair
+        (List.map (modBy 12) (0 :: flavor))
         sharpCounts
   in
     List.foldl
@@ -161,7 +160,7 @@ addPartialScheme :
 addPartialScheme flavor missingPitch sharpCount chroma offset schemes =
   Dict.update
     ( List.sort
-        (List.map (mod12 << (+) -offset) chroma)
+        (List.map (modBy 12 << (+) -offset) chroma)
     )
     ( addToList
         { chord = Chord flavor -offset
@@ -221,12 +220,12 @@ subsetSearchHelp tonic chord chroma missingPitch =
                 String.concat
                   [ Pitch.view
                       (SharpCount.fromTonic tonic)
-                      ((chord.root + missingPitch) % 12)
+                      (modBy 12 (chord.root + missingPitch))
                   , " removed"
                   ]
             in
               List.map
-                ( (,) header <<
+                ( Tuple.pair header <<
                     addId <<
                     Chord.transpose (chord.root + offset)
                 )

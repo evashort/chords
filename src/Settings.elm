@@ -18,13 +18,12 @@ view canStore shouldStore storage =
     [ label
         [ class "checkboxLabel"
         , style
-            [ ( "color"
-              , if not canStore then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
+            "color"
+            ( if not canStore then
+                "GrayText"
+              else
+                ""
+            )
         ]
         [ input
             [ type_ "checkbox"
@@ -39,13 +38,12 @@ view canStore shouldStore storage =
     , label
         [ class "checkboxLabel"
         , style
-            [ ( "color"
-              , if not shouldStore then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
+            "color"
+            ( if not shouldStore then
+                "GrayText"
+              else
+                ""
+            )
         ]
         [ input
             [ type_ "checkbox"
@@ -60,13 +58,12 @@ view canStore shouldStore storage =
     , label
         [ class "checkboxLabel"
         , style
-            [ ( "color"
-              , if not shouldStore then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
+            "color"
+            ( if not shouldStore then
+                "GrayText"
+              else
+                ""
+            )
         ]
         [ input
             [ type_ "checkbox"

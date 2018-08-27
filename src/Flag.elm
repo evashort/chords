@@ -11,7 +11,7 @@ type alias Flag a =
   { key : String
   , fromCode : String -> Maybe a
   , default : a
-  , code : a -> String
+  , toCode : a -> String
   }
 
 parse : Flag a -> List Substring -> a
@@ -28,7 +28,11 @@ getValueString key =
   -- implicit line argument causes regex to be cached for multiple lines
   let
     regex =
-      Regex.regex ("^" ++ Regex.escape key ++ ": ([^ ].*)")
+      Maybe.withDefault
+        Regex.never
+        ( Regex.fromString
+            ("^" ++ key ++ ": ([^ ].*)")
+        )
   in
     Maybe.withDefault Nothing <<
       List.head << submatches regex << .s
@@ -39,7 +43,7 @@ parseValue flag valueString =
     Nothing ->
       Nothing
     Just value ->
-      if flag.code value == valueString then
+      if flag.toCode value == valueString then
         Just value
       else
         Nothing
@@ -57,7 +61,8 @@ insert : Flag a -> a -> List Substring -> Maybe Replacement
 insert flag newValue lines =
   let
     reverseLines = List.reverse lines
-  in let
+  in
+  let
     lineInfos =
       List.filterMap
         identity
@@ -73,7 +78,7 @@ insert flag newValue lines =
           Nothing
         else
           Just
-            (addLine flag.key (flag.code newValue) reverseLines)
+            (addLine flag.key (flag.toCode newValue) reverseLines)
       { line, hasComment, valueString, value } :: rest ->
         let
           previousValue =
@@ -94,7 +99,7 @@ insert flag newValue lines =
             Just
               { old =
                   Substring.right (String.length valueString) line
-              , new = flag.code newValue
+              , new = flag.toCode newValue
               }
 
 type alias LineInfo a =
@@ -128,7 +133,7 @@ addLine : String -> String -> List Substring -> Replacement
 addLine key value lines =
   case lines of
     [] ->
-      Debug.crash "Flag.addLine: Lines list empty"
+      Debug.todo "Flag.addLine: Lines list empty"
     [ firstLine ] ->
       Replacement
         (Substring firstLine.i "")
@@ -180,7 +185,8 @@ keyless line =
       True
 
 keyRegex : Regex
-keyRegex = Regex.regex "^([^:]+):([^ ])?"
+keyRegex =
+  Maybe.withDefault Regex.never (Regex.fromString "^([^:]+):([^ ])?")
 
 keys : Set String
 keys =

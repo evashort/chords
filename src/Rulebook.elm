@@ -1,4 +1,4 @@
-module Rulebook exposing (Rulebook, init, highlights, suggestions)
+module Rulebook exposing (Rulebook, init, getHighlights, getSuggestions)
 
 import Rule exposing (Fixer, Rule)
 import Highlight exposing (Highlight)
@@ -15,19 +15,19 @@ type alias Rulebook = Dict String Fixer
 init : List Rule -> Rulebook
 init = Dict.fromList
 
-highlights : Rulebook -> List Substring -> List Highlight
-highlights book lines =
-  highlightsHelp book Dict.empty (List.reverse lines)
+getHighlights : Rulebook -> List Substring -> List Highlight
+getHighlights book lines =
+  getHighlightsHelp book Dict.empty (List.reverse lines)
 
-highlightsHelp :
+getHighlightsHelp :
   Rulebook -> Dict String String -> List Substring -> List Highlight
-highlightsHelp book values lines =
+getHighlightsHelp book values lines =
   case lines of
     [] ->
       []
     line :: rest ->
       let (highlights, newValues) = lineHighlights book values line in
-        highlights ++ highlightsHelp book newValues rest
+        highlights ++ getHighlightsHelp book newValues rest
 
 lineHighlights :
   Rulebook -> Dict String String -> Substring ->
@@ -64,7 +64,10 @@ lineHighlights book values line =
       ( [], values )
 
 highlightRegex : Regex
-highlightRegex = Regex.regex "([^:]+):([^ ])? ?([^ ].*)?"
+highlightRegex =
+  Maybe.withDefault
+    Regex.never
+    (Regex.fromString "([^:]+):([^ ])? ?([^ ].*)?")
 
 keyHighlight : String -> Substring -> Highlight
 keyHighlight key line =
@@ -78,8 +81,8 @@ overridden : String -> Substring -> Highlight
 overridden value line =
   Highlight "#a0a0a0" "#ffffff" (Substring.right (String.length value) line)
 
-suggestions : Rulebook -> List Substring -> List Suggestion
-suggestions book lines =
+getSuggestions : Rulebook -> List Substring -> List Suggestion
+getSuggestions book lines =
   Suggestion.groupByReplacement
     (List.filterMap (lineSuggestion book) lines)
 
@@ -117,19 +120,18 @@ lineSuggestion book line =
                 Just fixedValue ->
                   case
                     ( key == lowerKey
-                    , afterKey
-                    , beforeValue
+                    , ( afterKey, beforeValue )
                     , value == fixedValue
                     )
                   of
-                    ( True, ":", " ", True ) ->
+                    ( True, ( ":", " " ), True ) ->
                       Nothing
-                    ( True, ":", " ", False ) ->
+                    ( True, ( ":", " " ), False ) ->
                       Just
                         ( [ valueSwatch fixedValue ]
                         , Substring.right (String.length value) line
                         )
-                    ( _, _, " ", True ) ->
+                    ( _, ( _, " " ), True ) ->
                       Just
                         ( [ keySwatch lowerKey ]
                         , Substring.left
@@ -148,7 +150,10 @@ lineSuggestion book line =
       Nothing
 
 suggestionRegex : Regex
-suggestionRegex = Regex.regex "^([^:]*[^: ])( *:)( *)(.*)"
+suggestionRegex =
+  Maybe.withDefault
+    Regex.never
+    (Regex.fromString "^([^:]*[^: ])( *:)( *)(.*)")
 
 keySwatch : String -> Swatch
 keySwatch key =

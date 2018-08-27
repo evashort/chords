@@ -8,7 +8,7 @@ view : Bool -> Html msg
 view shouldWarn =
   span
     [ id "warning"
-    , style [ ( "display", "none" ) ]
+    , style "display" "none"
     , property "shouldWarn" (Encode.bool shouldWarn)
     ]
     []

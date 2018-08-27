@@ -18,7 +18,7 @@ book =
     ]
 
 highlights : List Substring -> List Highlight
-highlights = Rulebook.highlights book
+highlights = Rulebook.getHighlights book
 
 suggestions : List Substring -> List Suggestion
-suggestions = Rulebook.suggestions book
+suggestions = Rulebook.getSuggestions book

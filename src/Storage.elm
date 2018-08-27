@@ -76,11 +76,14 @@ encode storage =
 
 decode : Encode.Value -> Result String (Maybe Storage)
 decode blob =
-  case Decode.decodeValue (Decode.null Nothing) blob of
-    Err _ ->
-      Result.map Just (Decode.decodeValue decoder blob)
-    nothingResult ->
-      nothingResult
+  Result.mapError
+    Decode.errorToString
+    ( case Decode.decodeValue (Decode.null Nothing) blob of
+        Err _ ->
+          Result.map Just (Decode.decodeValue decoder blob)
+        nothingResult ->
+          nothingResult
+    )
 
 decoder : Decoder Storage
 decoder =
@@ -95,13 +98,13 @@ decoderHelp : Version -> Decoder Storage
 decoderHelp version =
   if version.major > 1 then
     Decode.fail
-      ("Incompatible major version: " ++ toString version.major)
+      ("Incompatible major version: " ++ String.fromInt version.major)
   else
     v1_0Decoder
 
 v1_0Decoder : Decoder Storage
 v1_0Decoder =
-  Pipeline.decode Storage
+  Decode.succeed Storage
     |> Pipeline.required
         "playStyle"
         (parseDecoder "play style" parsePlayStyle)
@@ -145,9 +148,9 @@ versionString : Version -> String
 versionString version =
   String.join
     "."
-    [ toString version.major
-    , toString version.minor
-    , toString version.patch
+    [ String.fromInt version.major
+    , String.fromInt version.minor
+    , String.fromInt version.patch
     ]
 
 parseVersion : String -> Maybe Version
@@ -160,7 +163,7 @@ parseVersion string =
         , String.toInt patchString
         )
       of
-        ( Ok major, Ok minor, Ok patch ) ->
+        ( Just major, Just minor, Just patch ) ->
           Just (Version major minor patch)
         _ ->
           Nothing
@@ -168,7 +171,10 @@ parseVersion string =
       Nothing
 
 versionRegex : Regex
-versionRegex = Regex.regex "^([0-9]+)\\.([0-9]+)\\.([0-9]+)"
+versionRegex =
+  Maybe.withDefault
+    Regex.never
+    (Regex.fromString "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
 
 parsePlayStyle : String -> Maybe PlayStyle
 parsePlayStyle string =
@@ -255,10 +261,10 @@ parsePane string =
 setStrumInterval : Storage -> String -> Storage
 setStrumInterval storage strumIntervalString =
   case String.toFloat strumIntervalString of
-    Ok strumInterval ->
+    Just strumInterval ->
       { storage | strumInterval = 0.001 * strumInterval }
-    Err _ ->
-      Debug.crash
+    Nothing ->
+      Debug.todo
         ( "Storage.setStrumInterval: Bad strum interval: " ++
             strumIntervalString
         )
@@ -266,8 +272,8 @@ setStrumInterval storage strumIntervalString =
 setVolume : Storage -> String -> Storage
 setVolume storage volumeString =
   case String.toInt volumeString of
-    Ok volume ->
+    Just volume ->
       { storage | volume = volume }
-    Err _ ->
-      Debug.crash
+    Nothing ->
+      Debug.todo
         ("Storage.setVolume: Bad volume: " ++ volumeString)

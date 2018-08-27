@@ -3,7 +3,7 @@ module Substring exposing
   , between, find, regexSplit
   )
 
-import Regex exposing (Regex, HowMany(..), Match)
+import Regex exposing (Regex, Match)
 
 type alias Substring =
   { i : Int
@@ -51,19 +51,19 @@ between x y { i, s } =
     , s = String.slice start (max start (y - i)) s
     }
 
-find : HowMany -> Regex -> Substring -> List Substring
-find howMany regex { i, s } =
-  List.map (fromMatch i) (Regex.find howMany regex s)
+find : Regex -> Substring -> List Substring
+find regex { i, s } =
+  List.map (fromMatch i) (Regex.find regex s)
 
 fromMatch : Int -> Match -> Substring
 fromMatch i match =
   { i = i + match.index, s = match.match }
 
-regexSplit : HowMany -> Regex -> Substring -> List Substring
-regexSplit howMany regex substring =
+regexSplit : Regex -> Substring -> List Substring
+regexSplit regex substring =
   let
     matches =
-      Regex.find howMany regex substring.s ++
+      Regex.find regex substring.s ++
         [ emptyMatch (String.length substring.s) ]
   in
     List.map2 (betweenMatches substring) (emptyMatch 0 :: matches) matches

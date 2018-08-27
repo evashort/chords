@@ -51,11 +51,15 @@ flipMaybes mmx =
 
 indexedMap : (Int -> a -> b) -> Train a -> Train b
 indexedMap f train =
-  List.map2
-    (Maybe.map << f)
-    (List.scanl ((+) << maybeLength) 0 train)
-    train
+  indexedMapHelp 0 f train
 
-maybeLength : Maybe a -> Int
-maybeLength mx =
-  if mx == Nothing then 0 else 1
+indexedMapHelp : Int -> (Int -> a -> b) -> Train a -> Train b
+indexedMapHelp index f train =
+  case train of
+    [] ->
+      []
+    Nothing :: rest ->
+      Nothing :: indexedMapHelp index f rest
+    Just x :: rest ->
+      Just (f index x) ::
+        indexedMapHelp (index + 1) f rest

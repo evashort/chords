@@ -7,6 +7,7 @@ import ChordsInKey
 import Circle
 import CustomEvents exposing
   (onChange, isAudioTimeButton, onClickWithAudioTime)
+import FragmentQuery
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
@@ -34,9 +35,11 @@ import Theater
 import Tour exposing (Tour)
 import Warning
 
-import Dom
+import Browser exposing (Document)
+import Browser.Dom as Dom
+import Browser.Navigation as Navigation
 import Html exposing
-  ( Html, a, button, div, pre, span, input, select, option, label
+  ( Html, Attribute, a, button, div, pre, span, input, select, option, label
   , canvas
   )
 import Html.Attributes as Attributes exposing
@@ -46,9 +49,9 @@ import Html.Attributes as Attributes exposing
 import Html.Events exposing (onClick, onInput, onCheck)
 import Html.Lazy
 import Json.Encode as Encode
-import Navigation exposing (Location)
 import Task
-import Url
+import Url exposing (Url)
+import Url.Parser
 
 type alias Flags =
   { storage : Encode.Value
@@ -58,18 +61,20 @@ type alias Flags =
 
 main : Program Flags Model Msg
 main =
-  Navigation.programWithFlags
-    UrlChanged
+  Browser.application
     { init = init
-    , view = Html.Lazy.lazy view
+    , view = view
     , update = update
     , subscriptions = subscriptions
+    , onUrlChange = UrlChanged
+    , onUrlRequest = LinkClicked
     }
 
 -- MODEL
 
 type alias Model =
-  { tour : Tour
+  { navigationKey : Navigation.Key
+  , tour : Tour
   , mac : Bool
   , title : String
   , dragBpm : Maybe Float
@@ -99,8 +104,8 @@ type SaveState
   | Saving
   | Saved
 
-init : Flags -> Location -> ( Model, Cmd Msg )
-init flags location =
+init : Flags -> Url -> Navigation.Key -> ( Model, Cmd Msg )
+init flags url navigationKey =
   let
     maybeStorage =
       case Storage.decode flags.storage of
@@ -110,15 +115,16 @@ init flags location =
           always
             Nothing
             (Debug.log message flags.storage)
-  in let
+  in
+  let
     storage =
       Maybe.withDefault Storage.default maybeStorage
-  in let
+  in
+  let
     title =
       Maybe.withDefault
         ""
-        (Url.hashParamValue "title" location)
-  in let
+        (FragmentQuery.decode "title" url)
     code =
       Maybe.withDefault
         ( if storage.startEmpty then
@@ -126,11 +132,13 @@ init flags location =
           else
             defaultCode
         )
-        (Url.hashParamValue "text" location)
-  in let
+        (FragmentQuery.decode "text" url)
+  in
+  let
     parse = Parse.init code
   in
-    ( { tour = Tour.init
+    ( { navigationKey = navigationKey
+      , tour = Tour.init
       , mac = flags.mac
       , title = title
       , dragBpm = Nothing
@@ -159,10 +167,6 @@ init flags location =
             }
         , Theater.focus
         , Ports.initHarp ()
-        , if title == "" then
-            Ports.setTitle parse.defaultTitle
-          else
-            Ports.setTitle title
         ]
     )
 
@@ -193,7 +197,8 @@ type Msg
   | SetLowest String
   | UseDefaultLowest Bool
   | TextChanged String
-  | UrlChanged Location
+  | LinkClicked Browser.UrlRequest
+  | UrlChanged Url
   | BuffetMsg Buffet.Msg
   | SetStorage Storage
   | CurrentTime Float
@@ -227,15 +232,15 @@ update msg model =
 
     SetPageNumber pageNumberString ->
       case String.toInt pageNumberString of
-        Ok pageNumber ->
+        Just pageNumber ->
           let tour = model.tour in
             ( { model
               | tour = { tour | pageNumber = pageNumber}
               }
             , Cmd.none
             )
-        Err _ ->
-          Debug.crash
+        Nothing ->
+          Debug.todo
             ("Main.update: Bad page number: " ++ pageNumberString)
 
     CloseTour ->
@@ -251,29 +256,24 @@ update msg model =
         | title = title
         , saveState = Unsaved
         }
-      , Cmd.batch
-          [ Navigation.newUrl "#"
-          , if title == "" then
-              Ports.setTitle ("*" ++ model.parse.defaultTitle)
-            else
-              Ports.setTitle ("*" ++ title)
-          ]
+      , Navigation.pushUrl model.navigationKey "#"
       )
 
     Save ->
       ( { model | saveState = Saving }
-      , if model.title == "" then
-          Navigation.modifyUrl
-            ("#text=" ++ Url.percentEncode model.parse.code)
-        else
-          Navigation.modifyUrl
-            ( String.concat
-                [ "#title="
-                , Url.percentEncode model.title
-                , "&text="
-                , Url.percentEncode model.parse.code
-                ]
-            )
+      , let
+          fragmentPairs =
+            if model.title == "" then
+              [ ( "text", model.parse.code )
+              ]
+            else
+              [ ( "title", model.title )
+              , ( "text", model.parse.code )
+              ]
+        in
+          Navigation.replaceUrl
+            model.navigationKey
+            (FragmentQuery.encode fragmentPairs)
       )
 
     Download ->
@@ -287,30 +287,30 @@ update msg model =
           , base16 =
               Midi.fromChords
                 (Maybe.withDefault 120 model.parse.bpm)
-                (Lowest.pitch model.parse.scale.tonic model.parse.lowest)
+                (Lowest.toPitch model.parse.scale.tonic model.parse.lowest)
                 (Parse.chords model.parse)
           }
       )
 
     DragBpm bpmString ->
       ( case String.toFloat bpmString of
-          Ok bpm ->
+          Just bpm ->
             { model | dragBpm = Just bpm }
-          Err _ ->
-            Debug.crash
+          Nothing ->
+            Debug.todo
               ("Main.update: Bad BPM while dragging: " ++ bpmString)
       , Cmd.none
       )
 
     SetBpm bpmString ->
       case String.toFloat bpmString of
-        Ok bpm ->
+        Just bpm ->
           doAction
             "bpm"
             (Parse.setBpm (Just bpm))
             { model | dragBpm = Nothing }
-        Err _ ->
-          Debug.crash
+        Nothing ->
+          Debug.todo
             ("Main.update: Bad BPM: " ++ bpmString)
 
     UseDefaultBpm True ->
@@ -330,42 +330,44 @@ update msg model =
 
     SetTonic tonicString ->
       case String.toInt tonicString of
-        Ok tonic ->
+        Just tonic ->
           let
             oldScale = model.parse.scale
-          in let
+          in
+          let
             scale = { oldScale | tonic = tonic }
           in
             doAction "scale" (Parse.setScale scale) model
-        Err _ ->
-          Debug.crash
+        Nothing ->
+          Debug.todo
             ("Main.update: Bad tonic: " ++ tonicString)
 
     SetMinor minor ->
       let
         oldScale = model.parse.scale
-      in let
+      in
+      let
         scale = { oldScale | minor = minor }
       in
         doAction "scale" (Parse.setScale scale) model
 
     DragLowest pitchString ->
       ( case String.toInt pitchString of
-          Ok pitch ->
+          Just pitch ->
             let
               lowest =
                 Lowest.fromPitch model.parse.scale.tonic pitch
             in
               { model | dragLowest = Just lowest }
-          Err _ ->
-            Debug.crash
+          Nothing ->
+            Debug.todo
               ("Main.update: Bad pitch while dragging: " ++ pitchString)
       , Cmd.none
       )
 
     SetLowest pitchString ->
       case String.toInt pitchString of
-        Ok pitch ->
+        Just pitch ->
           let
             lowest =
               Lowest.fromPitch model.parse.scale.tonic pitch
@@ -374,8 +376,8 @@ update msg model =
               "lowest"
               (Parse.setLowest (Just lowest))
               { model | dragLowest = Nothing }
-        Err _ ->
-          Debug.crash
+        Nothing ->
+          Debug.todo
             ("Main.update: Bad pitch: " ++ pitchString)
 
     UseDefaultLowest True ->
@@ -408,17 +410,21 @@ update msg model =
           , codeChanged model parse
           )
 
-    UrlChanged location ->
+    LinkClicked urlRequest ->
+      case urlRequest of
+        Browser.Internal url ->
+          ( model, Navigation.load (Url.toString url) )
+        Browser.External url ->
+          ( model, Navigation.load url )
+
+    UrlChanged url ->
       if model.saveState == Saving then
         ( { model | saveState = Saved }
-        , if model.title == "" then
-            Ports.setTitle model.parse.defaultTitle
-          else
-            Ports.setTitle model.title
+        , Cmd.none
         )
       else if
         model.saveState == Unsaved &&
-          location.hash == ""
+          Maybe.withDefault "" url.fragment == ""
       then
         ( model, Cmd.none )
       else
@@ -447,7 +453,6 @@ update msg model =
             ( newModel
             , Cmd.batch [ cmd, Theater.focus ]
             )
-
 
     SetStorage storage ->
       ( { model
@@ -487,9 +492,10 @@ update msg model =
     IdChordMsg (IdChord.Play (idChord, now)) ->
       let
         lowestPitch =
-          Lowest.pitch model.parse.scale.tonic model.parse.lowest
+          Lowest.toPitch model.parse.scale.tonic model.parse.lowest
         keyboard = model.keyboard
-      in let
+      in
+      let
         ( newPlayer, sequence, changes ) =
           case model.storage.playStyle of
             PlayStyle.Strum ->
@@ -534,7 +540,8 @@ update msg model =
                 else
                   []
               )
-      in let
+      in
+      let
         newKeyboard =
           { keyboard
           | player = newPlayer
@@ -604,7 +611,8 @@ update msg model =
               Pane.Search
             _ ->
               model.storage.pane
-      in let
+      in
+      let
         newPlayStatus =
           Keyboard.status
             (model.storage.playStyle == PlayStyle.Silent)
@@ -661,7 +669,8 @@ replace : Replacement -> Model -> ( Model, Cmd msg )
 replace replacement model =
   let
     code = Replacement.apply replacement model.parse.code
-  in let
+  in
+  let
     parse = Parse.update code model.parse
   in
     ( { model
@@ -716,7 +725,8 @@ doAction action f model =
       Just replacement ->
         let
           code = Replacement.apply replacement oldCode
-        in let
+        in
+        let
           parse = Parse.update code model.parse
         in
           ( { model
@@ -741,32 +751,21 @@ doAction action f model =
 
 codeChanged : Model -> Parse -> Cmd msg
 codeChanged model parse =
-  Cmd.batch
-    [ if model.saveState == Saved then
-        Navigation.newUrl "#"
-      else
-        Cmd.none
-    , if model.saveState == Saved then
-        if model.title == "" then
-          Ports.setTitle ("*" ++ parse.defaultTitle)
-        else
-          Ports.setTitle ("*" ++ model.title)
-      else if
-        parse.defaultTitle /= model.parse.defaultTitle
-      then
-        Ports.setTitle ("*" ++ parse.defaultTitle)
-      else
-        Cmd.none
-    ]
+  if model.saveState == Saved then
+    Navigation.pushUrl model.navigationKey "#"
+  else
+    Cmd.none
 
 setPlayer : Player -> Model -> Model
 setPlayer newPlayer model =
   let
     keyboard = model.keyboard
-  in let
+  in
+  let
     newKeyboard =
       { keyboard | player = newPlayer }
-  in let
+  in
+  let
     newPlayStatus =
       Keyboard.status
         (model.storage.playStyle == PlayStyle.Silent)
@@ -801,18 +800,36 @@ subscriptions model =
 
 -- VIEW
 
-view : Model -> Html Msg
+view : Model -> Document Msg
 view model =
+  { title =
+      String.concat
+        [ if model.saveState == Saved then
+            ""
+          else
+            "*"
+        , if model.title == "" then
+            model.parse.defaultTitle
+          else
+            model.title
+        , " - Chords"
+        ]
+  , body =
+      [ Html.Lazy.lazy viewGrid model
+      ]
+  }
+
+viewGrid : Model -> Html Msg
+viewGrid model =
   div
-    [ style
-        [ ( "font-family"
-          , "Arial, \"Helvetica Neue\", Helvetica, sans-serif"
-          )
-        , ( "line-height", "1.9" )
-        , ( "white-space", "nowrap" )
-        , ( "position", "relative" )
-        , ( "display", "grid" )
-        , ( "grid", """
+    [ style "font-family" "Arial, \"Helvetica Neue\", Helvetica, sans-serif"
+    , style "line-height" "1.9"
+    , style "white-space" "nowrap"
+    , style "position" "relative"
+    , style "display" "grid"
+    , style
+        "grid"
+        """
 "brand ."
 "title ."
 "bpm ."
@@ -827,8 +844,6 @@ view model =
 "pane pane"
 / minmax(auto, 60em) 1fr
 """
-          )
-        ]
     ]
     [ Html.Lazy.lazy
         Warning.view
@@ -846,7 +861,7 @@ view model =
         model.title
         model.saveState
     , viewBpm
-        (hasBackup "bpm" model)
+        (actionHasBackup "bpm" model)
         ( Maybe.withDefault
             (Maybe.withDefault model.customBpm model.parse.bpm)
             model.dragBpm
@@ -865,11 +880,11 @@ view model =
         (model.parse.bpm == Nothing)
     , Html.Lazy.lazy2
         viewScale
-        (hasBackup "scale" model)
+        (actionHasBackup "scale" model)
         model.parse.scale
     , Html.Lazy.lazy3
         viewLowest
-        (hasBackup "lowest" model)
+        (actionHasBackup "lowest" model)
         ( Maybe.withDefault
             (Maybe.withDefault model.customLowest model.parse.lowest)
             model.dragLowest
@@ -877,19 +892,15 @@ view model =
         model.parse
     , div
         [ id "theater"
-        , style
-            [ ( "grid-area", "theater" )
-            , ( "font-family"
-              , "\"Lucida Console\", Monaco, monospace"
-              )
-            , ( "font-size", "160%" )
-            , ( "line-height", "initial" )
-            , ( "position", "absolute" )
-            , ( "top", "0" )
-            , ( "left", "0" )
-            , ( "right", "0" )
-            , ( "bottom", "0" )
-            ]
+        , style "grid-area" "theater"
+        , style "font-family" "\"Lucida Console\", Monaco, monospace"
+        , style "font-size" "160%"
+        , style "line-height" "initial"
+        , style "position" "absolute"
+        , style "top" "0"
+        , style "left" "0"
+        , style "right" "0"
+        , style "bottom" "0"
         ]
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
@@ -912,10 +923,8 @@ view model =
         model.storage
     , span
         [ id "pane"
-        , style
-            [ ( "grid-area", "pane" )
-            , ( "min-height", "32em" )
-            ]
+        , style "grid-area" "pane"
+        , style "min-height" "32em"
         ]
         [ case
             Maybe.withDefault
@@ -958,8 +967,8 @@ view model =
         ]
     ]
 
-hasBackup : String -> Model -> Bool
-hasBackup action model =
+actionHasBackup : String -> Model -> Bool
+actionHasBackup action model =
   case model.memory of
     Nothing ->
       False
@@ -970,21 +979,17 @@ viewBrand : Tour -> Html Msg
 viewBrand tour =
   span
     [ id "brand"
-    , style
-        [ ( "grid-area", "brand" )
-        , ( "display", "flex" )
-        , ( "align-items", "center" )
-        , ( "margin-bottom", "8px" )
-        ]
+    , style "grid-area" "brand"
+    , style "display" "flex"
+    , style "align-items" "center"
+    , style "margin-bottom" "8px"
     ]
     ( List.concat
         [ [ span
-              [ style
-                  [ ( "font-size", "150%" )
-                  , ( "line-height", "initial" )
-                  ]
+              [ style "font-size" "150%"
+              , style "line-height" "initial"
               ]
-              [ Html.text "Chord progression editor\xA0"
+              [ Html.text "Chord progression editor\u{00A0}"
               ]
           ]
         , if tour.visible then
@@ -992,7 +997,7 @@ viewBrand tour =
                 [ onInput SetPageNumber
                 ]
                 (Tour.viewPageOptions tour.pageNumber)
-            , Html.text "\xA0"
+            , Html.text "\u{00A0}"
             , button
                 [ class "button"
                 , onClick CloseTour
@@ -1012,9 +1017,7 @@ viewBrand tour =
                 ]
             ]
         , [ span
-              [ style
-                  [ ( "flex", "1" )
-                  ]
+              [ style "flex" "1"
               ]
               []
           , a
@@ -1030,9 +1033,7 @@ viewTitle : String -> String -> SaveState -> Html Msg
 viewTitle defaultTitle title saveState =
   span
     [ id "title"
-    , style
-        [ ( "grid-area", "title" )
-        ]
+    , style "grid-area" "title"
     ]
     [ Html.text "Title "
     , input
@@ -1064,44 +1065,39 @@ viewBpm : Bool -> Float -> Maybe Float -> Bool -> Html Msg
 viewBpm hasBackup bpm maybeDefaultBpm useDefault =
   span
     [ id "bpm"
-    , style
-        [ ( "grid-area", "bpm" )
-        , yellowIf hasBackup
-        , ( "display", "flex" )
-        , ( "align-items", "center" )
-        ]
+    , style "grid-area" "bpm"
+    , yellowIf hasBackup
+    , style "display" "flex"
+    , style "align-items" "center"
     ]
     [ span []
-        [ Html.text "Tempo\xA0" ]
+        [ Html.text "Tempo\u{00A0}" ]
     , input
         [ type_ "range"
         , class "range"
         , disabled useDefault
         , onInput DragBpm
         , onChange SetBpm
-        , value (toString bpm)
+        , value (String.fromFloat bpm)
         , Attributes.size 3
         , Attributes.min "60"
         , Attributes.max "140"
         , Attributes.step "5"
-        , style
-            [ ( "width", "9.5em" )
-            ]
+        , style "width" "9.5em"
         ]
         []
     , span
-        [ style
-            [ ( "min-width", "15ch" )
-            , ( "color"
-              , if useDefault then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
+        [ style "min-width" "15ch"
+        , style
+            "color"
+            ( if useDefault then
+                "GrayText"
+              else
+                ""
+            )
         ]
-        [ Html.text ("\xA0" ++ toString bpm ++ " BPM") ]
-    , Html.text "\xA0"
+        [ Html.text ("\u{00A0}" ++ String.fromFloat bpm ++ " BPM") ]
+    , Html.text "\u{00A0}"
     , label
         [ class "checkboxLabel"
         ]
@@ -1116,7 +1112,7 @@ viewBpm hasBackup bpm maybeDefaultBpm useDefault =
                 ( Just defaultBpm, True ) ->
                   String.concat
                     [ " Default ("
-                    , toString defaultBpm
+                    , String.fromFloat defaultBpm
                     , " BPM)"
                     ]
                 _ ->
@@ -1129,10 +1125,8 @@ viewScale : Bool -> Scale -> Html Msg
 viewScale hasBackup scale =
   span
     [ id "scale"
-    , style
-        [ ( "grid-area", "scale" )
-        , yellowIf hasBackup
-        ]
+    , style "grid-area" "scale"
+    , yellowIf hasBackup
     ]
     [ Html.text "Key "
     , select
@@ -1148,7 +1142,7 @@ viewScale hasBackup scale =
             [ ( Pitch.view 0 scale.tonic ++ " Major"
               , False
               )
-            , ( Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor"
+            , ( Pitch.view 3 (modBy 12 (scale.tonic - 3)) ++ " Minor"
               , True
               )
             ]
@@ -1160,10 +1154,9 @@ viewTonicOption scale namesake =
   let
     tonic =
       if scale.minor then
-        (namesake + 3) % 12
+        modBy 12 (namesake + 3)
       else
         namesake
-  in let
     scaleName =
       if scale.minor then
         Pitch.view 3 namesake ++ " Minor"
@@ -1171,7 +1164,7 @@ viewTonicOption scale namesake =
         Pitch.view 0 namesake ++ " Major"
   in
     option
-      [ value (toString tonic)
+      [ value (String.fromInt tonic)
       , selected (scale.tonic == tonic)
       ]
       [ Html.text scaleName
@@ -1181,15 +1174,13 @@ viewLowest : Bool -> Int -> Parse -> Html Msg
 viewLowest hasBackup lowest parse =
   span
     [ id "lowest"
-    , style
-        [ ( "grid-area", "lowest" )
-        , yellowIf hasBackup
-        , ( "display", "flex" )
-        , ( "align-items", "center" )
-        ]
+    , style "grid-area" "lowest"
+    , yellowIf hasBackup
+    , style "display" "flex"
+    , style "align-items" "center"
     ]
     [ span []
-        [ Html.text "Lowest scale degree\xA0" ]
+        [ Html.text "Lowest scale degree\u{00A0}" ]
     , input
         [ type_ "range"
         , class "range"
@@ -1197,29 +1188,26 @@ viewLowest hasBackup lowest parse =
         , onInput DragLowest
         , onChange SetLowest
         , value
-            ( toString
-                (Lowest.pitch parse.scale.tonic (Just lowest))
+            ( String.fromInt
+                (Lowest.toPitch parse.scale.tonic (Just lowest))
             )
-        , Attributes.min (toString Lowest.rangeStart)
-        , Attributes.max (toString (Lowest.rangeStart + 11))
-        , style
-            [ ( "width", "10em" )
-            ]
+        , Attributes.min (String.fromInt Lowest.rangeStart)
+        , Attributes.max (String.fromInt (Lowest.rangeStart + 11))
+        , style "width" "10em"
         ]
         []
     , span
-        [ style
-            [ ( "min-width", "9ch" )
-            , ( "color"
-              , if parse.lowest == Nothing then
-                  "GrayText"
-                else
-                  ""
-              )
-            ]
+        [ style "min-width" "9ch"
+        , style
+            "color"
+            ( if parse.lowest == Nothing then
+                "GrayText"
+              else
+                ""
+            )
         ]
-        ( Html.text "\xA0" :: Lowest.view parse.scale lowest )
-    , Html.text "\xA0"
+        ( Html.text "\u{00A0}" :: Lowest.view parse.scale lowest )
+    , Html.text "\u{00A0}"
     , label
         [ class "checkboxLabel"
         ]
@@ -1243,26 +1231,27 @@ viewLowest hasBackup lowest parse =
         )
     ]
 
-yellowIf : Bool -> (String, String)
+yellowIf : Bool -> Attribute msg
 yellowIf condition =
-  ( "background", if condition then "#fafac0" else "inherit" )
+  if condition then
+    style "background" "#fafac0"
+  else
+    style "background" "inherit"
 
 viewHighlights : Parse -> Buffet -> Html Msg
 viewHighlights parse buffet =
   pre
     [ id "highlights"
-    , style
-        [ ( "grid-area", "theater" )
-        , ( "font-family", "\"Lucida Console\", Monaco, monospace" )
-        , ( "font-size", "160%" )
-        , ( "line-height", "initial" )
-        , ( "padding", "8px" )
-        , ( "border", "2px solid")
-        , ( "margin", "0" )
-        , ( "white-space", "pre-wrap" )
-        , ( "word-wrap", "break-word" )
-        , ( "color", "transparent" )
-        ]
+    , style "grid-area" "theater"
+    , style "font-family" "\"Lucida Console\", Monaco, monospace"
+    , style "font-size" "160%"
+    , style "line-height" "initial"
+    , style "padding" "8px"
+    , style "border" "2px solid"
+    , style "margin" "0"
+    , style "white-space" "pre-wrap"
+    , style "word-wrap" "break-word"
+    , style "color" "transparent"
     ]
     ( List.map
         Swatch.view
@@ -1282,28 +1271,24 @@ viewPlayStyle : Storage -> Bool -> Html Msg
 viewPlayStyle storage playing =
   span
     [ id "playStyle"
-    , style
-        [ ( "grid-area", "playStyle" )
-        , ( "position", "-webkit-sticky" )
-        , ( "position", "sticky" )
-        , ( "top", "0px" )
-        , ( "z-index", "2" )
-        , ( "justify-self", "start" )
-        , ( "margin-left", "-8px" )
-        , ( "padding", "8px" )
-        , ( "background", "white" )
-        , ( "border-bottom-right-radius", "5px" )
-        , ( "box-shadow", "rgba(0, 0, 0, 0.5) 1px 1px 8px -1px" )
-        , ( "min-height", "2.8em" )
-        ]
+    , style "grid-area" "playStyle"
+    , style "position" "-webkit-sticky"
+    , style "position" "sticky"
+    , style "top" "0px"
+    , style "z-index" "2"
+    , style "justify-self" "start"
+    , style "margin-left" "-8px"
+    , style "padding" "8px"
+    , style "background" "white"
+    , style "border-bottom-right-radius" "5px"
+    , style "box-shadow" "rgba(0, 0, 0, 0.5) 1px 1px 8px -1px"
+    , style "min-height" "2.8em"
     ]
     [ span
-        [ style
-            [ ( "display", "flex" )
-            , ( "align-items", "center" )
-            ]
+        [ style "display" "flex"
+        , style "align-items" "center"
         ]
-        [ Html.text "Play chords as\xA0"
+        [ Html.text "Play chords as\u{00A0}"
         , Html.map
             (\x -> SetStorage { storage | playStyle = x })
             ( Radio.view
@@ -1316,7 +1301,7 @@ viewPlayStyle storage playing =
                 , ( "Silent", PlayStyle.Silent )
                 ]
             )
-        , Html.text "\xA0"
+        , Html.text "\u{00A0}"
         , button
             [ class "button"
             , isAudioTimeButton True
@@ -1324,57 +1309,47 @@ viewPlayStyle storage playing =
             , disabled (not playing)
             ]
             [ span
-                [ style
-                   [ ( "background", "currentcolor" )
-                   , ( "width", "0.75em" )
-                   , ( "height", "0.75em" )
-                   , ( "display", "inline-block" )
-                   ]
+                [ style "background" "currentcolor"
+                , style "width" "0.75em"
+                , style "height" "0.75em"
+                , style "display" "inline-block"
                 ]
                 []
             , Html.text " Stop"
             ]
-        , Html.text "\xA0Vol.\xA0"
+        , Html.text "\u{00A0}Vol.\u{00A0}"
         , span
-            [ style
-                [ ( "position", "relative" )
-                ]
+            [ style "position" "relative"
             ]
             [ input
                 [ type_ "range"
                 , class "range"
                 , onInput (SetStorage << Storage.setVolume storage)
-                , value (toString storage.volume)
+                , value (String.fromInt storage.volume)
                 , Attributes.min "0"
                 , Attributes.max "30"
-                , style
-                    [ ( "width", "8em" )
-                    , ( "display", "block" )
-                    , ( "padding-bottom", "0" )
-                    ]
+                , style "width" "8em"
+                , style "display" "block"
+                , style "padding-bottom" "0"
                 ]
                 []
             , canvas
-                [ style
-                    [ ( "position", "absolute" )
-                    , ( "left", "6px" )
-                    , ( "width", "calc(100% - 12px)" )
-                    , ( "top", "100%" )
-                    , ( "height", "1em" )
-                    ]
+                [ style "position" "absolute"
+                , style "left" "6px"
+                , style "width" "calc(100% - 12px)"
+                , style "top" "100%"
+                , style "height" "1em"
                 , Attributes.width 100
                 , Attributes.height 11
                 , id "meter"
                 ]
                 []
             ]
-        , Html.text "\xA0"
+        , Html.text "\u{00A0}"
         , span
-            [ style
-                [ ( "min-width", "2ch" )
-                ]
+            [ style "min-width" "2ch"
             ]
-            [ Html.text (toString storage.volume)
+            [ Html.text (String.fromInt storage.volume)
             ]
         ]
     , viewPlaySettings storage
@@ -1385,12 +1360,10 @@ viewPlaySettings storage =
   case storage.playStyle of
     PlayStyle.Strum ->
       span
-        [ style
-            [ ( "display", "flex" )
-            , ( "align-items", "center" )
-            ]
+        [ style "display" "flex"
+        , style "align-items" "center"
         ]
-        [ Html.text "Strum interval\xA0"
+        [ Html.text "Strum interval\u{00A0}"
         , input
             [ type_ "range"
             , class "range"
@@ -1398,28 +1371,24 @@ viewPlaySettings storage =
             , Attributes.min "10"
             , Attributes.max "90"
             , Attributes.step "20"
-            , value (toString (1000 * storage.strumInterval))
-            , style
-                [ ( "width", "5em" )
-                ]
+            , value (String.fromFloat (1000 * storage.strumInterval))
+            , style "width" "5em"
             ]
             []
         , Html.text
             ( String.concat
-                [ "\xA0"
-                , toString (1000 * storage.strumInterval)
+                [ "\u{00A0}"
+                , String.fromFloat (1000 * storage.strumInterval)
                 , "ms between notes"
                 ]
             )
         ]
     PlayStyle.StrumPattern ->
       span
-        [ style
-            [ ( "display", "block" )
-            , ( "align-items", "center" )
-            ]
+        [ style "display" "block"
+        , style "align-items" "center"
         ]
-        [ Html.text "Strum pattern\xA0"
+        [ Html.text "Strum pattern\u{00A0}"
         , Html.map
             (\x -> SetStorage { storage | strumPattern = x })
             ( Radio.view
@@ -1450,17 +1419,14 @@ viewPaneSelector tour scale storage =
   let
     scaleName =
       if scale.minor then
-        Pitch.view 3 ((scale.tonic - 3) % 12) ++ " Minor"
+        Pitch.view 3 (modBy 12 (scale.tonic - 3)) ++ " Minor"
       else
         Pitch.view 0 scale.tonic ++ " Major"
-  in let
     paneShadow = Tour.paneShadow tour
   in
     span
       [ id "paneSelector"
-      , style
-          [ ( "grid-area", "paneSelector" )
-          ]
+      , style "grid-area" "paneSelector"
       ]
       [ Html.text "View "
       , Html.map
@@ -1535,7 +1501,7 @@ interpretHistoryMsg historyMsg =
 viewKeyboard : Int -> Maybe Int -> Keyboard -> Html Msg
 viewKeyboard tonic lowest keyboard =
   let
-    lowestPitch = Lowest.pitch tonic lowest
+    lowestPitch = Lowest.toPitch tonic lowest
   in
     Html.map
       KeyboardMsg

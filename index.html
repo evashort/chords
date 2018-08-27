@@ -29,7 +29,7 @@
     <script src="theater.js"></script>
     <script src="harp.js"></script>
     <script src="download.js"></script>
-    <script src="elm.js"></script>
+    <script src="main.js"></script>
     <style>
     button {
       font: inherit;
@@ -176,10 +176,6 @@
         }
       );
 
-      function setTitle(title) {
-        document.title = title + " - Chords";
-      }
-
       function scrollIntoView(id) {
         withElement(id, scrollIntoViewHelp);
       }
@@ -239,13 +235,13 @@
 
       var mac = navigator.userAgent.indexOf("Mac OS X") != -1;
 
-      var app = Elm.Main.fullscreen(
-        {
+      var app = Elm.Main.init({
+        flags: {
           storage: storage,
           canStore: canStore,
           mac: mac
         }
-      );
+      });
 
       app.ports.changeAudio.subscribe(changeAudio);
       app.ports.setVolume.subscribe(setVolume);
@@ -259,7 +255,6 @@
       app.ports.clearPlucks.subscribe(clearPlucks);
       app.ports.saveStorage.subscribe(saveStorage);
       app.ports.deleteStorage.subscribe(deleteStorage);
-      app.ports.setTitle.subscribe(setTitle);
       app.ports.download.subscribe(download);
       app.ports.scrollIntoView.subscribe(scrollIntoView);
       onbeforeunload = showUnsavedWarning;

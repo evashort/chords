@@ -30,13 +30,13 @@ notes : StrumPattern -> Bool -> Int -> Chord -> List StrumNote
 notes pattern highStart lowestPitch chord =
   let
     rootPitch =
-      (chord.root - lowestPitch) % 12 + lowestPitch
-  in let
+      modBy 12 (chord.root - lowestPitch) + lowestPitch
+  in
+  let
     chordFrequencies =
       List.map
         (pitchFrequency << (+) rootPitch)
         (0 :: chord.flavor)
-  in let
     strings =
       case Dict.get chord.flavor schemes of
         Just scheme ->
@@ -48,12 +48,6 @@ notes pattern highStart lowestPitch chord =
             scheme.high
         Nothing ->
           List.range 0 (List.length chord.flavor)
-  in let
-    stringFrequencies =
-      List.map
-        (stringFrequency chordFrequencies)
-        strings
-  in let
     patternStrums =
       case pattern of
         Basic ->
@@ -62,7 +56,12 @@ notes pattern highStart lowestPitch chord =
           indie
         Modern ->
           modern
-  in let
+  in
+  let
+    stringFrequencies =
+      List.map
+        (stringFrequency chordFrequencies)
+        strings
     strums =
       case pattern of
         Basic ->
@@ -89,14 +88,15 @@ stringFrequency : List Float -> Int -> Float
 stringFrequency frequencies string =
   let
     lowFrequency =
-      case List.drop (abs (rem string 10)) frequencies of
+      case List.drop (abs (remainderBy 10 string)) frequencies of
         f :: _ ->
           f
         [] ->
-          Debug.crash
-            ("StrumPattern.stringFrequency: Bad string: " ++ toString string)
-  in let
-    octave = string // 10
+          Debug.todo
+            ( "StrumPattern.stringFrequency: Bad string: " ++
+                Debug.toString string
+            )
+    octave = modBy 10 string
   in
     lowFrequency * toFloat (2 ^ octave)
 
@@ -108,12 +108,13 @@ strumNotes strings i maybeStrum =
     Just strum ->
       let
         v = 0.01 * toFloat strum.v
-      in let
         droppedStrings = floor strum.missedStrings
-      in let
+      in
+      let
         missFraction =
           strum.missedStrings - toFloat droppedStrings
-      in let
+      in
+      let
         vs =
           if missFraction > 0 then
             (++)
@@ -126,9 +127,7 @@ strumNotes strings i maybeStrum =
             List.repeat
               (List.length strings - droppedStrings)
               v
-      in let
         t = 0.25 * toFloat i
-      in let
         orderedStrings =
           if strum.up then
             List.reverse strings

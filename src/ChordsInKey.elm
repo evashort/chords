@@ -19,14 +19,10 @@ view : Storage -> Scale -> PlayStatus -> Html Msg
 view storage scale playStatus =
   span
     [ id "chordsInKeyPane"
-    , style
-        [ ( "display", "block" )
-        ]
+    , style "display" "block"
     ]
     [ span
-        [ style
-            [ ( "display", "block" )
-            ]
+        [ style "display" "block"
         ]
         [ Html.map
             (\x -> SetStorage { storage | addedToneChords = x })
@@ -96,15 +92,13 @@ view storage scale playStatus =
 viewGrid : Scale -> PlayStatus -> List String -> Html Msg
 viewGrid scale playStatus rows =
   span
-    [ style
-        [ ( "display", "inline-grid" )
-        , ( "grid-template-rows", "auto" )
-        , ( "grid-auto-rows", "75px" )
-        , ( "grid-template-columns", "auto" )
-        , ( "grid-auto-columns", "75px" )
-        , ( "grid-row-gap", "5px" )
-        , ( "grid-column-gap", "5px" )
-        ]
+    [ style "display" "inline-grid"
+    , style "grid-template-rows" "auto"
+    , style "grid-auto-rows" "75px"
+    , style "grid-template-columns" "auto"
+    , style "grid-auto-columns" "75px"
+    , style "grid-row-gap" "5px"
+    , style "grid-column-gap" "5px"
     ]
     ( case rows of
         [] ->
@@ -129,14 +123,12 @@ split string =
 viewDegree : Int -> String -> Html msg
 viewDegree i name =
   span
-    [ style
-        [ ( "grid-row", "1" )
-        , ( "grid-column", toString (i + 2) )
-        , ( "align-self", "baseline" )
-        , ( "justify-self", "center" )
-        , ( "font-size", "150%" )
-        , ( "line-height", "initial" )
-        ]
+    [ style "grid-row" "1"
+    , style "grid-column" (String.fromInt (i + 2))
+    , style "align-self" "baseline"
+    , style "justify-self" "center"
+    , style "font-size" "150%"
+    , style "line-height" "initial"
     ]
     ( if String.endsWith "o" name then
         [ text (String.dropRight 1 name)
@@ -167,13 +159,11 @@ viewRow scale playStatus i row =
 viewCategory : Int -> String -> Html msg
 viewCategory i name =
   span
-    [ style
-        [ ( "grid-column", "1" )
-        , ( "grid-row", toString (i + 2) )
-        , ( "align-self", "center" )
-        , ( "justify-self", "center" )
-        , ( "font-size", "initial" )
-        ]
+    [ style "grid-column" "1"
+    , style "grid-row" (String.fromInt (i + 2))
+    , style "align-self" "center"
+    , style "justify-self" "center"
+    , style "font-size" "initial"
     ]
     ( if String.endsWith "th" name then
         [ text (String.dropRight 2 name)
@@ -189,10 +179,8 @@ viewCell tonic playStatus y x code =
   case Chord.fromCode code of
     Nothing ->
       span
-        [ style
-            [ ( "grid-row-start", toString (y + 2) )
-            , ( "grid-column-start", toString (x + 2) )
-            ]
+        [ style "grid-row-start" (String.fromInt (y + 2))
+        , style "grid-column-start" (String.fromInt (x + 2))
         ]
         []
     Just chord ->
@@ -202,20 +190,20 @@ viewCell tonic playStatus y x code =
             IdChord.fromChord (Chord.transpose tonic chord)
           of
             Nothing ->
-              Debug.crash
-                ("ChordsInKey.viewCell: Unknown chord " ++ toString chord)
+              Debug.todo
+                ( "ChordsInKey.viewCell: Unknown chord " ++
+                    Debug.toString chord
+                )
             Just something ->
               something
       in
         Html.map
           IdChordMsg
           ( span
-              [ style
-                  [ ( "grid-row-start", toString (y + 2) )
-                  , ( "grid-column-start", toString (x + 2) )
-                  , ( "position", "relative" )
-                  , ( "font-size", "150%" )
-                  ]
+              [ style "grid-row-start" (String.fromInt (y + 2))
+              , style "grid-column-start" (String.fromInt (x + 2))
+              , style "position" "relative"
+              , style "font-size" "150%"
               ]
               (IdChord.view tonic playStatus idChord)
           )

@@ -3,7 +3,7 @@ module Indent exposing (highlights, remove)
 import Highlight exposing (Highlight)
 import Substring exposing (Substring)
 
-import Regex exposing (Regex, HowMany(..))
+import Regex exposing (Regex)
 
 highlights : List Substring -> List Highlight
 highlights lines =
@@ -13,10 +13,11 @@ lineHighlights : Substring -> List Highlight
 lineHighlights line =
   List.map
     (Highlight "#ffffff" "#ff0000")
-    (Substring.find (AtMost 1) indentRegex line)
+    (Substring.find indentRegex line)
 
 indentRegex : Regex
-indentRegex = Regex.regex "^ +"
+indentRegex =
+  Maybe.withDefault Regex.never (Regex.fromString "^ +")
 
 remove : List Substring -> List Substring
 remove lines =

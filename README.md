@@ -69,21 +69,26 @@ required by
 [WCAG 2.0](https://www.w3.org/TR/UNDERSTANDING-WCAG20/visual-audio-contrast-contrast.html).
 
 ## Build steps
-First, download Elm from http://elm-lang.org/
+1. Install Elm from http://elm-lang.org/
 
-To build in Atom, install the
-[Atom Build package](https://atom.io/packages/build) and press cmd+alt+b /
-ctrl+alt+b to execute the build command found in
-[`.atom-build.yml`](https://github.com/evanshort73/chords/blob/master/.atom-build.yml).
+1. From the project folder, run `elm make src/Main.elm --output main.js`
 
-To build from the command line, navigate to the repo folder and enter the
-build command found in
-[`.atom-build.yml`](https://github.com/evanshort73/chords/blob/master/.atom-build.yml).
+1. Run `elm reactor`
 
-To run, open `index.html` in your browser.
+1. Go to the URL shown, most likely http://localhost:8000
 
-When testing locally on Microsoft Edge, local storage is disabled due to an
-internal browser error.
+1. Click on `index.html`
+
+## IDE setup
+1. Install VS Code from https://code.visualstudio.com/
+
+1. Within VS Code, install the `elm` extension
+
+1. Install Node.js from https://nodejs.org/en/
+
+1. Use npm to install elm-live: https://github.com/architectcodes/elm-live
+
+In [`.vscode/tasks.json`](https://github.com/evanshort73/chords/blob/master/.vscode/tasks.json), there is a build command to start elm-live from within VS Code. To run it, click *Run Build Task...* in the *Tasks* menu. You only have to do this once at the beginning of each session. Once elm-live is running, it will recompile the project every time you save a file. Your changes should appear immediately at the URL displayed by elm-live, most likely http://localhost:8000/
 
 ## Implementation details
 On the JS side, I use the Web Audio API to create a new chain of audio nodes
@@ -166,9 +171,9 @@ a `train`, and each row of data is called a `car`.
 
 ### Fail loudly
 It's not always practical to rely on Elm's guarantee of no runtime errors. For
-example, you might let `y = x % 12` and then assume that `y < 12`. Or you
+example, you might let `y = modBy 12 x` and then assume that `y < 12`. Or you
 add an item to a list and then assume that the list is not empty. Make these
-assumptions explicit by calling `Debug.crash` if they fail and printing some
+assumptions explicit by calling `Debug.todo` if they fail and printing some
 useful information.
 
 ### Code style

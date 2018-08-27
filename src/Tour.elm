@@ -86,17 +86,15 @@ view mac tour =
     else
       case List.drop (tour.pageNumber - 1) pageViews of
         [] ->
-          Debug.crash
+          Debug.todo
             ( "Tour.view: Page number out of range: " ++
-                toString tour.pageNumber
+                Debug.toString tour.pageNumber
             )
         pageView :: _ ->
           pageView
   else
     span
-      [ style
-          [ ( "display", "none" )
-          ]
+      [ style "display" "none"
       ]
       []
 
@@ -107,9 +105,9 @@ getTitle : Int -> String
 getTitle pageNumber =
   case List.drop (pageNumber - 1) pages of
     [] ->
-      Debug.crash
+      Debug.todo
         ( "Tour.getTitle: Page number out of range: " ++
-            toString pageNumber
+            Debug.toString pageNumber
         )
     page :: _ ->
       page.title
@@ -130,60 +128,58 @@ pageViews =
 viewPage : Int -> Int -> Page -> Html Tour
 viewPage pageCount pageIndex page =
   span
-    [ style
-        [ ( "grid-area", page.gridArea )
-        , ( "position", "absolute" )
-        , ( "z-index", "3" )
-        , case ( page.orientation, page.anchor ) of
-            ( Above, BottomOf ) ->
-              ( "bottom"
-              , "calc(32px + " ++ toString page.y ++ "em)"
-              )
-            ( Below, TopOf ) ->
-              ( "top"
-              , "calc(32px + " ++ toString page.y ++ "em)"
-              )
-            ( Above, TopOf ) ->
-              ( "bottom"
-              , "calc(100% + 32px + " ++ toString page.y ++ "em)"
-              )
-            ( Below, BottomOf ) ->
-              ( "top"
-              , "calc(100% + 32px + " ++ toString page.y ++ "em)"
-              )
-        , ( "left"
-          , if page.justify == CenterAt then
-              toString (page.x - 15) ++ "em"
-            else
-              toString page.x ++ "em"
-          )
-        , ( "background", "white" )
-        , ( "border", "1px solid" )
-        , ( "border-radius", "16px" )
-        , ( "width", "30em" )
-        , ( "white-space", "normal" )
-        , ( "line-height", "normal" )
-        , ( "padding", "1em" )
-        , ( "box-shadow", "rgba(0, 0, 0, 0.5) 2px 2px 8px 1px" )
-        ]
+    [ style "grid-area" page.gridArea
+    , style "position" "absolute"
+    , style "z-index" "3"
+    , case ( page.orientation, page.anchor ) of
+        ( Above, BottomOf ) ->
+          style
+            "bottom"
+            ("calc(32px + " ++ String.fromFloat page.y ++ "em)")
+        ( Below, TopOf ) ->
+          style
+            "top"
+            ("calc(32px + " ++ String.fromFloat page.y ++ "em)")
+        ( Above, TopOf ) ->
+          style
+            "bottom"
+            ("calc(100% + 32px + " ++ String.fromFloat page.y ++ "em)")
+        ( Below, BottomOf ) ->
+          style
+            "top"
+            ("calc(100% + 32px + " ++ String.fromFloat page.y ++ "em)")
+    , style
+        "left"
+        ( if page.justify == CenterAt then
+            String.fromFloat (page.x - 15) ++ "em"
+          else
+            String.fromFloat page.x ++ "em"
+        )
+    , style "background" "white"
+    , style "border" "1px solid"
+    , style "border-radius" "16px"
+    , style "width" "30em"
+    , style "white-space" "normal"
+    , style "line-height" "normal"
+    , style "padding" "1em"
+    , style "box-shadow" "rgba(0, 0, 0, 0.5) 2px 2px 8px 1px"
     ]
     [ svg -- shadow adds 9px on top and left, 13px on bottom and right
         [ SA.width "56"
         , SA.height "56"
         , SA.viewBox "-9 -9 56 56"
+        , style "position" "absolute"
+        , if page.orientation == Above then
+            style "bottom" "-46px"
+          else
+            style "top" "-42px"
         , style
-            [ ( "position", "absolute" )
-            , if page.orientation == Above then
-                ( "bottom", "-46px" )
-              else
-                ( "top", "-42px" )
-            , ( "left"
-              , case page.justify of
-                  LeftAt -> "14px"
-                  CenterAt -> "calc(50% - 26px)"
-              )
-            , ( "pointer-events", "none" )
-            ]
+            "left"
+            ( case page.justify of
+                LeftAt -> "14px"
+                CenterAt -> "calc(50% - 26px)"
+            )
+        , style "pointer-events" "none"
         ]
         [ filter
             [ SA.id "aboveBlur"
@@ -237,43 +233,41 @@ viewPage pageCount pageIndex page =
             []
         ]
     , span
-        [ id ("tourArea" ++ toString (pageIndex + 1))
+        [ id ("tourArea" ++ String.fromInt (pageIndex + 1))
+        , style "position" "absolute"
+        , style "pointer-events" "none"
         , style
-            [ ( "position", "absolute" )
-            , ( "pointer-events", "none" )
-            , ( "top"
-              , if page.orientation == Below then
-                  "calc(-32px + " ++ toString -page.extension ++ "em)"
-                else
-                  "0em"
-              )
-            , ( "left", "0em" )
-            , ( "bottom"
-              , if page.orientation == Above then
-                  "calc(-32px + " ++ toString -page.extension ++ "em)"
-                else
-                  "0em"
-              )
-            , ( "right", "0em" )
-            ]
+            "top"
+            ( if page.orientation == Below then
+                "calc(-32px + " ++ String.fromFloat -page.extension ++ "em)"
+              else
+                "0em"
+            )
+        , style "left" "0em"
+        , style
+            "bottom"
+            ( if page.orientation == Above then
+                "calc(-32px + " ++ String.fromFloat -page.extension ++ "em)"
+              else
+                "0em"
+            )
+        , style "right" "0em"
         ]
         []
     , div
         []
         [ span
-            [ style
-                [ ( "font-size", "125%" )
-                , ( "font-weight", "bold" )
-                ]
+            [ style "font-size" "125%"
+            , style "font-weight" "bold"
             ]
-            [ text (page.title ++ "\xA0")
+            [ text (page.title ++ "\u{00A0}")
             ]
         , text
             ( String.concat
                 [ "(Page "
-                , toString (pageIndex + 1)
+                , String.fromInt (pageIndex + 1)
                 , "/"
-                , toString pageCount
+                , String.fromInt pageCount
                 , ")"
                 ]
             )
@@ -281,24 +275,20 @@ viewPage pageCount pageIndex page =
     , button
         [ class "close"
         , Attributes.title "Close"
-        , style
-            [ ( "position", "absolute" )
-            , ( "top", "6px" )
-            , ( "right", "6px" )
-            , ( "border", "none" )
-            , ( "border-radius", "50%" )
-            , ( "padding", "13px" )
-            , ( "cursor", "pointer" )
-            ]
+        , style "position" "absolute"
+        , style "top" "6px"
+        , style "right" "6px"
+        , style "border" "none"
+        , style "border-radius" "50%"
+        , style "padding" "13px"
+        , style "cursor" "pointer"
         , onClick (Tour False (pageIndex + 1))
         ]
         [ svg
             [ SA.width "15"
             , SA.height "15"
             , SA.viewBox "-0.1 -0.1 1.2 1.2"
-            , style
-                [ ( "display", "block" )
-                ]
+            , style "display" "block"
             ]
             [ path
                 [ SA.stroke "black"
@@ -312,9 +302,7 @@ viewPage pageCount pageIndex page =
         []
         page.paragraphs
     , div
-        [ style
-            [ ( "text-align", "right" )
-            ]
+        [ style "text-align" "right"
         ]
         [ button
             [ class "button"
@@ -572,106 +560,84 @@ pages =
           [ text "Chords are colored based on their harmonic function in the current key:"
           ]
       , ul
-          [ style
-              [ ( "list-style-type", "none" )
-              , ( "padding-left", "30px" )
-              ]
+          [ style "list-style-type" "none"
+          , style "padding-left" "30px"
           ]
           [ li
               []
               [ mark
-                  [ style
-                      [ ( "background", "#d0a0ff" )
-                      , ( "border-top-left-radius", "3px" )
-                      , ( "border-bottom-left-radius", "3px" )
-                      ]
+                  [ style "background" "#d0a0ff"
+                  , style "border-top-left-radius" "3px"
+                  , style "border-bottom-left-radius" "3px"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , mark
-                  [ style
-                      [ ( "background", "#b7caff" )
-                      ]
+                  [ style "background" "#b7caff"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , mark
-                  [ style
-                      [ ( "background", "#a2e1ff" )
-                      , ( "border-top-right-radius", "3px" )
-                      , ( "border-bottom-right-radius", "3px" )
-                      ]
+                  [ style "background" "#a2e1ff"
+                  , style "border-top-right-radius" "3px"
+                  , style "border-bottom-right-radius" "3px"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , text " = tonic"
               ]
           , li
               []
               [ mark
-                  [ style
-                      [ ( "background", "#9effd3" )
-                      , ( "border-top-left-radius", "3px" )
-                      , ( "border-bottom-left-radius", "3px" )
-                      ]
+                  [ style "background" "#9effd3"
+                  , style "border-top-left-radius" "3px"
+                  , style "border-bottom-left-radius" "3px"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , mark
-                  [ style
-                      [ ( "background", "#bdff8e" )
-                      ]
+                  [ style "background" "#bdff8e"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , mark
-                  [ style
-                      [ ( "background", "#d6f446" )
-                      , ( "border-top-right-radius", "3px" )
-                      , ( "border-bottom-right-radius", "3px" )
-                      ]
+                  [ style "background" "#d6f446"
+                  , style "border-top-right-radius" "3px"
+                  , style "border-bottom-right-radius" "3px"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , text " = subdominant"
               ]
           , li
               []
               [ mark
-                  [ style
-                      [ ( "background", "#ffad4c" )
-                      , ( "border-top-left-radius", "3px" )
-                      , ( "border-bottom-left-radius", "3px" )
-                      ]
+                  [ style "background" "#ffad4c"
+                  , style "border-top-left-radius" "3px"
+                  , style "border-bottom-left-radius" "3px"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , mark
-                  [ style
-                      [ ( "background", "#ff997f" )
-                      ]
+                  [ style "background" "#ff997f"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , mark
-                  [ style
-                      [ ( "background", "#ff7da5" )
-                      , ( "border-top-right-radius", "3px" )
-                      , ( "border-bottom-right-radius", "3px" )
-                      ]
+                  [ style "background" "#ff7da5"
+                  , style "border-top-right-radius" "3px"
+                  , style "border-bottom-right-radius" "3px"
                   ]
-                  [ text "\xA0\xA0\xA0"
+                  [ text "\u{00A0}\u{00A0}\u{00A0}"
                   ]
               , text " = dominant"
               ]
           , li
               []
               [ mark
-                  [ style
-                      [ ( "background", "#784c00" )
-                      , ( "color", "white" )
-                      , ( "border-radius", "3px" )
-                      ]
+                  [ style "background" "#784c00"
+                  , style "color" "white"
+                  , style "border-radius" "3px"
                   ]
                   [ text "Dark background"
                   ]
@@ -709,12 +675,12 @@ viewPageOptions pageNumber =
 viewPageOption : Int -> Int -> Page -> Html msg
 viewPageOption pageNumber pageIndex page =
   option
-    [ value (toString (pageIndex + 1))
+    [ value (String.fromInt (pageIndex + 1))
     , selected (pageIndex + 1 == pageNumber)
     ]
     [ text
         ( String.concat
-            [ toString (pageIndex + 1)
+            [ String.fromInt (pageIndex + 1)
             , ". "
             , page.title
             ]
@@ -723,4 +689,4 @@ viewPageOption pageNumber pageIndex page =
 
 scrollIntoView : Int -> Cmd msg
 scrollIntoView pageNumber =
-  Ports.scrollIntoView ("tourArea" ++ toString pageNumber)
+  Ports.scrollIntoView ("tourArea" ++ String.fromInt pageNumber)

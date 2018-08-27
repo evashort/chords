@@ -2,15 +2,22 @@ module SharpCount exposing (fromFlavor, fromTonic)
 
 fromFlavor : Int -> List Int -> List Int
 fromFlavor rootSharpCount flavor =
-  List.scanl
-    (+)
+  cumulativeSum
     rootSharpCount
     (List.map delta (intervals flavor))
+
+cumulativeSum : Int -> List Int -> List Int
+cumulativeSum sum xs =
+  case xs of
+    [] ->
+      [ sum ]
+    x :: rest ->
+      sum :: cumulativeSum (sum + x) rest
 
 -- Tritones are considered diminished 5ths
 delta : Int -> Int
 delta interval =
-  (7 * interval + 6) % 12 - 6
+  modBy 12 (7 * interval + 6) - 6
 
 intervals : List Int -> List Int
 intervals flavor =

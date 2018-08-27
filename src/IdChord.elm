@@ -51,28 +51,28 @@ view tonic playStatus { id, chord } =
           , PlayStatus.hasDashedBorder playStatus id
           )
         ]
+    , style "position" "absolute"
+    , style "top" "-5px"
+    , style "left" "-5px"
+    , style "right" "-5px"
+    , style "bottom" "-5px"
+    , style "pointer-events" "none"
+    , style "border-width" "5px"
+    , style "border-radius" "10px"
     , style
-        [ ( "position", "absolute" )
-        , ( "top", "-5px" )
-        , ( "left", "-5px" )
-        , ( "right", "-5px" )
-        , ( "bottom", "-5px" )
-        , ( "pointer-events", "none" )
-        , ( "border-width", "5px" )
-        , ( "border-radius", "10px" )
-        , ( "border-color"
-          , if PlayStatus.hasBorder playStatus id then
-              "#3399ff"
-            else
-              "transparent"
-          )
-        , ( "border-style"
-          , if PlayStatus.hasDashedBorder playStatus id then
-              "dashed"
-            else
-              "solid"
-          )
-        ]
+        "border-color"
+        ( if PlayStatus.hasBorder playStatus id then
+            "#3399ff"
+          else
+            "transparent"
+        )
+    , style
+        "border-style"
+        ( if PlayStatus.hasDashedBorder playStatus id then
+            "dashed"
+          else
+            "solid"
+        )
     ]
     []
   , let
@@ -80,49 +80,47 @@ view tonic playStatus { id, chord } =
         if PlayStatus.hasStopButton playStatus id then
           Stop
         else
-          Play << (,) (IdChord id chord)
+          Play << Tuple.pair (IdChord id chord)
     in
       button
         [ isAudioTimeButton True
         , onClickWithAudioTime action
         , class "chordButton"
+        , style "width" "100%"
+        , style "height" "100%"
+        , style "background" (Colour.bg tonic chord)
+        , style "color" (Colour.fg chord)
+        , style "font" "inherit" -- somehow this redundant style changes
+                                 -- line-height and keeps text with
+                                 -- superscripts from sagging
+        , style "padding" "0"
         , style
-            [ ( "width", "100%" )
-            , ( "height", "100%" )
-            , ( "background", Colour.bg tonic chord )
-            , ( "color", Colour.fg chord )
-            , ( "font", "inherit" ) -- somehow this redundant style changes
-                                    -- line-height and keeps text with
-                                    -- superscripts from sagging
-            , ( "padding", "0" )
-            , ( "border"
-              , String.concat
-                  [ "1px solid rgba(0, 0, 0, "
-                  , Colour.borderOpacity chord
-                  , ")"
-                  ]
-              )
-            , ( "border-radius", "5px" )
-            , ( "box-shadow"
-              , String.concat
-                  [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
-                  , Colour.shineOpacity chord
-                  , ")"
-                  ]
-              )
-            , ( "cursor", "pointer" )
-            , ( "white-space", "nowrap" )
-            ]
+            "border"
+            ( String.concat
+                [ "1px solid rgba(0, 0, 0, "
+                , Colour.borderOpacity chord
+                , ")"
+                ]
+            )
+        , style "border-radius" "5px"
+        , style
+            "box-shadow"
+            ( String.concat
+                [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
+                , Colour.shineOpacity chord
+                , ")"
+                ]
+            )
+        , style "cursor" "pointer"
+        , style "white-space" "nowrap"
         ]
         ( if PlayStatus.hasStopButton playStatus id then
             [ span
-                [ style
-                   [ ( "background", Colour.fg chord )
-                   , ( "width", "1em" )
-                   , ( "height", "1em" )
-                   , ( "display", "inline-block" )
-                   , ( "vertical-align", "middle" )
-                   ]
+                [ style "background" (Colour.fg chord)
+                , style "width" "1em"
+                , style "height" "1em"
+                , style "display" "inline-block"
+                , style "vertical-align" "middle"
                 ]
                 []
             ]

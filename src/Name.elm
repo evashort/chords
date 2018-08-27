@@ -12,18 +12,18 @@ code chord =
     Nothing ->
       "unknown"
     Just scheme ->
-      Pitch.code scheme.sharpCount chord.root ++ scheme.code
+      Pitch.toCode scheme.sharpCount chord.root ++ scheme.code
 
 codeExtended : Chord -> String
 codeExtended chord =
   case Dict.get chord.flavor schemes of
     Just scheme ->
-      Pitch.code scheme.sharpCount chord.root ++ scheme.code
+      Pitch.toCode scheme.sharpCount chord.root ++ scheme.code
     Nothing ->
       String.join
         " "
         ( List.map
-            (toString << (+) chord.root)
+            (String.fromInt << (+) chord.root)
             (0 :: chord.flavor)
         )
 
@@ -32,7 +32,8 @@ view chord =
   let
     scheme =
       Maybe.withDefault unknown (Dict.get chord.flavor schemes)
-  in let
+  in
+  let
     normal =
       Pitch.view scheme.sharpCount chord.root ++ scheme.normal
   in
@@ -45,8 +46,8 @@ sharpCount : List Int -> Int
 sharpCount flavor =
   case Dict.get flavor schemes of
     Nothing ->
-      Debug.crash
-        ("Name.sharpCount: Unknown flavor: " ++ toString flavor)
+      Debug.todo
+        ("Name.sharpCount: Unknown flavor: " ++ Debug.toString flavor)
     Just scheme ->
       scheme.sharpCount
 

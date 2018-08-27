@@ -4,6 +4,7 @@ import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
+import Path
 import PlayStatus exposing (PlayStatus)
 import Name
 
@@ -22,41 +23,33 @@ view : Int -> PlayStatus -> Html IdChord.Msg
 view tonic playStatus =
   let
     rInner = 100
-  in let
     rOuter = 247.5
-  in let
     rMid = areaAverage 100 247.5
-  in let
     majorChords =
       List.filterMap
         ( IdChord.fromChord <<
             Chord [ 4, 7 ] <<
-            (\i -> (tonic + 7 * i) % 12)
+            (\i -> modBy 12 (tonic + 7 * i))
         )
         (List.range 0 11)
-  in let
     minorChords =
       List.filterMap
         ( IdChord.fromChord <<
             Chord [ 3, 7 ] <<
-            (\i -> (9 + tonic + 7 * i) % 12)
+            (\i -> modBy 12 (9 + tonic + 7 * i))
         )
         (List.range 0 11)
   in
     Html.span
       [ Attributes.id "circlePane"
-      , style
-          [ ( "position", "relative" )
-          , ( "display", "block" )
-          ]
+      , style "position" "relative"
+      , style "display" "block"
       ]
       [ Svg.svg
           [ width "500"
           , height "500"
           , viewBox "0 0 500 500"
-          , style
-              [ ( "display", "block" )
-              ]
+          , style "display" "block"
           ]
           ( List.concat
               [ [ gradients ]
@@ -74,12 +67,10 @@ view tonic playStatus =
               ]
           )
       , Html.span
-          [ style
-              [ ( "display", "block" )
-              , ( "pointer-events", "none" )
-              , ( "text-align", "center" )
-              , ( "font-size", "150%" )
-              ]
+          [ style "display" "block"
+          , style "pointer-events" "none"
+          , style "text-align" "center"
+          , style "font-size" "150%"
           ]
           ( List.concat
               [ List.indexedMap
@@ -101,12 +92,14 @@ gradients =
         ]
         [ Svg.stop
             [ Svg.Attributes.offset "0%"
-            , style [ ( "stop-color", "white" ), ( "stop-opacity", "1" ) ]
+            , style "stop-color" "white"
+            , style "stop-opacity" "1"
             ]
             []
         , Svg.stop
             [ Svg.Attributes.offset "60%"
-            , style [ ( "stop-color", "white" ), ( "stop-opacity", "0" ) ]
+            , style "stop-color" "white"
+            , style "stop-opacity" "0"
             ]
             []
         ]
@@ -174,7 +167,7 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
           if PlayStatus.hasStopButton playStatus id then
             IdChord.Stop
           else
-            IdChord.Play << (,) (IdChord id chord)
+            IdChord.Play << Tuple.pair (IdChord id chord)
       in
         Just
           ( path
@@ -182,7 +175,7 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
               , onClickWithAudioTime action
               , fill (Colour.bg tonic chord)
               , attribute "tabindex" "0"
-              , style [ ( "cursor", "pointer" ) ]
+              , style "cursor" "pointer"
               , d (twelfth 5 rInner rOuter i)
               ]
               []
@@ -192,7 +185,7 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
             [ fill "url(#twelfthShine)"
             , opacity (Colour.shineOpacity chord)
             , d (twelfth 7 rInner rOuter i)
-            , style [ ( "pointer-events", "none" ) ]
+            , style "pointer-events" "none"
             ]
             []
         )
@@ -202,7 +195,7 @@ viewChord tonic playStatus rInner rOuter i { id, chord } =
             , stroke "black"
             , strokeOpacity (Colour.borderOpacity chord)
             , d (twelfth 6 rInner rOuter i)
-            , style [ ( "pointer-events", "none" ) ]
+            , style "pointer-events" "none"
             ]
             []
         )
@@ -213,27 +206,24 @@ viewChordText : PlayStatus -> Float -> Int -> IdChord -> Html msg
 viewChordText playStatus r i { id, chord } =
   let
     ( x, y ) =
-      polar r (2 * pi * (0.25 - toFloat i / 12))
+      let a = 2 * pi * (0.25 - toFloat i / 12) in
+        ( polarX r a, polarY r a )
   in
     Html.span
-      [ style
-          [ ( "position", "absolute" )
-          , ( "left", toString (x - 0.5 * 75) ++ "px" )
-          , ( "top", toString (y - 0.5 * 75) ++ "px" )
-          , ( "width", "75px" )
-          , ( "line-height", "75px" )
-          , ( "color", Colour.fg chord )
-          ]
+      [ style "position"  "absolute"
+      , style "left" (String.fromFloat (x - 0.5 * 75) ++ "px")
+      , style "top" (String.fromFloat (y - 0.5 * 75) ++ "px")
+      , style "width" "75px"
+      , style "line-height" "75px"
+      , style "color" (Colour.fg chord)
       ]
       ( if PlayStatus.hasStopButton playStatus id then
           [ Html.span
-              [ style
-                  [ ( "width", "1em" )
-                  , ( "height", "1em" )
-                  , ( "display", "inline-block" )
-                  , ( "vertical-align", "middle" )
-                  , ( "background", Colour.fg chord )
-                  ]
+              [ style "width" "1em"
+              , style "height" "1em"
+              , style "display" "inline-block"
+              , style "vertical-align" "middle"
+              , style "background" (Colour.fg chord)
               ]
               []
           ]
@@ -254,7 +244,6 @@ paddedWedge : Float -> Float -> Float -> Float -> Float -> String
 paddedWedge padding rInner rOuter early late =
   let
     innerPadding = 0.5 * padding / rInner
-  in let
     outerPadding = 0.5 * padding / rOuter
   in
     wedge
@@ -266,39 +255,31 @@ wedge : Float -> Float -> Float -> Float -> Float -> Float -> String
 wedge rInner rOuter earlyInner earlyOuter lateInner lateOuter =
   String.join
     " "
-    [ moveTo (polar rOuter earlyOuter)
-    , arc rOuter True (polar rOuter lateOuter)
-    , lineTo (polar rInner lateInner)
-    , arc rInner False (polar rInner earlyInner)
-    , closePath
+    [ Path.bigM
+        (polarX rOuter earlyOuter)
+        (polarY rOuter earlyOuter)
+    , Path.bigA
+        rOuter rOuter
+        0
+        False True
+        (polarX rOuter lateOuter)
+        (polarY rOuter lateOuter)
+    , Path.bigL
+        (polarX rInner lateInner)
+        (polarY rInner lateInner)
+    , Path.bigA
+        rInner rInner
+        0
+        False False
+        (polarX rInner earlyInner)
+        (polarY rInner earlyInner)
+    , Path.bigZ
     ]
 
-polar : Float -> Float -> ( Float, Float )
-polar r a =
-  ( 250 + r * cos a, 250 - r * sin a )
+polarX : Float -> Float -> Float
+polarX r a =
+  250 + r * cos a
 
-moveTo : ( Float, Float ) -> String
-moveTo ( x, y ) =
-  "M" ++ toString x ++ "," ++ toString y
-
-lineTo : ( Float, Float ) -> String
-lineTo ( x, y ) =
-  "L" ++ toString x ++ "," ++ toString y
-
-arc : Float -> Bool -> ( Float, Float ) -> String
-arc r clockwise ( x, y ) =
-  String.concat
-    [ "A"
-    , toString r
-    , ","
-    , toString r
-    , " 0 0,"
-    , if clockwise then "1" else "0"
-    , " "
-    , toString x
-    , ","
-    , toString y
-    ]
-
-closePath : String
-closePath = "Z"
+polarY : Float -> Float -> Float
+polarY r a =
+   250 - r * sin a

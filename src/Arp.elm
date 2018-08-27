@@ -50,7 +50,7 @@ default lowestPitch chord =
     lowestPitch
     chord
     ( List.map
-        (\i -> i % (1 + List.length chord.flavor))
+        (\i -> modBy (1 + List.length chord.flavor) i)
         (List.range 0 15)
     )
 
@@ -58,8 +58,9 @@ templateNotes : Float -> Int -> Chord -> List Int -> List Note
 templateNotes interval lowestPitch chord codes =
   let
     rootPitch =
-      (chord.root - lowestPitch) % 12 + lowestPitch
-  in let
+      modBy 12 (chord.root - lowestPitch) + lowestPitch
+  in
+  let
     chordFrequencies =
       List.map
         (pitchFrequency << (+) rootPitch)
@@ -88,10 +89,10 @@ codeFrequencies chordFrequencies code =
       if code == -1 then
         []
       else
-        List.take 1 (List.drop (code % 10) chordFrequencies)
-  in let
-    octave = (code // 10) % 10
-  in let
+        List.take 1 (List.drop (modBy 10 code) chordFrequencies)
+    octave = modBy 10 (code // 10)
+  in
+  let
     frequencies =
       List.map ((*) (toFloat (2 ^ octave))) lowFrequencies
   in

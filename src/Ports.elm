@@ -5,7 +5,6 @@ port module Ports exposing
   , text
   , initHarp, clearPlucks, harpPlucked, Pluck
   , saveStorage, deleteStorage
-  , setTitle
   , download, File
   , scrollIntoView, escape
   )
@@ -39,8 +38,6 @@ type alias Pluck =
 
 port saveStorage : Encode.Value -> Cmd msg
 port deleteStorage : () -> Cmd msg
-
-port setTitle : String -> Cmd msg
 
 port download : File -> Cmd msg
 type alias File =

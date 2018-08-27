@@ -36,7 +36,7 @@ firstChordEvents lowestPitch chord =
   in
     case pitches of
       [] ->
-        Debug.crash "Midi.fromChords: First chord has no pitches"
+        Debug.todo "Midi.fromChords: First chord has no pitches"
       firstPitch :: rest ->
         String.join
           " "
@@ -100,25 +100,25 @@ fixedLength length n =
     if length >= 0 then
       String.repeat (2 * length) "0"
     else
-      Debug.crash
+      Debug.todo
         ( String.concat
             [ "Midi.fixedLength: Cannot fit "
-            , toString n
+            , Debug.toString n
             , " into "
-            , toString length
+            , Debug.toString length
             , " bytes"
             ]
         )
   else
     (++)
       (fixedLength (length - 1) (n // 256))
-      (byteToBase16 (n % 256))
+      (byteToBase16 (modBy 256 n))
 
 variableLength : Int -> String
 variableLength n =
   (++)
     (variableLengthHelp (n // 128))
-    (byteToBase16 (n % 128))
+    (byteToBase16 (modBy 128 n))
 
 variableLengthHelp : Int -> String
 variableLengthHelp n =
@@ -127,13 +127,13 @@ variableLengthHelp n =
   else
     (++)
       (variableLengthHelp (n // 128))
-      (byteToBase16 (128 + n % 128))
+      (byteToBase16 (128 + modBy 128 n))
 
 byteToBase16 : Int -> String
 byteToBase16 byte =
   let
     high = byte // 16
-    low = byte % 16
+    low = modBy 16 byte
   in
     (++)
       (String.slice high (high + 1) "0123456789abcdef")
@@ -145,8 +145,8 @@ countBytes string =
     length =
       String.length (String.concat (String.split " " string))
   in
-    if length % 2 == 1 then
-      Debug.crash
+    if modBy 2 length == 1 then
+      Debug.todo
         ("Base-16 string contains half byte: \"" ++ string ++ "\"")
     else
       length // 2

@@ -1,4 +1,5 @@
-module Lowest exposing (flag, rangeStart, fromPitch, pitch, viewDefault, view)
+module Lowest exposing
+  (flag, rangeStart, fromPitch, toPitch, viewDefault, view)
 
 import Flag exposing (Flag)
 import Pitch
@@ -12,7 +13,7 @@ flag : Flag (Maybe Int)
 flag =
   { key = "lowest"
   , fromCode = fromCode
-  , code = code
+  , toCode = toCode
   , default = Nothing
   }
 
@@ -32,8 +33,7 @@ fromCode code =
           "6" -> 9
           "7" -> 11
           x ->
-            Debug.crash ("Lowest.fromCode: Unknown degree: " ++ x)
-    in let
+            Debug.todo ("Lowest.fromCode: Unknown degree: " ++ x)
       accidentalOffset =
         case String.dropRight 1 code of
           "" -> 0
@@ -42,34 +42,38 @@ fromCode code =
           "♭" -> -1
           "♯" -> 1
           x ->
-            Debug.crash ("Lowest.fromCode: Unknown accidental: " ++ x)
+            Debug.todo ("Lowest.fromCode: Unknown accidental: " ++ x)
     in
-      Just (Just ((letterPitch + accidentalOffset) % 12))
+      Just (Just (modBy 12 (letterPitch + accidentalOffset)))
   else
     Nothing
 
 regex : Regex
-regex = Regex.regex "^[b#♭♯]?[1-7]$"
+regex =
+  Maybe.withDefault Regex.never (Regex.fromString "^[b#♭♯]?[1-7]$")
 
-code : Maybe Int -> String
-code maybeLowest =
+toCode : Maybe Int -> String
+toCode maybeLowest =
   case maybeLowest of
     Nothing ->
       "default"
     Just pitch ->
       let
         degreeIndex = (pitch * 7 + 6) // 12
-      in let
+      in
+      let
         degreePitch = (degreeIndex * 12 + 5) // 7
       in
-        case pitch - degreePitch of
-          -1 ->
-            "b" ++ toString (1 + degreeIndex)
+        case pitch - degreePitch + 1 of -- elm can't handle negative cases
           0 ->
-            toString (1 + degreeIndex)
+            "b" ++ String.fromInt (1 + degreeIndex)
+          1 ->
+            String.fromInt (1 + degreeIndex)
           _ ->
-            Debug.crash
-              ("Lowest.code: Lowest caused error: " ++ toString pitch)
+            Debug.todo
+              ( "Lowest.code: Lowest caused error: " ++
+                  Debug.toString pitch
+              )
 
 rangeStart : Int
 rangeStart = 39
@@ -79,15 +83,15 @@ defaultPitch = 45
 
 fromPitch : Int -> Int -> Int
 fromPitch tonic pitch =
-  (pitch - tonic) % 12
+  modBy 12 (pitch - tonic)
 
-pitch : Int -> Maybe Int -> Int
-pitch tonic maybeLowest =
+toPitch : Int -> Maybe Int -> Int
+toPitch tonic maybeLowest =
   case maybeLowest of
     Nothing ->
       defaultPitch
     Just lowest ->
-      (tonic + lowest - rangeStart) % 12 + rangeStart
+      modBy 12 (tonic + lowest - rangeStart) + rangeStart
 
 viewDefault : Scale -> List (Html msg)
 viewDefault scale =
@@ -97,19 +101,22 @@ view : Scale -> Int -> List (Html msg)
 view scale lowest =
   let
     degreeIndex = (lowest * 7 + 6) // 12
-  in let
+  in
+  let
     degreePitch = (degreeIndex * 12 + 5) // 7
-  in let
+  in
+  let
     accidentalString =
-      case lowest - degreePitch of
-        -1 ->
-          "♭"
+      case lowest - degreePitch + 1 of -- elm can't handle negative cases
         0 ->
+          "♭"
+        1 ->
           ""
         _ ->
-          Debug.crash
-            ("Lowest.view: Lowest caused error: " ++ toString lowest)
-  in let
+          Debug.todo
+            ( "Lowest.view: Lowest caused error: " ++
+                Debug.toString lowest
+            )
     degreeString =
       case degreeIndex of
         0 ->
@@ -127,15 +134,16 @@ view scale lowest =
         6 ->
           if scale.minor then "ii" else "vii"
         _ ->
-          Debug.crash
-            ("Lowest.view: Lowest caused error: " ++ toString lowest)
-  in let
+          Debug.todo
+            ( "Lowest.view: Lowest caused error: " ++
+                Debug.toString lowest
+            )
     pitch =
-      (scale.tonic + lowest - rangeStart) % 12 + rangeStart
-  in let
+      modBy 12 (scale.tonic + lowest - rangeStart) + rangeStart
     sharpCount = SharpCount.fromTonic scale.tonic
-  in let
-    pitchString = Pitch.view sharpCount (pitch % 12)
+  in
+  let
+    pitchString = Pitch.view sharpCount (modBy 12 pitch)
   in
     if degreeIndex == 6 then
       [ text (accidentalString ++ degreeString)

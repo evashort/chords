@@ -37,7 +37,8 @@ update suggestions buffet =
   let
     sameReplacement =
       countSharedReplacements suggestions buffet.suggestions
-  in let
+  in
+  let
     samePosition =
       min (sameReplacement + 1) (List.length suggestions)
   in
@@ -94,9 +95,7 @@ view : Buffet -> Html Msg
 view buffet =
   span
     [ id "buffet"
-    , style
-        [ ( "grid-area", "buffet" )
-        ]
+    , style "grid-area" "buffet"
     ]
     ( if buffet.suggestions == [] then
         []

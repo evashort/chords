@@ -15,7 +15,7 @@ import Train exposing (Train)
 import Word exposing (Word)
 import Zipper
 
-import Regex exposing (Regex, HowMany(..))
+import Regex exposing (Regex)
 
 type alias Paragraph =
   { nextId : Int
@@ -26,7 +26,6 @@ init : List Substring -> Paragraph
 init lines =
   let
     firstId = IdChord.count
-  in let
     substrings = split lines
   in
     { nextId = firstId + Train.length substrings
@@ -54,10 +53,11 @@ update lines { nextId, words } =
 
 split : List Substring -> Train Substring
 split lines =
-  Train.fromCars (List.map (Substring.find All wordRegex) lines)
+  Train.fromCars (List.map (Substring.find wordRegex) lines)
 
 wordRegex : Regex
-wordRegex = Regex.regex "[^ ]+"
+wordRegex =
+  Maybe.withDefault Regex.never (Regex.fromString "[^ ]+")
 
 highlights : Int -> Paragraph -> List Highlight
 highlights tonic paragraph =
@@ -100,7 +100,8 @@ defaultTitle paragraph =
       List.filterMap
         Word.code
         (Train.flatten paragraph.words)
-  in let
+  in
+  let
     longTitle = String.join " " codes
   in
     if String.length longTitle <= maxLength then
