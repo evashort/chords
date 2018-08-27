@@ -15,19 +15,17 @@ view gridArea tonic playStatus song =
   Html.Keyed.node
     "span"
     [ id gridArea
-    , style
-        [ ( "grid-area", gridArea )
-        , ( "display", "grid" )
-        , ( "position", "relative" )
-        , ( "grid-auto-rows", "75px" )
-        , ( "grid-auto-columns", "75px" )
-        , ( "grid-row-gap", "5px" )
-        , ( "grid-column-gap", "5px" )
-        , ( "align-items", "stretch" )
-        , ( "justify-items", "stretch" )
-        , ( "font-size", "150%" )
-        , ( "margin-top", "5px" )
-        ]
+    , style "grid-area" gridArea
+    , style "display" "grid"
+    , style "position" "relative"
+    , style "grid-auto-rows" "75px"
+    , style "grid-auto-columns" "75px"
+    , style "grid-row-gap" "5px"
+    , style "grid-column-gap" "5px"
+    , style "align-items" "stretch"
+    , style "justify-items" "stretch"
+    , style "font-size" "150%"
+    , style "margin-top" "5px"
     ]
     ( List.concat
         (indexedMap2d (viewCell tonic playStatus) song)
@@ -43,16 +41,14 @@ viewCell :
 viewCell tonic playStatus y x cell =
   ( case cell of
       Nothing ->
-        "space" ++ toString x ++ "_" ++ toString y
+        "space" ++ String.fromInt x ++ "_" ++ String.fromInt y
       Just idChord ->
-        toString idChord.id
+        String.fromInt idChord.id
   , span
-      [ style
-          [ ( "grid-row-start", toString (y + 1) )
-          , ( "grid-column-start", toString (x + 1) )
-          , ( "grid-row-end", "span 1" )
-          , ( "grid-column-end", "span 1" )
-          ]
+      [ style "grid-row-start" (String.fromInt (y + 1))
+      , style "grid-column-start" (String.fromInt (x + 1))
+      , style "grid-row-end" "span 1"
+      , style "grid-column-end" "span 1"
       ]
       ( case cell of
           Nothing ->
@@ -70,11 +66,9 @@ viewCell tonic playStatus y x cell =
 viewIdChord : Int -> PlayStatus -> IdChord -> Html IdChord.Msg
 viewIdChord tonic playStatus idChord =
   span
-    [ style
-        [ ( "display", "block" )
-        , ( "position", "relative" )
-        , ( "width", "100%" )
-        , ( "height", "100%" )
-        ]
+    [ style "display" "block"
+    , style "position" "relative"
+    , style "width" "100%"
+    , style "height" "100%"
     ]
     (IdChord.view tonic playStatus idChord)

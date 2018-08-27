@@ -187,7 +187,8 @@ update msg keyboard =
             lowestPitch
             (getOctave keyboard)
             (getChord keyboard)
-      in let
+      in
+      let
         newPitchSet =
           Set.filter
             ( inRange
@@ -195,13 +196,14 @@ update msg keyboard =
                 (pitch + Chord.maxRange)
             )
             (Set.insert pitch pitchSet)
-      in let
+      in
+      let
         ( newChord, newOctave ) =
           case Chord.fromPitchSet lowestPitch newPitchSet of
             Just x ->
               x
             Nothing ->
-              Debug.crash
+              Debug.todo
                 "Keyboard.update: Pitch set empty after inserting pitch"
       in
         ( { keyboard
@@ -233,7 +235,8 @@ update msg keyboard =
             lowestPitch
             (getOctave keyboard)
             (getChord keyboard)
-      in let
+      in
+      let
         newPitchSet =
           Set.remove pitch pitchSet
       in
@@ -311,7 +314,8 @@ view gridArea tonic lowestPitch keyboard =
   let
     maybeChord = getChord keyboard
     octave = getOctave keyboard
-  in let
+  in
+  let
     maxOctave =
       case maybeChord of
         Nothing ->
@@ -319,29 +323,29 @@ view gridArea tonic lowestPitch keyboard =
         Just chord ->
           let
             rootPitch =
-              (chord.root - lowestPitch) % 12 + lowestPitch
+              modBy 12 (chord.root - lowestPitch) + lowestPitch
             highestOffset =
               case List.reverse chord.flavor of
                 [] ->
                   0
                 flavorPitch :: _ ->
                   flavorPitch
-          in let
+          in
+          let
             highestPitch = rootPitch + highestOffset
             maxPitch = lowestPitch + 11 + Chord.maxRange
-          in let
+          in
+          let
             maxTransposition = maxPitch - highestPitch
           in
-            (maxTransposition - maxTransposition % 12) // 12
+            (maxTransposition - modBy 12 maxTransposition) // 12
     pitchSet =
       Chord.toPitchSet lowestPitch octave maybeChord
   in
     span
       [ id gridArea
-      , style
-          [ ( "grid-area", gridArea )
-          , ( "margin-top", "5px" )
-          ]
+      , style "grid-area" gridArea
+      , style "margin-top" "5px"
       ]
       [ Harp.view
           tonic
@@ -353,9 +357,7 @@ view gridArea tonic lowestPitch keyboard =
           lowestPitch
           pitchSet
       , span
-          [ style
-              [ ( "display", "block" )
-              ]
+          [ style "display" "block"
           ]
           [ text "Chord "
           , input
@@ -386,12 +388,10 @@ view gridArea tonic lowestPitch keyboard =
                   (maxOctave <= 0 && octave == 0)
               , isAudioTimeInput True
               , onIntInputWithAudioTime octave SetOctave
-              , Attributes.value (toString octave)
+              , Attributes.value (String.fromInt octave)
               , Attributes.min "0"
-              , Attributes.max (toString maxOctave)
-              , style
-                  [ ( "width", "5ch" )
-                  ]
+              , Attributes.max (String.fromInt maxOctave)
+              , style "width" "5ch"
               ]
               []
           ]
@@ -403,28 +403,28 @@ viewKeys : Int -> Int -> Set Int -> Html Msg
 viewKeys tonic lowestPitch pitchSet =
   let
     highestPitch = lowestPitch + 11 + Chord.maxRange
-  in let
+  in
+  let
     left = viewBoxLeft lowestPitch
     right = viewBoxRight highestPitch
-  in let
+  in
+  let
     width = right - left
     height = fullHeight
   in
     Svg.svg
-      [ SA.width (toString width)
-      , SA.height (toString height)
+      [ SA.width (String.fromFloat width)
+      , SA.height (String.fromFloat height)
       , SA.viewBox
           ( String.join
               " "
-              [ toString left
+              [ String.fromFloat left
               , "0"
-              , toString width
-              , toString height
+              , String.fromFloat width
+              , String.fromFloat height
               ]
           )
-      , style
-          [ ( "display", "block" )
-          ]
+      , style "display" "block"
       ]
       ( List.concat
           [ [ Svg.defs
@@ -434,10 +434,10 @@ viewKeys tonic lowestPitch pitchSet =
                 , specularGradient
                 ]
             , Svg.rect
-                [ SA.x (toString left)
+                [ SA.x (String.fromFloat left)
                 , SA.y "0"
-                , SA.width (toString width)
-                , SA.height (toString height)
+                , SA.width (String.fromFloat width)
+                , SA.height (String.fromFloat height)
                 , SA.fill "black"
                 ]
                 []
@@ -456,14 +456,12 @@ viewKeys tonic lowestPitch pitchSet =
                   )
               )
           , [ Svg.text_
-                [ style
-                    [ ( "pointer-events", "none" )
-                    ]
+                [ style "pointer-events" "none"
                 , SA.textAnchor "middle"
                 , SA.x
-                    (toString (0.5 * (headWidth - borderWidth)))
+                    (String.fromFloat (0.5 * (headWidth - borderWidth)))
                 , SA.y
-                    ( toString
+                    ( String.fromFloat
                         ( fullHeight - borderWidth -
                             0.25 * (headWidth - borderWidth)
                         )
@@ -502,7 +500,7 @@ viewKey tonic lowestPitch highestPitch selected pitch =
         []
       else
         [ isAudioTimeButton True
-        , onClickWithAudioTime ((,) pitch)
+        , onClickWithAudioTime (Tuple.pair pitch)
         ]
   in
     if isWhiteKey pitch then
@@ -510,12 +508,10 @@ viewKey tonic lowestPitch highestPitch selected pitch =
         path = whitePath lowestPitch highestPitch pitch
       in
         [ Svg.path
-            ( [ style
-                  [ if selected then
-                      ( "pointer-events", "none" )
-                    else
-                      ( "cursor", "pointer" )
-                  ]
+            ( [ if selected then
+                  style "pointer-events" "none"
+                else
+                  style "cursor" "pointer"
               , SA.fill
                   ( if selected then
                       Colour.pitchBg tonic pitch
@@ -530,9 +526,7 @@ viewKey tonic lowestPitch highestPitch selected pitch =
         ] ++
           ( if selected then
               [ Svg.path
-                  [ style
-                      [ ( "pointer-events", "none" )
-                      ]
+                  [ style "pointer-events" "none"
                   , SA.fill "url(#whiteKeyGradient)"
                   , SA.d path
                   ]
@@ -543,61 +537,51 @@ viewKey tonic lowestPitch highestPitch selected pitch =
           )
     else
       [ Svg.rect
-          ( [ style
-                [ if selected then
-                    ( "pointer-events", "none" )
-                  else
-                    ( "cursor", "pointer" )
-                ]
+          ( [ if selected then
+                style "pointer-events" "none"
+              else
+                style "cursor" "pointer"
             , SA.fill
                 ( if selected then
                     Colour.pitchBg tonic pitch
                   else
                     "black"
                 )
-            , SA.strokeWidth (toString borderWidth)
+            , SA.strokeWidth (String.fromFloat borderWidth)
             , SA.strokeLinejoin "round"
-            , SA.x (toString (neckLeft pitch))
+            , SA.x (String.fromFloat (neckLeft pitch))
             , SA.y "0"
-            , SA.width (toString blackWidth)
-            , SA.height (toString (blackHeight - borderWidth))
+            , SA.width (String.fromFloat blackWidth)
+            , SA.height (String.fromFloat (blackHeight - borderWidth))
             ] ++
               commonAttributes
           )
           []
       , Svg.path
-          [ style
-              [ ( "pointer-events", "none" )
-              ]
+          [ style "pointer-events" "none"
           , SA.fill "url(#blackKeyGradient)"
-          , SA.opacity (toString (leftSideOpacity selected))
+          , SA.opacity (String.fromFloat (leftSideOpacity selected))
           , SA.d (leftSidePath pitch)
           ]
           []
       , Svg.path
-          [ style
-              [ ( "pointer-events", "none" )
-              ]
+          [ style "pointer-events" "none"
           , SA.fill "url(#specularGradient)"
-          , SA.opacity (toString (specularOpacity selected))
+          , SA.opacity (String.fromFloat (specularOpacity selected))
           , SA.d (specularPath pitch)
           ]
           []
       , Svg.path
-          [ style
-              [ ( "pointer-events", "none" )
-              ]
+          [ style "pointer-events" "none"
           , SA.fill "url(#blackKeyGradient)"
-          , SA.opacity (toString fingerOpacity)
+          , SA.opacity (String.fromFloat fingerOpacity)
           , SA.d (fingerPath pitch)
           ]
           []
       , Svg.path
-          [ style
-              [ ( "pointer-events", "none" )
-              ]
+          [ style "pointer-events" "none"
           , SA.fill "url(#blackKeyGradient)"
-          , SA.opacity (toString (hillOpacity selected))
+          , SA.opacity (String.fromFloat (hillOpacity selected))
           , SA.d (hillPath pitch)
           ]
           []
@@ -767,18 +751,14 @@ blackKeyGradient =
     ]
     [ Svg.stop
         [ SA.offset "0%"
-        , style
-            [ ( "stop-color", "white" )
-            , ( "stop-opacity", toString blackKeyStartOpacity )
-            ]
+        , style "stop-color" "white"
+        , style "stop-opacity" (String.fromFloat blackKeyStartOpacity)
         ]
         []
     , Svg.stop
         [ SA.offset "100%"
-        , style
-            [ ( "stop-color", "white" )
-            , ( "stop-opacity", "1" )
-            ]
+        , style "stop-color" "white"
+        , style "stop-opacity" "1"
         ]
         []
     ]
@@ -790,7 +770,8 @@ whiteKeyGradient =
     slope =
       (1 - blackKeyStartOpacity) * fingerOpacity /
         (blackHeight - borderWidth - hillHeight)
-  in let
+  in
+  let
     endOpacity =
       startOpacity + slope * (fullHeight - borderWidth)
   in
@@ -803,18 +784,14 @@ whiteKeyGradient =
       ]
       [ Svg.stop
           [ SA.offset "0%"
-          , style
-              [ ( "stop-color", "white" )
-              , ( "stop-opacity", toString startOpacity )
-              ]
+          , style "stop-color" "white"
+          , style "stop-opacity" (String.fromFloat startOpacity)
           ]
           []
       , Svg.stop
           [ SA.offset "100%"
-          , style
-              [ ( "stop-color", "white" )
-              , ( "stop-opacity", toString endOpacity )
-              ]
+          , style "stop-color" "white"
+          , style "stop-opacity" (String.fromFloat endOpacity)
           ]
           []
       ]
@@ -832,18 +809,14 @@ specularGradient =
     ]
     [ Svg.stop
         [ SA.offset "0%"
-        , style
-            [ ( "stop-color", "white" )
-            , ( "stop-opacity", "1" )
-            ]
+        , style "stop-color" "white"
+        , style "stop-opacity" "1"
         ]
         []
     , Svg.stop
         [ SA.offset "100%"
-        , style
-            [ ( "stop-color", "white" )
-            , ( "stop-opacity", "0" )
-            ]
+        , style "stop-color" "white"
+        , style "stop-opacity" "0"
         ]
         []
     ]

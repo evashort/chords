@@ -49,9 +49,11 @@ update : String -> Parse -> Parse
 update code parse =
   let
     lines = Comment.remove (Substring 0 code)
-  in let
+  in
+  let
     unindented = Indent.remove lines
-  in let
+  in
+  let
     paragraph =
       Paragraph.update
         (Flag.remove unindented)
@@ -129,8 +131,9 @@ setScale scale code =
       Just scaleReplacement ->
         let
           oldScale = Flag.parse Scale.flag unindented
-        in let
-          offset = (scale.tonic - oldScale.tonic) % 12
+        in
+        let
+          offset = modBy 12 (scale.tonic - oldScale.tonic)
         in
           if offset == 0 then
             Just (glue code scaleReplacement)
@@ -183,8 +186,10 @@ glue source replacement =
     | old = Substring.dropRight 1 replacement.old
     }
   else
-    Debug.crash
-      ("Parse.glue: Replacement out of bounds: " ++ toString replacement)
+    Debug.todo
+      ( "Parse.glue: Replacement out of bounds: " ++
+          Debug.toString replacement
+      )
 
 addWord : String -> Parse -> Replacement
 addWord word parse =
@@ -216,4 +221,5 @@ addWord word parse =
       (prefix ++ word)
 
 onlySpaces : Regex
-onlySpaces = Regex.regex "^ +$"
+onlySpaces =
+  Maybe.withDefault Regex.never (Regex.fromString "^ +$")

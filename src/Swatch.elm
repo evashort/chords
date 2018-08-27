@@ -23,42 +23,34 @@ view swatch =
       text swatch.s
     ( "#000000", _ ) ->
       mark
-        [ style
-            [ ( "color", "inherit" )
-            , ( "background", swatch.bg )
-            , ( "border-radius", "3px" )
-            ]
+        [ style "color" "inherit"
+        , style "background" swatch.bg
+        , style "border-radius" "3px"
         ]
         [ text swatch.s ]
     ( _, "#ffffff" ) ->
       mark
-        [ style
-            [ ( "color", swatch.fg )
-            , ( "background", "transparent" )
-            , ( "text-shadow", "0px 0px 0px white" )
-            , ( "position", "relative" )
-            , ( "z-index", "1" )
-            , ( "pointer-events", "none" )
-            ]
+        [ style "color" swatch.fg
+        , style "background" "transparent"
+        , style "text-shadow" "0px 0px 0px white"
+        , style "position" "relative"
+        , style "z-index" "1"
+        , style "pointer-events" "none"
         ]
         [ text swatch.s ]
     _ ->
       mark
-        [ style
-            [ ( "color", "inherit" )
-            , ( "background", swatch.bg )
-            , ( "border-radius", "3px" )
-            ]
+        [ style "color" "inherit"
+        , style "background" swatch.bg
+        , style "border-radius" "3px"
         ]
         [ mark
-            [ style
-                [ ( "color", swatch.fg )
-                , ( "background", "transparent" )
-                , ( "text-shadow", "0px 0px 0px " ++ swatch.bg )
-                , ( "position", "relative" )
-                , ( "z-index", "1" )
-                , ( "pointer-events", "none" )
-                ]
+            [ style "color" swatch.fg
+            , style "background" "transparent"
+            , style "text-shadow" ("0px 0px 0px " ++ swatch.bg)
+            , style "position" "relative"
+            , style "z-index" "1"
+            , style "pointer-events" "none"
             ]
             [ text swatch.s ]
         ]

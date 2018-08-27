@@ -40,7 +40,7 @@ onInputWithAudioTime tag =
         ( Decode.field
             "detail"
             ( Decode.map2
-                (,)
+                Tuple.pair
                 (Decode.field "value" Decode.string)
                 (Decode.field "audioTime" Decode.float)
             )
@@ -56,7 +56,7 @@ onIntInputWithAudioTime current tag =
         ( Decode.field
             "detail"
             ( Decode.map2
-                (,)
+                Tuple.pair
                 ( Decode.field
                     "value"
                     ( Decode.andThen
@@ -72,10 +72,10 @@ onIntInputWithAudioTime current tag =
 requireDifferentInt : Int -> String -> Decoder Int
 requireDifferentInt current valueString =
   case String.toInt valueString of
-    Ok value ->
+    Just value ->
       if value /= current then
         Decode.succeed value
       else
         Decode.fail ("ignoring current value " ++ valueString)
-    Err _ ->
+    Nothing ->
       Decode.fail ("ignroring non-integer value " ++ valueString)

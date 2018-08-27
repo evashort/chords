@@ -18,8 +18,8 @@ type alias Chord =
 fromCode : String -> Maybe Chord
 fromCode code =
   case submatches regex code of
-    [ Just rootCode, Just flavorCode ] ->
-      case Dict.get flavorCode flavorDict of
+    [ Just rootCode, maybeFlavorCode ] ->
+      case Dict.get (Maybe.withDefault "" maybeFlavorCode) flavorDict of
         Nothing ->
           Nothing
         Just flavor ->
@@ -41,8 +41,9 @@ fromCodeExtended code =
           List.filter
             (not << String.isEmpty)
             (String.split " " code)
-      in let
-        pitches = List.filterMap stringToInt words
+      in
+      let
+        pitches = List.filterMap String.toInt words
       in
         if List.length pitches < List.length words then
           Nothing
@@ -58,16 +59,8 @@ fromCodeExtended code =
                 Just
                   { flavor =
                       List.filter ((>=) maxRange) tallFlavor
-                  , root = rootPitch % 12
+                  , root = modBy 12 rootPitch
                   }
-
-stringToInt : String -> Maybe Int
-stringToInt string =
-  case String.toInt string of
-    Ok int ->
-      Just int
-    Err _ ->
-      Nothing
 
 removeDuplicates : List a -> List a
 removeDuplicates xs =
@@ -84,23 +77,24 @@ maxRange : Int
 maxRange = 23
 
 regex : Regex
-regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"
+regex =
+  Maybe.withDefault
+    Regex.never
+    (Regex.fromString "^([A-Ga-g][b#♭♯]?)(.*)")
 
 dict : List (String, a) -> Dict (List Int) a
 dict codePairs =
   Dict.fromList (dictHelp codePairs flavorPairs)
 
 dictHelp : List (String, a) -> List (String, List Int) -> List (List Int, a)
-dictHelp codePairs flavorPairs =
-  case ( codePairs, flavorPairs ) of
-    ( ( code, value ) :: laterCodePairs
-    , ( rightCode, flavor ) :: laterFlavorPairs
-    ) ->
+dictHelp codePairs remainingFlavorPairs =
+  case ( codePairs, remainingFlavorPairs ) of
+    ( ( code, value ) :: laterCodePairs, ( rightCode, flavor ) :: laterFlavorPairs ) ->
       if code == rightCode then
         ( flavor, value ) ::
           dictHelp laterCodePairs laterFlavorPairs
       else
-        Debug.crash
+        Debug.todo
           ( String.concat
               [ "Chord.dict: Expected \""
               , rightCode
@@ -112,7 +106,7 @@ dictHelp codePairs flavorPairs =
     ( [], [] ) ->
       []
     _ ->
-      Debug.crash "Chord.dict: Wrong number of pairs"
+      Debug.todo "Chord.dict: Wrong number of pairs"
 
 list : List String -> List (List Int)
 list codeList =
@@ -122,7 +116,7 @@ listHelp : String -> List Int
 listHelp code =
   case Dict.get code flavorDict of
     Nothing ->
-      Debug.crash
+      Debug.todo
         ("Chord.list: Unknown flavor \"" ++ code ++ "\"")
     Just flavor ->
       flavor
@@ -166,7 +160,7 @@ flavorPairs =
 
 transpose : Int -> Chord -> Chord
 transpose offset chord =
-  { chord | root = (chord.root + offset) % 12 }
+  { chord | root = modBy 12 (chord.root + offset) }
 
 toPitchSet : Int -> Int -> Maybe Chord -> Set Int
 toPitchSet lowestPitch octave maybeChord =
@@ -176,7 +170,7 @@ toPitchSet lowestPitch octave maybeChord =
     Just chord ->
       let
         rootPitch =
-          (chord.root - lowestPitch) % 12 +
+          modBy 12 (chord.root - lowestPitch) +
             lowestPitch +
             12 * octave
       in
@@ -192,9 +186,9 @@ fromPitchSet lowestPitch pitchSet =
       Just
         ( Chord
             (List.map ((+) -rootPitch) flavorPitches)
-            (rootPitch % 12)
+            (modBy 12 rootPitch)
         , ( rootPitch - lowestPitch -
-              (rootPitch - lowestPitch) % 12
+              modBy 12 (rootPitch - lowestPitch)
           ) //
             12
         )
@@ -203,6 +197,6 @@ toPitches : Int -> Chord -> List Int
 toPitches lowestPitch chord =
   let
     rootPitch =
-      (chord.root - lowestPitch) % 12 + lowestPitch
+      modBy 12 (chord.root - lowestPitch) + lowestPitch
   in
     rootPitch :: List.map ((+) rootPitch) chord.flavor

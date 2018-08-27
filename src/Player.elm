@@ -55,8 +55,10 @@ status showSilent player =
   else if player.unfinishedCount == 1 then
     case player.schedule of
       [] ->
-        Debug.crash
-          ("Player.status: Inconsistent state: " ++ toString player)
+        Debug.todo
+          ( "Player.status: Inconsistent state: " ++
+              Debug.toString player
+          )
       current :: _ ->
         PlayStatus.Playing
           { active = current.id
@@ -72,16 +74,20 @@ status showSilent player =
           , next = Just future.id
           }
       _ ->
-        Debug.crash
-          ("Player.status: Inconsistent state: " ++ toString player)
+        Debug.todo
+          ( "Player.status: Inconsistent state: " ++
+              Debug.toString player
+          )
 
 willChange : Player -> Bool
 willChange player =
   if player.unfinishedCount == 1 then
     case player.schedule of
       [] ->
-        Debug.crash
-          ("Player.willChange: Inconsistent state: " ++ toString player)
+        Debug.todo
+          ( "Player.willChange: Inconsistent state: " ++
+              Debug.toString player
+          )
       current :: _ ->
         current.stop < infinity
   else
@@ -189,11 +195,11 @@ arp :
 arp beatInterval lowestPitch { id, chord } now player =
   let
     nextHold = Cliff.nextHold now player.cliff
-  in let
+  in
+  let
     shouldInit =
       nextHold == Nothing &&
         countUnfinished now player.schedule <= 0
-  in let
     ( startTime, highStart ) =
       Maybe.withDefault ( now, False ) nextHold
   in
@@ -234,14 +240,15 @@ strumPattern :
 strumPattern pattern beatInterval lowestPitch { id, chord } now player =
   let
     nextHold = Cliff.nextHold now player.cliff
-  in let
+  in
+  let
     shouldInit =
       nextHold == Nothing &&
         countUnfinished now player.schedule <= 0
-  in let
     ( startTime, highStart ) =
       Maybe.withDefault ( now, False ) nextHold
-  in let
+  in
+  let
     beatCount =
       case pattern of
         StrumPattern.Basic ->
@@ -250,7 +257,6 @@ strumPattern pattern beatInterval lowestPitch { id, chord } now player =
           4
         StrumPattern.Modern ->
           if highStart then 6 else 4
-  in let
     holds =
       case pattern of
         StrumPattern.Basic ->
@@ -312,23 +318,23 @@ addSegment now region segment player =
     }
 
 stopScheduleAt : Float -> List Segment -> List Segment
-stopScheduleAt stop schedule =
+stopScheduleAt t schedule =
   case schedule of
     [] ->
       schedule
     [ segment ] ->
-      if segment.stop > stop then
-        [ { segment | stop = stop } ]
+      if segment.stop > t then
+        [ { segment | stop = t } ]
       else
         schedule
     segment :: previous :: rest ->
-      if previous.stop < stop then
-        if segment.stop > stop then
-          { segment | stop = stop } :: previous :: rest
+      if previous.stop < t then
+        if segment.stop > t then
+          { segment | stop = t } :: previous :: rest
         else
           schedule
       else
-        stopScheduleAt stop (previous :: rest)
+        stopScheduleAt t (previous :: rest)
 
 countUnfinished : Float -> List Segment -> Int
 countUnfinished now schedule =

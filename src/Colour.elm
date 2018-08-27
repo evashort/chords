@@ -27,7 +27,7 @@ bg tonic chord =
     Nothing ->
       gray
     Just scheme ->
-      case (chord.root - tonic) % 3 of
+      case modBy 3 (chord.root - tonic) of
         0 -> scheme.c
         1 -> scheme.g
         _ -> scheme.f
@@ -38,21 +38,21 @@ swatchBg tonic chord =
     Nothing ->
       swatchGray
     Just scheme ->
-      case (chord.root - tonic) % 3 of
+      case modBy 3 (chord.root - tonic) of
         0 -> scheme.c
         1 -> scheme.g
         _ -> scheme.f
 
 pitchBg : Int -> Int -> String
 pitchBg tonic pitch =
-  case (pitch - tonic) % 3 of
+  case modBy 3 (pitch - tonic) of
     0 -> cyan
     1 -> pink
     _ -> yellow
 
 ropeColor : Int -> Int -> String
 ropeColor tonic pitch =
-  case (pitch - tonic) % 3 of
+  case modBy 3 (pitch - tonic) of
     0 -> "#00ebf0"
     1 -> "#cb4dd6"
     _ -> "#cac200"
@@ -185,8 +185,7 @@ minor13 =
 toHexPair : Int -> String
 toHexPair n =
   let
-    ones = n % 16
-  in let
+    ones = modBy 16 n
     sixteens = n // 16
   in
     String.concat

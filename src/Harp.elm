@@ -14,17 +14,17 @@ view : Int -> Int -> Int -> Set Int -> Html msg
 view tonic lowestPitch highestPitch pitchSet =
   let
     left = viewBoxLeft lowestPitch - bodyLeftMargin
-  in let
     right = viewBoxRight highestPitch
-  in let
+  in
+  let
     width = right - left
   in
     canvas
       [ id "harp"
+      , style "display" "block"
       , style
-          [ ( "display", "block" )
-          , ( "margin-left", toString -bodyLeftMargin ++ "px" )
-          ]
+          "margin-left"
+          (String.fromFloat -bodyLeftMargin ++ "px")
       , Attributes.height (round height)
       , attribute
           "spec"
@@ -48,7 +48,7 @@ view tonic lowestPitch highestPitch pitchSet =
 
 encodeRope : Int -> Float -> Int -> (String, Encode.Value)
 encodeRope tonic left pitch =
-  ( toString pitch
+  ( String.fromInt pitch
   , Encode.object
       [ ( "x", Encode.float (neckCenter pitch - left) )
       , ( "color", Encode.string (Colour.ropeColor tonic pitch) )
@@ -74,15 +74,15 @@ viewBoxRight highestPitch =
 
 isWhiteKey : Int -> Bool
 isWhiteKey pitch =
-  (pitch % 2 == 1) == (pitch % 12 > 4)
+  (modBy 2 pitch == 1) == (modBy 12 pitch > 4)
 
 neckCenter : Int -> Float
 neckCenter pitch =
   let
-    pitchClass = pitch % 12
-  in let
+    pitchClass = modBy 12 pitch
+  in
+  let
     octave = (pitch - pitchClass) // 12 - 5
-  in let
     classLeft =
       if pitchClass > 4 then
         toFloat (3 + 4 * pitchClass) * headWidth / 7
@@ -94,25 +94,25 @@ neckCenter pitch =
 neckLeft : Int -> Float
 neckLeft pitch =
   let
-    pitchClass = pitch % 12
-  in let
+    pitchClass = modBy 12 pitch
+  in
+  let
     octave = (pitch - pitchClass) // 12 - 5
-  in let
     classLeft =
       if pitchClass > 4 then
         toFloat (1 + 4 * pitchClass) * headWidth / 7
       else
-        toFloat (pitchClass % 2 + 25 * pitchClass) * headWidth / 42
+        toFloat (modBy 2 pitchClass  + 25 * pitchClass) * headWidth / 42
   in
     classLeft + 7 * headWidth * toFloat octave
 
 headLeft : Int -> Float
 headLeft pitch =
   let
-    pitchClass = pitch % 12
-  in let
+    pitchClass = modBy 12 pitch
+  in
+  let
     octave = (pitch - pitchClass) // 12 - 5
-  in let
     letterIndex = (pitchClass * 7 + 6) // 12
   in
     headWidth * toFloat (letterIndex + 7 * octave)

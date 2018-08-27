@@ -16,7 +16,7 @@ flag : Flag Scale
 flag =
   { key = "key"
   , fromCode = fromCode
-  , code = code
+  , toCode = toCode
   , default =
       { minor = False
       , tonic = 0
@@ -26,17 +26,18 @@ flag =
 fromCode : String -> Maybe Scale
 fromCode code =
   case submatches regex code of
-    [ Just namesakeCode, Just flavorCode ] ->
-      case Dict.get flavorCode flavors of
+    [ Just namesakeCode, maybeFlavorCode ] ->
+      case Dict.get (Maybe.withDefault "" maybeFlavorCode) flavors of
         Nothing ->
           Nothing
         Just minor ->
           let
             namesake = Pitch.fromCode namesakeCode
-          in let
+          in
+          let
             tonic =
               if minor then
-                (namesake + 3) % 12
+                modBy 12 (namesake + 3)
               else
                 namesake
           in
@@ -45,7 +46,10 @@ fromCode code =
       Nothing
 
 regex : Regex
-regex = Regex.regex "^([A-Ga-g][b#♭♯]?)(.*)"
+regex =
+  Maybe.withDefault
+    Regex.never
+    (Regex.fromString "^([A-Ga-g][b#♭♯]?)(.*)")
 
 flavors : Dict String Bool
 flavors =
@@ -54,9 +58,9 @@ flavors =
     , ( "m", True )
     ]
 
-code : Scale -> String
-code scale =
+toCode : Scale -> String
+toCode scale =
   if scale.minor then
-    Pitch.code 3 ((scale.tonic - 3) % 12) ++ "m"
+    Pitch.toCode 3 (modBy 12 (scale.tonic - 3)) ++ "m"
   else
-    Pitch.code 0 scale.tonic
+    Pitch.toCode 0 scale.tonic

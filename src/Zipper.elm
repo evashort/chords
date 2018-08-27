@@ -11,7 +11,8 @@ doubleZip : (a -> b -> Maybe c) -> List a -> List b -> DoubleZipped a b c
 doubleZip zipper upper lower =
   let
     leftZipped = zip zipper upper lower
-  in let
+  in
+  let
     rightZipped =
       zip
         zipper

@@ -27,7 +27,8 @@ toSwatchesHelp source highlights =
       let
         start = highlight.substring.i
         stop = Substring.stop highlight.substring
-      in let
+      in
+      let
         before = Substring.before start source
         after = Substring.after stop source
       in

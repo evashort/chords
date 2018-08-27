@@ -34,7 +34,7 @@ combine replacements source =
               (combineHelp replacements slicedSource)
           )
     _ ->
-      Debug.crash "Replacement.combine: No replacements"
+      Debug.todo "Replacement.combine: No replacements"
 
 combineHelp : List Replacement -> Substring -> List String
 combineHelp replacements source =
@@ -44,7 +44,6 @@ combineHelp replacements source =
     replacement :: rest ->
       let
         start = replacement.old.i
-      in let
         stop = Substring.stop replacement.old
       in
         Substring.before start source ::

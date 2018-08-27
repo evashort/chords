@@ -1,3 +1,0 @@
-cmd: elm-make src/Main.elm --warn --output elm.js
-errorMatch:
-  - --- (?<file>src\/[a-zA-z]+\.elm)\r\n\s*\r\n(?<message>.*)\r\n\s*\r\n(?<line>[0-9]+)\|

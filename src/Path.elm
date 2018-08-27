@@ -1,32 +1,37 @@
-module Path exposing (m, bigM, l, h, bigH, v, bigV, partialC, c, a, bigZ)
+module Path exposing
+  (m, bigM, l, bigL, h, bigH, v, bigV, partialC, c, a, bigA, bigZ)
 
 m : Float -> Float -> String
 m dx dy =
-  "m" ++ toString dx ++ "," ++ toString dy
+  "m" ++ String.fromFloat dx ++ "," ++ String.fromFloat dy
 
 bigM : Float -> Float -> String
 bigM x y =
-  "M" ++ toString x ++ "," ++ toString y
+  "M" ++ String.fromFloat x ++ "," ++ String.fromFloat y
 
 l : Float -> Float -> String
 l dx dy =
-  "l" ++ toString dx ++ "," ++ toString dy
+  "l" ++ String.fromFloat dx ++ "," ++ String.fromFloat dy
+
+bigL : Float -> Float -> String
+bigL x y =
+  "L" ++ String.fromFloat x ++ "," ++ String.fromFloat y
 
 h : Float -> String
 h dx =
-  "h" ++ toString dx
+  "h" ++ String.fromFloat dx
 
 bigH : Float -> String
 bigH x =
-  "H" ++ toString x
+  "H" ++ String.fromFloat x
 
 v : Float -> String
 v dy =
-  "v" ++ toString dy
+  "v" ++ String.fromFloat dy
 
 bigV : Float -> String
 bigV y =
-  "V" ++ toString y
+  "V" ++ String.fromFloat y
 
 partialC :
   Float -> Float -> Float -> Float -> Float -> Float -> Float -> String
@@ -38,12 +43,14 @@ partialC t xB yB xC yC xD yD =
     yF = (1 - t) * yB + t * yC
     xG = (1 - t) * xC + t * xD
     yG = (1 - t) * yC + t * yD
-  in let
+  in
+  let
     xH = (1 - t) * xE + t * xF
     yH = (1 - t) * yE + t * yF
     xI = (1 - t) * xF + t * xG
     yI = (1 - t) * yF + t * yG
-  in let
+  in
+  let
     xJ = (1 - t) * xH + t * xI
     yJ = (1 - t) * yH + t * yI
   in
@@ -53,36 +60,55 @@ c : Float -> Float -> Float -> Float -> Float -> Float -> String
 c dx1 dy1 dx2 dy2 dx dy =
   String.concat
     [ "c"
-    , toString dx1
+    , String.fromFloat dx1
     , ","
-    , toString dy1
+    , String.fromFloat dy1
     , " "
-    , toString dx2
+    , String.fromFloat dx2
     , ","
-    , toString dy2
+    , String.fromFloat dy2
     , " "
-    , toString dx
+    , String.fromFloat dx
     , ","
-    , toString dy
+    , String.fromFloat dy
     ]
 
 a : Float -> Float -> Float -> Bool -> Bool -> Float -> Float -> String
 a rx ry angle largeArc sweep dx dy =
   String.concat
     [ "a"
-    , toString rx
+    , String.fromFloat rx
     , ","
-    , toString ry
+    , String.fromFloat ry
     , " "
-    , toString angle
+    , String.fromFloat angle
     , " "
     , if largeArc then "1" else "0"
     , " "
     , if sweep then "1" else "0"
     , " "
-    , toString dx
+    , String.fromFloat dx
     , ","
-    , toString dy
+    , String.fromFloat dy
+    ]
+
+bigA : Float -> Float -> Float -> Bool -> Bool -> Float -> Float -> String
+bigA rx ry angle largeArc sweep x y =
+  String.concat
+    [ "A"
+    , String.fromFloat rx
+    , ","
+    , String.fromFloat ry
+    , " "
+    , String.fromFloat angle
+    , " "
+    , if largeArc then "1" else "0"
+    , " "
+    , if sweep then "1" else "0"
+    , " "
+    , String.fromFloat x
+    , ","
+    , String.fromFloat y
     ]
 
 bigZ : String
