@@ -6,7 +6,7 @@
     {
       "label": "elm-live",
       "type": "shell",
-      "command": "elm-live src/Main.elm --output=main.js --open",
+      "command": "elm-live src/Main.elm --open -- --output=main.js",
       "group": {
         "kind": "build",
         "isDefault": true
