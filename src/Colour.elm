@@ -80,6 +80,7 @@ schemes =
     , ( "M9", major9 ) -- M7 + m7
     , ( "m9", major ) -- m7 + M7
     , ( "7b9", dominant9 ) -- 7 + o7
+    , ( "6/9", major ) -- m7 + add9
     , ( "M7#11", major7 ) -- M7 + M7
     , ( "13", dominant7 ) -- m7b9 + 7
     , ( "M13", major7 ) -- m9 + M9

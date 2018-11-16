@@ -122,6 +122,7 @@ schemes =
     , ( "M9", ninth )
     , ( "m9", minorNinth )
     , ( "7b9", ninth )
+    , ( "6/9", sixSlashNine )
     , ( "M7#11", eleventh )
     , ( "13", thirteenth )
     , ( "M13", thirteenth )
@@ -159,6 +160,10 @@ ninth =
 minorNinth : Scheme
 minorNinth =
   basic [ 1400, 1, 2, 10, 12, 13, 10, 12 ]
+
+sixSlashNine : Scheme
+sixSlashNine =
+  basic [ 1400, 1, 2, 4, 11, 13, 4, 11 ]
 
 eleventh : Scheme
 eleventh =

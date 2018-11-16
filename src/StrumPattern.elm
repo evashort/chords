@@ -169,6 +169,7 @@ schemes =
     , ( "M9", ninth )
     , ( "m9", ninth )
     , ( "7b9", ninth )
+    , ( "6/9", sixSlashNine )
     , ( "M7#11", thirteenth )
     , ( "13", thirteenth )
     , ( "M13", thirteenth )
@@ -209,6 +210,13 @@ addNinth =
   { low = [ 0, 1, 2, 3 ]
   , mid = [ 0, 1, 2, 3 ]
   , high = [ -10, -12, 1, 2, 3 ]
+  }
+
+sixSlashNine : Scheme
+sixSlashNine =
+  { low = [ 0, 3, 4, 11, 12 ]
+  , mid = [ 0, 1, 2, 3, 4 ]
+  , high = [ -10, -12, 0, 1, 3, 4 ]
   }
 
 addEleventh : Scheme
