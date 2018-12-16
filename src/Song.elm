@@ -1,17 +1,17 @@
 module Song exposing (Song, view)
 
+import ChordView
 import IdChord exposing (IdChord)
-import PlayStatus exposing (PlayStatus)
+import Player exposing (Player)
 
 import Html exposing (Html, span)
 import Html.Attributes exposing (style, id)
 import Html.Keyed
-import Html.Lazy
 
 type alias Song = List (List (Maybe IdChord))
 
-view : String -> Int -> PlayStatus -> Song -> Html IdChord.Msg
-view gridArea tonic playStatus song =
+view : String -> Int -> Player -> Maybe IdChord -> Song -> Html ChordView.Msg
+view gridArea tonic player selection song =
   Html.Keyed.node
     "span"
     [ id gridArea
@@ -26,49 +26,37 @@ view gridArea tonic playStatus song =
     , style "justify-items" "stretch"
     , style "font-size" "150%"
     , style "margin-top" "5px"
+    , style "height" (String.fromInt (80 * List.length song - 5) ++ "px")
     ]
     ( List.concat
-        (indexedMap2d (viewCell tonic playStatus) song)
+        (List.indexedMap (viewRow tonic player selection) song)
     )
 
-indexedMap2d : (Int -> Int -> a -> b) -> List (List a) -> List (List b)
-indexedMap2d f rows =
-  List.indexedMap (List.indexedMap << f) rows
+viewRow :
+  Int -> Player -> Maybe IdChord -> Int -> List (Maybe IdChord) ->
+    List (String, Html ChordView.Msg)
+viewRow tonic player selection y row =
+  indexedMaybeMap (viewCell tonic player selection y) row
+
+indexedMaybeMap : (Int -> a -> b) -> List (Maybe a) -> List b
+indexedMaybeMap f xs =
+  List.filterMap identity (List.indexedMap (indexedMaybeMapHelp f) xs)
+
+indexedMaybeMapHelp : (Int -> a -> b) -> Int -> Maybe a -> Maybe b
+indexedMaybeMapHelp f i x =
+  Maybe.map (f i) x
 
 viewCell :
-  Int -> PlayStatus -> Int -> Int -> Maybe IdChord ->
-    (String, Html IdChord.Msg)
-viewCell tonic playStatus y x cell =
-  ( case cell of
-      Nothing ->
-        "space" ++ String.fromInt x ++ "_" ++ String.fromInt y
-      Just idChord ->
-        String.fromInt idChord.id
+  Int -> Player -> Maybe IdChord -> Int -> Int -> IdChord ->
+    (String, Html ChordView.Msg)
+viewCell tonic player selection y x idChord =
+  ( String.fromInt idChord.id
   , span
       [ style "grid-row-start" (String.fromInt (y + 1))
       , style "grid-column-start" (String.fromInt (x + 1))
       , style "grid-row-end" "span 1"
       , style "grid-column-end" "span 1"
+      , style "position" "relative"
       ]
-      ( case cell of
-          Nothing ->
-            []
-          Just idChord ->
-            [ Html.Lazy.lazy3
-                viewIdChord
-                tonic
-                (PlayStatus.isolate idChord.id playStatus)
-                idChord
-            ]
-      )
+      (ChordView.view tonic player selection idChord)
   )
-
-viewIdChord : Int -> PlayStatus -> IdChord -> Html IdChord.Msg
-viewIdChord tonic playStatus idChord =
-  span
-    [ style "display" "block"
-    , style "position" "relative"
-    , style "width" "100%"
-    , style "height" "100%"
-    ]
-    (IdChord.view tonic playStatus idChord)

@@ -1,6 +1,5 @@
 module Keyboard exposing
-  ( Keyboard, LastSound(..), ChordSource(..), init, status, getId, Msg(..)
-  , update, view
+  ( Keyboard, LastSound(..), init, Msg(..), update, view
   )
 
 import AudioChange exposing (AudioChange(..))
@@ -19,7 +18,6 @@ import Name
 import Note exposing (Note)
 import Path
 import Player exposing (Player)
-import PlayStatus exposing (PlayStatus)
 import Ports exposing (Pluck)
 
 import Html exposing (Html, span, text, input, button)
@@ -32,8 +30,8 @@ import Svg.Lazy
 
 type alias Keyboard =
   { player : Player
+  , selection : Maybe IdChord
   , lastSound : LastSound
-  , source : ChordSource
   , customCode : String
   , customOctave : Int
   }
@@ -43,82 +41,53 @@ type LastSound
   | DirtyPluck
   | Clean
 
-type ChordSource
-  = LastPlayed
-  | ThisChord IdChord
-  | CustomChord
-  | NoChord
-
 init : Keyboard
 init =
   { player = Player.init
+  , selection = Nothing
   , lastSound = Clean
-  , source = NoChord
   , customCode = ""
   , customOctave = 0
   }
 
 getCode : Keyboard -> String
 getCode keyboard =
-  case keyboard.source of
-    LastPlayed ->
-      case Player.lastPlayed keyboard.player of
-        Nothing ->
-          ""
-        Just idChord ->
-          Name.code idChord.chord
-    ThisChord idChord ->
-      Name.code idChord.chord
-    CustomChord ->
-      keyboard.customCode
-    NoChord ->
+  case ( Player.active keyboard.player, keyboard.selection ) of
+    ( Just activeIdChord, _ ) ->
+      Name.code activeIdChord.chord
+    ( Nothing, Just selectedIdChord ) ->
+      if selectedIdChord.id == -1 then
+        keyboard.customCode
+      else
+        Name.code selectedIdChord.chord
+    ( Nothing, Nothing ) ->
       ""
 
 getChord : Keyboard -> Maybe Chord
 getChord keyboard =
-  case keyboard.source of
-    LastPlayed ->
-      Maybe.map
-        .chord
-        (Player.lastPlayed keyboard.player)
-    ThisChord idChord ->
-      Just idChord.chord
-    CustomChord ->
-      Chord.fromCodeExtended keyboard.customCode
-    NoChord ->
+  case ( Player.active keyboard.player, keyboard.selection ) of
+    ( Just activeIdChord, _ ) ->
+      Just activeIdChord.chord
+    ( Nothing, Just selectedIdChord ) ->
+      if selectedIdChord.id == -1 then
+        Chord.fromCodeExtended keyboard.customCode
+      else
+        Just selectedIdChord.chord
+    ( Nothing, Nothing ) ->
       Nothing
 
 getOctave : Keyboard -> Int
 getOctave keyboard =
-  if keyboard.source == CustomChord then
-    keyboard.customOctave
-  else
-    0
-
-status : Bool -> Keyboard -> PlayStatus
-status showSilent keyboard =
-  case keyboard.source of
-    LastPlayed ->
-      Player.status showSilent keyboard.player
-    ThisChord idChord ->
-      if showSilent then
-        PlayStatus.Selected idChord.id
+  case ( Player.active keyboard.player, keyboard.selection ) of
+    ( Just activeIdChord, _ ) ->
+      0
+    ( Nothing, Just selectedIdChord ) ->
+      if selectedIdChord.id == -1 then
+        keyboard.customOctave
       else
-        PlayStatus.Cleared
-    _ ->
-      PlayStatus.Cleared
-
-getId : Keyboard -> Maybe Int
-getId keyboard =
-  case keyboard.source of
-    LastPlayed ->
-      Maybe.map
-        .id
-        (Player.lastPlayed keyboard.player)
-    ThisChord idChord ->
-      Just idChord.id
-    _ ->
-      Nothing
+        0
+    ( Nothing, Nothing ) ->
+      0
 
 type Msg
   = ShowCustomChord (Bool, Float)
@@ -135,12 +104,12 @@ update msg keyboard =
     ShowCustomChord ( showCustomChord, now ) ->
       ( { keyboard
         | player = Player.stop now keyboard.player
-        , lastSound = Clean
-        , source =
+        , selection =
             if showCustomChord then
-              CustomChord
+              Just { id = -1, chord = { flavor = [], root = 0 } }
             else
-              NoChord
+              Nothing
+        , lastSound = Clean
         }
       , if keyboard.lastSound == PlayerSound then
           AudioChange.perform [ Mute now ]
@@ -151,12 +120,12 @@ update msg keyboard =
     SetCode ( code, now ) ->
       ( { keyboard
         | player = Player.stop now keyboard.player
-        , lastSound = Clean
-        , source =
+        , selection =
             if code == "" then
-              NoChord
+              Nothing
             else
-              CustomChord
+              Just { id = -1, chord = { flavor = [], root = 0 } }
+        , lastSound = Clean
         , customCode = code
         , customOctave = getOctave keyboard
         }
@@ -169,8 +138,8 @@ update msg keyboard =
     SetOctave ( octave, now ) ->
       ( { keyboard
         | player = Player.stop now keyboard.player
+        , selection = Just { id = -1, chord = { flavor = [], root = 0 } }
         , lastSound = Clean
-        , source = CustomChord
         , customCode = getCode keyboard
         , customOctave = octave
         }
@@ -208,8 +177,8 @@ update msg keyboard =
       in
         ( { keyboard
           | player = Player.stop now keyboard.player
+          , selection = Just { id = -1, chord = { flavor = [], root = 0 } }
           , lastSound = Clean
-          , source = CustomChord
           , customCode = Name.codeExtended newChord
           , customOctave = newOctave
           }
@@ -244,16 +213,16 @@ update msg keyboard =
             Just ( newChord, newOctave ) ->
               { keyboard
               | player = Player.stop now keyboard.player
+              , selection = Just { id = -1, chord = { flavor = [], root = 0 } }
               , lastSound = Clean
-              , source = CustomChord
               , customCode = Name.codeExtended newChord
               , customOctave = newOctave
               }
             Nothing ->
               { keyboard
               | player = Player.stop now keyboard.player
+              , selection = Nothing
               , lastSound = Clean
-              , source = NoChord
               , customCode = ""
               , customOctave = 0
               }

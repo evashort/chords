@@ -1,3 +1,7 @@
 {
-  "elm.makeOutput": "main.js"
+  "elm.makeOutput": "main.js",
+  "[elm]": {
+    "editor.detectIndentation": false,
+    "editor.tabSize": 2
+  }
 }

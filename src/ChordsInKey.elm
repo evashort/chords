@@ -1,8 +1,10 @@
 module ChordsInKey exposing (Msg(..), view)
 
 import Chord exposing (Chord)
-import IdChord
-import PlayStatus exposing (PlayStatus)
+import ChordView
+import IdChord exposing (IdChord)
+import Player exposing (Player)
+import PlayStyle exposing (PlayStyle)
 import Radio
 import Scale exposing (Scale)
 import Storage exposing (Storage)
@@ -13,10 +15,10 @@ import Html.Events exposing (onCheck)
 
 type Msg
   = SetStorage Storage
-  | IdChordMsg IdChord.Msg
+  | ChordViewMsg ChordView.Msg
 
-view : Storage -> Scale -> PlayStatus -> Html Msg
-view storage scale playStatus =
+view : Storage -> Scale -> Player -> Maybe IdChord -> Html Msg
+view storage scale player selection =
   span
     [ id "chordsInKeyPane"
     , style "display" "block"
@@ -49,7 +51,8 @@ view storage scale playStatus =
         ]
     , viewGrid
         scale
-        playStatus
+        player
+        selection
         [ case ( scale.minor, storage.harmonicMinor ) of
             ( False, False ) ->
               "I ii iii IV V vi viio"
@@ -89,8 +92,8 @@ view storage scale playStatus =
         ]
     ]
 
-viewGrid : Scale -> PlayStatus -> List String -> Html Msg
-viewGrid scale playStatus rows =
+viewGrid : Scale -> Player -> Maybe IdChord -> List String -> Html Msg
+viewGrid scale player selection rows =
   span
     [ style "display" "inline-grid"
     , style "grid-template-rows" "auto"
@@ -108,7 +111,7 @@ viewGrid scale playStatus rows =
             (List.indexedMap viewDegree (split header))
             ( List.concat
                 ( List.indexedMap
-                    (viewRow scale playStatus)
+                    (viewRow scale player selection)
                     rest
                 )
             )
@@ -139,8 +142,8 @@ viewDegree i name =
         ]
     )
 
-viewRow : Scale -> PlayStatus -> Int -> String -> List (Html Msg)
-viewRow scale playStatus i row =
+viewRow : Scale -> Player -> Maybe IdChord -> Int -> String -> List (Html Msg)
+viewRow scale player selection i row =
   case split row of
     [] ->
       []
@@ -154,7 +157,18 @@ viewRow scale playStatus i row =
       in
         (::)
           (viewCategory i category)
-          (List.indexedMap (viewCell scale.tonic playStatus i) cells)
+          ( indexedMaybeMap
+              (viewCell scale.tonic player selection i)
+              (List.map Chord.fromCode cells)
+          )
+
+indexedMaybeMap : (Int -> a -> b) -> List (Maybe a) -> List b
+indexedMaybeMap f xs =
+  List.filterMap identity (List.indexedMap (indexedMaybeMapHelp f) xs)
+
+indexedMaybeMapHelp : (Int -> a -> b) -> Int -> Maybe a -> Maybe b
+indexedMaybeMapHelp f i x =
+  Maybe.map (f i) x
 
 viewCategory : Int -> String -> Html msg
 viewCategory i name =
@@ -174,36 +188,29 @@ viewCategory i name =
         ]
     )
 
-viewCell : Int -> PlayStatus -> Int -> Int -> String -> Html Msg
-viewCell tonic playStatus y x code =
-  case Chord.fromCode code of
-    Nothing ->
-      span
-        [ style "grid-row-start" (String.fromInt (y + 2))
-        , style "grid-column-start" (String.fromInt (x + 2))
-        ]
-        []
-    Just chord ->
-      let
-        idChord =
-          case
-            IdChord.fromChord (Chord.transpose tonic chord)
-          of
-            Nothing ->
-              Debug.todo
-                ( "ChordsInKey.viewCell: Unknown chord " ++
-                    Debug.toString chord
-                )
-            Just something ->
-              something
-      in
-        Html.map
-          IdChordMsg
-          ( span
-              [ style "grid-row-start" (String.fromInt (y + 2))
-              , style "grid-column-start" (String.fromInt (x + 2))
-              , style "position" "relative"
-              , style "font-size" "150%"
-              ]
-              (IdChord.view tonic playStatus idChord)
-          )
+viewCell :
+  Int -> Player -> Maybe IdChord -> Int -> Int -> Chord -> Html Msg
+viewCell tonic player selection y x chord =
+  let
+    idChord =
+      case
+        IdChord.fromChord (Chord.transpose tonic chord)
+      of
+        Nothing ->
+          Debug.todo
+            ( "ChordsInKey.viewCell: Unknown chord " ++
+                Debug.toString chord
+            )
+        Just something ->
+          something
+  in
+    Html.map
+      ChordViewMsg
+      ( span
+          [ style "grid-row-start" (String.fromInt (y + 2))
+          , style "grid-column-start" (String.fromInt (x + 2))
+          , style "position" "relative"
+          , style "font-size" "150%"
+          ]
+          (ChordView.view tonic player selection idChord)
+      )

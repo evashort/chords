@@ -1,21 +1,22 @@
 module Search exposing (Msg(..), view)
 
 import Chord exposing (Chord)
+import ChordView
 import Chroma
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
-import PlayStatus exposing (PlayStatus)
+import Player exposing (Player)
 
 import Html exposing (Html, span, button)
 import Html.Attributes exposing (style, classList, id, disabled)
 
 type Msg
   = ShowCustomChord (Bool, Float)
-  | IdChordMsg IdChord.Msg
+  | ChordViewMsg ChordView.Msg
 
-view : Int -> Bool -> String -> PlayStatus -> Html Msg
-view tonic showCustomChord customCode playStatus =
+view : Int -> String -> Player -> Maybe IdChord -> Html Msg
+view tonic customCode player selection =
   let
     maybeChord = Chord.fromCodeExtended customCode
   in
@@ -64,7 +65,12 @@ view tonic showCustomChord customCode playStatus =
                 [ Html.br [] []
                 , viewCustomChord
                     tonic
-                    showCustomChord
+                    ( case selection of
+                        Just selectedIdChord ->
+                          selectedIdChord.id == -1
+                        Nothing ->
+                          False
+                    )
                     (String.isEmpty customCode)
                     colorChord
                 ]
@@ -75,17 +81,18 @@ view tonic showCustomChord customCode playStatus =
               Just idChord ->
                 [ viewSearchResult
                     tonic
-                    playStatus
+                    player
+                    selection
                     ( "Exact match", idChord )
                 ]
           , List.map
-              (viewSearchResult tonic playStatus)
+              (viewSearchResult tonic player selection)
               inversions
           , List.map
-              (viewSearchResult tonic playStatus)
+              (viewSearchResult tonic player selection)
               extensions
           , List.map
-              (viewSearchResult tonic playStatus)
+              (viewSearchResult tonic player selection)
               subsets
           ]
       )
@@ -170,10 +177,10 @@ viewCustomChord tonic showCustomChord noCustomChord colorChord =
           ]
       ]
 
-viewSearchResult : Int -> PlayStatus -> (String, IdChord) -> Html Msg
-viewSearchResult tonic playStatus ( header, idChord ) =
+viewSearchResult : Int -> Player -> Maybe IdChord -> (String, IdChord) -> Html Msg
+viewSearchResult tonic player selection ( header, idChord ) =
   Html.map
-    IdChordMsg
+    ChordViewMsg
     ( span
         [ style "text-align" "center"
         , style "margin-right" "5px"
@@ -188,6 +195,6 @@ viewSearchResult tonic playStatus ( header, idChord ) =
             , style "display" "inline-block"
             , style "font-size" "150%"
             ]
-            (IdChord.view tonic playStatus idChord)
+            (ChordView.view tonic player selection idChord)
         ]
     )

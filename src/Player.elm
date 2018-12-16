@@ -1,5 +1,7 @@
 module Player exposing
-  ( Player, init, setTime, status, willChange, sequence, sequenceFinished
+  ( Player, init, setTime
+  , active, next, stoppable
+  , willChange, sequence, sequenceFinished
   , lastPlayed, stop, pad, strum, arp, strumPattern
   )
 
@@ -9,13 +11,12 @@ import Chord exposing (Chord)
 import Cliff exposing (Hold, Region, Cliff)
 import IdChord exposing (IdChord)
 import Note exposing (Note)
-import PlayStatus exposing (PlayStatus)
 import StrumPattern exposing (StrumPattern, StrumNote)
 
 type alias Player =
   { cliff : Cliff Bool
   , schedule : List Segment
-  , unfinishedCount : Int
+  , unfinishedCount : Int -- 0 <= unfinishedCount <= List.length schedule
   }
 
 type alias Segment =
@@ -41,43 +42,35 @@ setTime now player =
     else
       Just { player | unfinishedCount = unfinishedCount }
 
-status : Bool -> Player -> PlayStatus
-status showSilent player =
+active : Player -> Maybe IdChord
+active player =
   if player.unfinishedCount <= 0 then
-    if showSilent then
-      case player.schedule of
-        [] ->
-          PlayStatus.Cleared
-        current :: _ ->
-          PlayStatus.Selected current.id
-    else
-      PlayStatus.Cleared
-  else if player.unfinishedCount == 1 then
-    case player.schedule of
-      [] ->
-        Debug.todo
-          ( "Player.status: Inconsistent state: " ++
-              Debug.toString player
-          )
+    Nothing
+  else
+    case List.drop (player.unfinishedCount - 1) player.schedule of
       current :: _ ->
-        PlayStatus.Playing
-          { active = current.id
-          , stopButton = current.stop == infinity
-          , next = Nothing
-          }
+        Just { id = current.id, chord = current.chord }
+      _ ->
+        Nothing
+
+next : Player -> Maybe Int
+next player =
+  if player.unfinishedCount <= 1 then
+    Nothing
   else
     case List.drop (player.unfinishedCount - 2) player.schedule of
-      future :: current :: _ ->
-        PlayStatus.Playing
-          { active = current.id
-          , stopButton = False
-          , next = Just future.id
-          }
+      future :: _ ->
+        Just future.id
       _ ->
-        Debug.todo
-          ( "Player.status: Inconsistent state: " ++
-              Debug.toString player
-          )
+        Nothing
+
+stoppable : Player -> Bool
+stoppable player =
+  case player.schedule of
+    segment :: _ ->
+      segment.stop == infinity
+    _ ->
+      False
 
 willChange : Player -> Bool
 willChange player =

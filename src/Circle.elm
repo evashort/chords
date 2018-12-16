@@ -1,11 +1,12 @@
 module Circle exposing (view)
 
 import Chord exposing (Chord)
+import ChordView
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
 import Path
-import PlayStatus exposing (PlayStatus)
+import Player exposing (Player)
 import Name
 
 import Html exposing (Html)
@@ -19,8 +20,8 @@ import Svg.Attributes exposing
   , textAnchor
   )
 
-view : Int -> PlayStatus -> Html IdChord.Msg
-view tonic playStatus =
+view : Int -> Player -> Maybe IdChord -> Html ChordView.Msg
+view tonic player selection =
   let
     rInner = 100
     rOuter = 247.5
@@ -56,12 +57,12 @@ view tonic playStatus =
               , scaleShadow
               , List.concat
                   ( List.indexedMap
-                      (viewChord tonic playStatus rMid rOuter)
+                      (viewChord tonic player selection rMid rOuter)
                       majorChords
                   )
               , List.concat
                   ( List.indexedMap
-                      (viewChord tonic playStatus rInner rMid)
+                      (viewChord tonic player selection rInner rMid)
                       minorChords
                   )
               ]
@@ -74,10 +75,10 @@ view tonic playStatus =
           ]
           ( List.concat
               [ List.indexedMap
-                  (viewChordText playStatus (0.5 * (rMid + rOuter)))
+                  (viewChordText player (0.5 * (rMid + rOuter)))
                   majorChords
               , List.indexedMap
-                  (viewChordText playStatus (0.5 * (rInner + rMid)))
+                  (viewChordText player (0.5 * (rInner + rMid)))
                   minorChords
               ]
           )
@@ -138,76 +139,87 @@ areaAverage x y =
   sqrt (0.5 * (x * x + y * y))
 
 viewChord :
-  Int -> PlayStatus -> Float -> Float -> Int -> IdChord ->
-    List (Svg IdChord.Msg)
-viewChord tonic playStatus rInner rOuter i { id, chord } =
-  List.filterMap
-    identity
-    [ if PlayStatus.hasBorder playStatus id then
-        Just
+  Int -> Player -> Maybe IdChord -> Float -> Float -> Int -> IdChord ->
+    List (Svg ChordView.Msg)
+viewChord tonic player selection rInner rOuter i idChord =
+  let
+    solid =
+      Player.active player == Just idChord || selection == Just idChord
+    dashed = Player.next player == Just idChord.id
+    stoppable =
+      Player.stoppable player &&
+        Player.active player == Just idChord
+  in
+    List.filterMap
+      identity
+      [ if solid || dashed then
+          Just
+            ( path
+                [ fill "none"
+                , stroke "#3399ff"
+                , strokeWidth "5"
+                , strokeLinejoin "round"
+                , strokeDasharray
+                    ( if dashed then
+                        "10, 10"
+                      else
+                        "none"
+                    )
+                , d (twelfth 0 rInner rOuter i)
+                ]
+                []
+            )
+        else
+          Nothing
+      , let
+          action =
+            if stoppable then
+              ChordView.Stop
+            else
+              ChordView.Play << Tuple.pair idChord
+        in
+          Just
+            ( path
+                [ isAudioTimeButton True
+                , onClickWithAudioTime action
+                , fill (Colour.bg tonic idChord.chord)
+                , attribute "tabindex" "0"
+                , style "cursor" "pointer"
+                , d (twelfth 5 rInner rOuter i)
+                ]
+                []
+            )
+      , Just
+          ( path
+              [ fill "url(#twelfthShine)"
+              , opacity (Colour.shineOpacity idChord.chord)
+              , d (twelfth 7 rInner rOuter i)
+              , style "pointer-events" "none"
+              ]
+              []
+          )
+      , Just
           ( path
               [ fill "none"
-              , stroke "#3399ff"
-              , strokeWidth "5"
-              , strokeLinejoin "round"
-              , strokeDasharray
-                  ( if PlayStatus.hasDashedBorder playStatus id then
-                      "10, 10"
-                    else
-                      "none"
-                  )
-              , d (twelfth 0 rInner rOuter i)
+              , stroke "black"
+              , strokeOpacity (Colour.borderOpacity idChord.chord)
+              , d (twelfth 6 rInner rOuter i)
+              , style "pointer-events" "none"
               ]
               []
           )
-      else
-        Nothing
-    , let
-        action =
-          if PlayStatus.hasStopButton playStatus id then
-            IdChord.Stop
-          else
-            IdChord.Play << Tuple.pair (IdChord id chord)
-      in
-        Just
-          ( path
-              [ isAudioTimeButton True
-              , onClickWithAudioTime action
-              , fill (Colour.bg tonic chord)
-              , attribute "tabindex" "0"
-              , style "cursor" "pointer"
-              , d (twelfth 5 rInner rOuter i)
-              ]
-              []
-          )
-    , Just
-        ( path
-            [ fill "url(#twelfthShine)"
-            , opacity (Colour.shineOpacity chord)
-            , d (twelfth 7 rInner rOuter i)
-            , style "pointer-events" "none"
-            ]
-            []
-        )
-    , Just
-        ( path
-            [ fill "none"
-            , stroke "black"
-            , strokeOpacity (Colour.borderOpacity chord)
-            , d (twelfth 6 rInner rOuter i)
-            , style "pointer-events" "none"
-            ]
-            []
-        )
-    ]
+      ]
 
 
-viewChordText : PlayStatus -> Float -> Int -> IdChord -> Html msg
-viewChordText playStatus r i { id, chord } =
+viewChordText : Player -> Float -> Int -> IdChord -> Html msg
+viewChordText player r i idChord =
   let
     ( x, y ) =
       let a = 2 * pi * (0.25 - toFloat i / 12) in
         ( polarX r a, polarY r a )
+    stoppable =
+      Player.stoppable player &&
+        Player.active player == Just idChord
   in
     Html.span
       [ style "position"  "absolute"
@@ -215,20 +227,20 @@ viewChordText playStatus r i { id, chord } =
       , style "top" (String.fromFloat (y - 0.5 * 75) ++ "px")
       , style "width" "75px"
       , style "line-height" "75px"
-      , style "color" (Colour.fg chord)
+      , style "color" (Colour.fg idChord.chord)
       ]
-      ( if PlayStatus.hasStopButton playStatus id then
+      ( if stoppable then
           [ Html.span
               [ style "width" "1em"
               , style "height" "1em"
               , style "display" "inline-block"
               , style "vertical-align" "middle"
-              , style "background" (Colour.fg chord)
+              , style "background" (Colour.fg idChord.chord)
               ]
               []
           ]
         else
-          Name.view chord
+          Name.view idChord.chord
       )
 
 twelfth : Float -> Float -> Float -> Int -> String
