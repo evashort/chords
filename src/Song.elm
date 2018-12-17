@@ -18,15 +18,22 @@ view gridArea tonic player selection song =
     , style "grid-area" gridArea
     , style "display" "grid"
     , style "position" "relative"
-    , style "grid-auto-rows" "75px"
-    , style "grid-auto-columns" "75px"
+    , style "grid-auto-rows" "3.2em"
+    , style "grid-auto-columns" "3.2em"
     , style "grid-row-gap" "5px"
     , style "grid-column-gap" "5px"
     , style "align-items" "stretch"
     , style "justify-items" "stretch"
     , style "font-size" "150%"
     , style "margin-top" "5px"
-    , style "height" (String.fromInt (80 * List.length song - 5) ++ "px")
+    , style
+        "height"
+        ( String.concat
+            [ "calc((3.2em + 5px) * "
+            , String.fromInt (List.length song)
+            , " - 5px)"
+            ]
+        )
     ]
     ( List.concat
         (List.indexedMap (viewRow tonic player selection) song)

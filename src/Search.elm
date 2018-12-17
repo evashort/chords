@@ -104,9 +104,7 @@ viewCustomChord tonic showCustomChord noCustomChord colorChord =
       ShowCustomChord << Tuple.pair (not showCustomChord)
   in
     span
-      [ style "width" "75px"
-      , style "height" "75px"
-      , style "position" "relative"
+      [ style "position" "relative"
       , style "display" "inline-block"
       ]
       [ span
@@ -136,8 +134,8 @@ viewCustomChord tonic showCustomChord noCustomChord colorChord =
           [ isAudioTimeButton True
           , onClickWithAudioTime action
           , disabled noCustomChord
-          , style "width" "100%"
-          , style "height" "100%"
+          , style "width" "76.8px"
+          , style "height" "76.8px"
           , style "background" (Colour.bg tonic colorChord)
           , style
               "color"
@@ -189,9 +187,7 @@ viewSearchResult tonic player selection ( header, idChord ) =
         [ Html.text header
         , Html.br [] []
         , span
-            [ style "width" "75px"
-            , style "height" "75px"
-            , style "position" "relative"
+            [ style "position" "relative"
             , style "display" "inline-block"
             , style "font-size" "150%"
             ]

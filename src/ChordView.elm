@@ -79,8 +79,8 @@ viewButton tonic stoppable chord =
     [ isAudioTimeButton True
     , onClickWithAudioTime identity
     , class "chordButton"
-    , style "width" "100%"
-    , style "height" "100%"
+    , style "width" "3.2em"
+    , style "height" "3.2em"
     , style "background" (Colour.bg tonic chord)
     , style "color" (Colour.fg chord)
     , style "font" "inherit" -- somehow this redundant style changes
@@ -99,7 +99,7 @@ viewButton tonic stoppable chord =
     , style
         "box-shadow"
         ( String.concat
-            [ "inset 18px 34px 20px -20px rgba(255, 255, 255, "
+            [ "inset 0.75em 1.42em 0.83em -0.83em rgba(255, 255, 255, "
             , Colour.shineOpacity chord
             , ")"
             ]

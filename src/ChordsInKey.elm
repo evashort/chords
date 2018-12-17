@@ -97,9 +97,7 @@ viewGrid scale player selection rows =
   span
     [ style "display" "inline-grid"
     , style "grid-template-rows" "auto"
-    , style "grid-auto-rows" "75px"
     , style "grid-template-columns" "auto"
-    , style "grid-auto-columns" "75px"
     , style "grid-row-gap" "5px"
     , style "grid-column-gap" "5px"
     ]
