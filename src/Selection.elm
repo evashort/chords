@@ -51,7 +51,18 @@ stoppable selection =
     Dynamic player ->
       case player.schedule of
         segment :: _ ->
-          segment.stop == infinity
+          if segment.stop == infinity then
+            True
+          else
+            case player.cliff of
+              currentRegion :: _ ->
+                currentRegion.interval > 0
+              _ ->
+                Debug.todo
+                  ( String.append
+                      "Selection.stoppable: Player has schedule but no cliff: "
+                      (Debug.toString player)
+                  )
         _ ->
           False
     _ ->
