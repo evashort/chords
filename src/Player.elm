@@ -1,9 +1,5 @@
 module Player exposing
-  ( Player, init, setTime
-  , active, next, stoppable
-  , willChange, sequence, sequenceFinished
-  , lastPlayed, stop, pad, strum, arp, strumPattern
-  )
+  (Player, init, setTime, sequence, stop, pad, strum, arp, strumPattern)
 
 import Arp
 import AudioChange exposing (AudioChange(..))
@@ -42,50 +38,6 @@ setTime now player =
     else
       Just { player | unfinishedCount = unfinishedCount }
 
-active : Player -> Maybe IdChord
-active player =
-  if player.unfinishedCount <= 0 then
-    Nothing
-  else
-    case List.drop (player.unfinishedCount - 1) player.schedule of
-      current :: _ ->
-        Just { id = current.id, chord = current.chord }
-      _ ->
-        Nothing
-
-next : Player -> Maybe Int
-next player =
-  if player.unfinishedCount <= 1 then
-    Nothing
-  else
-    case List.drop (player.unfinishedCount - 2) player.schedule of
-      future :: _ ->
-        Just future.id
-      _ ->
-        Nothing
-
-stoppable : Player -> Bool
-stoppable player =
-  case player.schedule of
-    segment :: _ ->
-      segment.stop == infinity
-    _ ->
-      False
-
-willChange : Player -> Bool
-willChange player =
-  if player.unfinishedCount == 1 then
-    case player.schedule of
-      [] ->
-        Debug.todo
-          ( "Player.willChange: Inconsistent state: " ++
-              Debug.toString player
-          )
-      current :: _ ->
-        current.stop < infinity
-  else
-    player.unfinishedCount > 0
-
 sequence : Player -> List Chord
 sequence player =
   let
@@ -105,20 +57,6 @@ removeDuplicates xs =
         x :: removeDuplicates (y :: rest)
     other ->
       other
-
-sequenceFinished : Player -> Bool
-sequenceFinished player =
-  player.unfinishedCount <= 0
-
-lastPlayed : Player -> Maybe IdChord
-lastPlayed player =
-  case
-    List.drop (player.unfinishedCount - 1) player.schedule
-  of
-    segment :: _ ->
-      Just (IdChord segment.id segment.chord)
-    [] ->
-      Nothing
 
 stop : Float -> Player -> Player
 stop now player =

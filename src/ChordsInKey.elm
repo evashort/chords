@@ -3,10 +3,10 @@ module ChordsInKey exposing (Msg(..), view)
 import Chord exposing (Chord)
 import ChordView
 import IdChord exposing (IdChord)
-import Player exposing (Player)
-import PlayStyle exposing (PlayStyle)
+import PlayStyle
 import Radio
 import Scale exposing (Scale)
+import Selection exposing (Selection)
 import Storage exposing (Storage)
 
 import Html exposing (Html, span, text, sup, label, input)
@@ -15,10 +15,10 @@ import Html.Events exposing (onCheck)
 
 type Msg
   = SetStorage Storage
-  | ChordViewMsg ChordView.Msg
+  | SelectionMsg Selection.Msg
 
-view : Storage -> Scale -> Player -> Maybe IdChord -> Html Msg
-view storage scale player selection =
+view : Storage -> Scale -> Selection -> Html Msg
+view storage scale selection =
   span
     [ id "chordsInKeyPane"
     , style "display" "block"
@@ -51,7 +51,7 @@ view storage scale player selection =
         ]
     , viewGrid
         scale
-        player
+        (storage.playStyle /= PlayStyle.Silent)
         selection
         [ case ( scale.minor, storage.harmonicMinor ) of
             ( False, False ) ->
@@ -92,8 +92,8 @@ view storage scale player selection =
         ]
     ]
 
-viewGrid : Scale -> Player -> Maybe IdChord -> List String -> Html Msg
-viewGrid scale player selection rows =
+viewGrid : Scale -> Bool -> Selection -> List String -> Html Msg
+viewGrid scale playable strum rows =
   span
     [ style "display" "inline-grid"
     , style "grid-template-rows" "auto"
@@ -109,7 +109,7 @@ viewGrid scale player selection rows =
             (List.indexedMap viewDegree (split header))
             ( List.concat
                 ( List.indexedMap
-                    (viewRow scale player selection)
+                    (viewRow scale playable strum)
                     rest
                 )
             )
@@ -140,8 +140,8 @@ viewDegree i name =
         ]
     )
 
-viewRow : Scale -> Player -> Maybe IdChord -> Int -> String -> List (Html Msg)
-viewRow scale player selection i row =
+viewRow : Scale -> Bool -> Selection -> Int -> String -> List (Html Msg)
+viewRow scale playable strum i row =
   case split row of
     [] ->
       []
@@ -156,7 +156,7 @@ viewRow scale player selection i row =
         (::)
           (viewCategory i category)
           ( indexedMaybeMap
-              (viewCell scale.tonic player selection i)
+              (viewCell scale.tonic playable strum i)
               (List.map Chord.fromCode cells)
           )
 
@@ -186,9 +186,8 @@ viewCategory i name =
         ]
     )
 
-viewCell :
-  Int -> Player -> Maybe IdChord -> Int -> Int -> Chord -> Html Msg
-viewCell tonic player selection y x chord =
+viewCell : Int -> Bool -> Selection -> Int -> Int -> Chord -> Html Msg
+viewCell tonic playable strum y x chord =
   let
     idChord =
       case
@@ -203,12 +202,12 @@ viewCell tonic player selection y x chord =
           something
   in
     Html.map
-      ChordViewMsg
+      SelectionMsg
       ( span
           [ style "grid-row-start" (String.fromInt (y + 2))
           , style "grid-column-start" (String.fromInt (x + 2))
           , style "position" "relative"
           , style "font-size" "150%"
           ]
-          (ChordView.view tonic player selection idChord)
+          (ChordView.view tonic playable strum idChord)
       )

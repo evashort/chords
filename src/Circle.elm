@@ -1,13 +1,12 @@
 module Circle exposing (view)
 
 import Chord exposing (Chord)
-import ChordView
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
-import Path
-import Player exposing (Player)
 import Name
+import Path
+import Selection exposing (Selection)
 
 import Html exposing (Html)
 import Html.Attributes as Attributes exposing (attribute, style)
@@ -20,8 +19,8 @@ import Svg.Attributes exposing
   , textAnchor
   )
 
-view : Int -> Player -> Maybe IdChord -> Html ChordView.Msg
-view tonic player selection =
+view : Int -> Bool -> Selection -> Html Selection.Msg
+view tonic playable selection =
   let
     rInner = 100
     rOuter = 247.5
@@ -57,12 +56,12 @@ view tonic player selection =
               , scaleShadow
               , List.concat
                   ( List.indexedMap
-                      (viewChord tonic player selection rMid rOuter)
+                      (viewChord tonic playable selection rMid rOuter)
                       majorChords
                   )
               , List.concat
                   ( List.indexedMap
-                      (viewChord tonic player selection rInner rMid)
+                      (viewChord tonic playable selection rInner rMid)
                       minorChords
                   )
               ]
@@ -75,10 +74,10 @@ view tonic player selection =
           ]
           ( List.concat
               [ List.indexedMap
-                  (viewChordText player (0.5 * (rMid + rOuter)))
+                  (viewChordText selection (0.5 * (rMid + rOuter)))
                   majorChords
               , List.indexedMap
-                  (viewChordText player (0.5 * (rInner + rMid)))
+                  (viewChordText selection (0.5 * (rInner + rMid)))
                   minorChords
               ]
           )
@@ -139,20 +138,17 @@ areaAverage x y =
   sqrt (0.5 * (x * x + y * y))
 
 viewChord :
-  Int -> Player -> Maybe IdChord -> Float -> Float -> Int -> IdChord ->
-    List (Svg ChordView.Msg)
-viewChord tonic player selection rInner rOuter i idChord =
+  Int -> Bool -> Selection -> Float -> Float -> Int -> IdChord ->
+    List (Svg Selection.Msg)
+viewChord tonic playable selection rInner rOuter i idChord =
   let
-    solid =
-      Player.active player == Just idChord || selection == Just idChord
-    dashed = Player.next player == Just idChord.id
-    stoppable =
-      Player.stoppable player &&
-        Player.active player == Just idChord
+    member = Selection.member idChord.id selection
+    scheduled = Selection.scheduled idChord.id selection
+    stoppable = Selection.stoppable selection
   in
     List.filterMap
       identity
-      [ if solid || dashed then
+      [ if scheduled || (member && not playable) then
           Just
             ( path
                 [ fill "none"
@@ -160,7 +156,7 @@ viewChord tonic player selection rInner rOuter i idChord =
                 , strokeWidth "5"
                 , strokeLinejoin "round"
                 , strokeDasharray
-                    ( if dashed then
+                    ( if not member then
                         "10, 10"
                       else
                         "none"
@@ -173,10 +169,10 @@ viewChord tonic player selection rInner rOuter i idChord =
           Nothing
       , let
           action =
-            if stoppable then
-              ChordView.Stop
+            if (not playable) || (member && scheduled && stoppable) then
+              Selection.Select << Tuple.pair idChord
             else
-              ChordView.Play << Tuple.pair idChord
+              Selection.Play << Tuple.pair idChord
         in
           Just
             ( path
@@ -211,15 +207,15 @@ viewChord tonic player selection rInner rOuter i idChord =
       ]
 
 
-viewChordText : Player -> Float -> Int -> IdChord -> Html msg
-viewChordText player r i idChord =
+viewChordText : Selection -> Float -> Int -> IdChord -> Html msg
+viewChordText selection r i idChord =
   let
     ( x, y ) =
       let a = 2 * pi * (0.25 - toFloat i / 12) in
         ( polarX r a, polarY r a )
-    stoppable =
-      Player.stoppable player &&
-        Player.active player == Just idChord
+    member = Selection.member idChord.id selection
+    scheduled = Selection.scheduled idChord.id selection
+    stoppable = Selection.stoppable selection
   in
     Html.span
       [ style "position"  "absolute"
@@ -229,7 +225,7 @@ viewChordText player r i idChord =
       , style "line-height" "75px"
       , style "color" (Colour.fg idChord.chord)
       ]
-      ( if stoppable then
+      ( if member && scheduled && stoppable then
           [ Html.span
               [ style "width" "1em"
               , style "height" "1em"

@@ -1,44 +1,41 @@
-module ChordView exposing (Msg(..), view)
+module ChordView exposing (view)
 
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
 import Name
-import Player exposing (Player)
+import Selection exposing (Selection)
 
 import Html exposing (Html, span, button)
 import Html.Attributes as Attributes exposing (style, class, classList)
+import Html.Events exposing (onClick)
 import Html.Lazy
 
-type Msg
-  = Play (IdChord, Float)
-  | Stop Float
-
-view : Int -> Player -> Maybe IdChord -> IdChord -> List (Html Msg)
-view tonic player selection idChord =
+view : Int -> Bool -> Selection -> IdChord -> List (Html Selection.Msg)
+view tonic playable selection idChord =
   let
-    stoppable = Player.stoppable player &&
-      Player.active player == Just idChord
+    member = Selection.member idChord.id selection
+    scheduled = Selection.scheduled idChord.id selection
+    stoppable = Selection.stoppable selection
   in
-    List.map
-      ( Html.map
-          ( if stoppable then
-              Stop
-            else
-              Play << Tuple.pair idChord
-          )
-      )
-      [ Html.Lazy.lazy2
-          viewBorder
-          (Player.active player == Just idChord || selection == Just idChord)
-          (Player.next player == Just idChord.id)
-      , Html.Lazy.lazy3
+    [ Html.Lazy.lazy2
+        viewBorder
+        scheduled
+        (scheduled && not member)
+    , if playable || (member && scheduled && stoppable) then
+        Html.Lazy.lazy3
           viewButton
           tonic
-          stoppable
-          idChord.chord
-      ]
+          (member && scheduled && stoppable)
+          idChord
+      else
+        Html.Lazy.lazy3
+          viewSelectButton
+          tonic
+          member
+          idChord
+    ]
 
 viewBorder : Bool -> Bool -> Html msg
 viewBorder solid dashed =
@@ -59,7 +56,7 @@ viewBorder solid dashed =
     , style
         "border-color"
         ( if solid || dashed then
-            "#3399ff"
+            "#00cd00"
           else
             "transparent"
         )
@@ -73,16 +70,21 @@ viewBorder solid dashed =
     ]
     []
 
-viewButton : Int -> Bool -> Chord -> Html Float
-viewButton tonic stoppable chord =
+viewButton : Int -> Bool -> IdChord -> Html Selection.Msg
+viewButton tonic stoppable idChord =
   button
     [ isAudioTimeButton True
-    , onClickWithAudioTime identity
+    , onClickWithAudioTime
+        ( if stoppable then
+            Selection.Select << Tuple.pair idChord
+          else
+            Selection.Play << Tuple.pair idChord
+        )
     , class "chordButton"
     , style "width" "3.2em"
     , style "height" "3.2em"
-    , style "background" (Colour.bg tonic chord)
-    , style "color" (Colour.fg chord)
+    , style "background" (Colour.bg tonic idChord.chord)
+    , style "color" (Colour.fg idChord.chord)
     , style "font" "inherit" -- somehow this redundant style changes
                              -- line-height and keeps text with
                              -- superscripts from sagging
@@ -91,7 +93,7 @@ viewButton tonic stoppable chord =
         "border"
         ( String.concat
             [ "1px solid rgba(0, 0, 0, "
-            , Colour.borderOpacity chord
+            , Colour.borderOpacity idChord.chord
             , ")"
             ]
         )
@@ -100,7 +102,7 @@ viewButton tonic stoppable chord =
         "box-shadow"
         ( String.concat
             [ "inset 0.75em 1.42em 0.83em -0.83em rgba(255, 255, 255, "
-            , Colour.shineOpacity chord
+            , Colour.shineOpacity idChord.chord
             , ")"
             ]
         )
@@ -109,7 +111,7 @@ viewButton tonic stoppable chord =
     ]
     ( if stoppable then
         [ span
-            [ style "background" (Colour.fg chord)
+            [ style "background" (Colour.fg idChord.chord)
             , style "width" "1em"
             , style "height" "1em"
             , style "display" "inline-block"
@@ -118,5 +120,48 @@ viewButton tonic stoppable chord =
             []
         ]
       else
-        Name.view chord
+        Name.view idChord.chord
     )
+
+viewSelectButton : Int -> Bool -> IdChord -> Html Selection.Msg
+viewSelectButton tonic selected idChord =
+  span
+    [ style "display" "inline-block"
+    , style
+        "background"
+        ( if selected then
+            "#3399ff"
+          else
+            "transparent"
+        )
+    ]
+    [ button
+        [ isAudioTimeButton True
+        , onClickWithAudioTime
+            ( if selected then
+                Selection.Clear
+              else
+                Selection.Select << Tuple.pair idChord
+            )
+        , class "chordButton"
+        , style "width" "2.8em"
+        , style "height" "2.8em"
+        , style "background" (Colour.bg tonic idChord.chord)
+        , style "color" (Colour.fg idChord.chord)
+        , style "font" "inherit" -- somehow this redundant style changes
+                                -- line-height and keeps text with
+                                -- superscripts from sagging
+        , style
+            "border"
+            ( String.concat
+                [ "1px solid rgba(0, 0, 0, "
+                , Colour.borderOpacity idChord.chord
+                , ")"
+                ]
+            )
+        , style "padding" "0"
+        , style "margin" "0.2em"
+        , style "white-space" "nowrap"
+        ]
+        (Name.view idChord.chord)
+    ]

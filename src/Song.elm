@@ -2,7 +2,7 @@ module Song exposing (Song, view)
 
 import ChordView
 import IdChord exposing (IdChord)
-import Player exposing (Player)
+import Selection exposing (Selection)
 
 import Html exposing (Html, span)
 import Html.Attributes exposing (style, id)
@@ -10,8 +10,8 @@ import Html.Keyed
 
 type alias Song = List (List (Maybe IdChord))
 
-view : String -> Int -> Player -> Maybe IdChord -> Song -> Html ChordView.Msg
-view gridArea tonic player selection song =
+view : String -> Int -> Bool -> Selection -> Song -> Html Selection.Msg
+view gridArea tonic playable selection song =
   Html.Keyed.node
     "span"
     [ id gridArea
@@ -36,14 +36,14 @@ view gridArea tonic player selection song =
         )
     ]
     ( List.concat
-        (List.indexedMap (viewRow tonic player selection) song)
+        (List.indexedMap (viewRow tonic playable selection) song)
     )
 
 viewRow :
-  Int -> Player -> Maybe IdChord -> Int -> List (Maybe IdChord) ->
-    List (String, Html ChordView.Msg)
-viewRow tonic player selection y row =
-  indexedMaybeMap (viewCell tonic player selection y) row
+  Int -> Bool -> Selection -> Int -> List (Maybe IdChord) ->
+    List (String, Html Selection.Msg)
+viewRow tonic playable selection y row =
+  indexedMaybeMap (viewCell tonic playable selection y) row
 
 indexedMaybeMap : (Int -> a -> b) -> List (Maybe a) -> List b
 indexedMaybeMap f xs =
@@ -54,9 +54,9 @@ indexedMaybeMapHelp f i x =
   Maybe.map (f i) x
 
 viewCell :
-  Int -> Player -> Maybe IdChord -> Int -> Int -> IdChord ->
-    (String, Html ChordView.Msg)
-viewCell tonic player selection y x idChord =
+  Int -> Bool -> Selection -> Int -> Int -> IdChord ->
+    (String, Html Selection.Msg)
+viewCell tonic playable selection y x idChord =
   ( String.fromInt idChord.id
   , span
       [ style "grid-row-start" (String.fromInt (y + 1))
@@ -65,5 +65,5 @@ viewCell tonic player selection y x idChord =
       , style "grid-column-end" "span 1"
       , style "position" "relative"
       ]
-      (ChordView.view tonic player selection idChord)
+      (ChordView.view tonic playable selection idChord)
   )

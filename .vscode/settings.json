@@ -2,6 +2,7 @@
   "elm.makeOutput": "main.js",
   "[elm]": {
     "editor.detectIndentation": false,
-    "editor.tabSize": 2
+    "editor.tabSize": 2,
+    "editor.acceptSuggestionOnEnter": "off"
   }
 }

@@ -1,6 +1,4 @@
-module Keyboard exposing
-  ( Keyboard, LastSound(..), init, Msg(..), update, view
-  )
+module Keyboard exposing (Keyboard, init, Msg(..), UpdateResult, update, view)
 
 import AudioChange exposing (AudioChange(..))
 import Chord exposing (Chord)
@@ -17,8 +15,8 @@ import IdChord exposing (IdChord)
 import Name
 import Note exposing (Note)
 import Path
-import Player exposing (Player)
 import Ports exposing (Pluck)
+import Selection exposing (Selection)
 
 import Html exposing (Html, span, text, input, button)
 import Html.Attributes as Attributes exposing (attribute, style, class, id)
@@ -29,133 +27,115 @@ import Svg.Attributes as SA
 import Svg.Lazy
 
 type alias Keyboard =
-  { player : Player
-  , selection : Maybe IdChord
-  , lastSound : LastSound
-  , customCode : String
+  { customCode : String
   , customOctave : Int
   }
 
-type LastSound
-  = PlayerSound
-  | DirtyPluck
-  | Clean
-
 init : Keyboard
 init =
-  { player = Player.init
-  , selection = Nothing
-  , lastSound = Clean
-  , customCode = ""
+  { customCode = ""
   , customOctave = 0
   }
 
-getCode : Keyboard -> String
-getCode keyboard =
-  case ( Player.active keyboard.player, keyboard.selection ) of
-    ( Just activeIdChord, _ ) ->
-      Name.code activeIdChord.chord
-    ( Nothing, Just selectedIdChord ) ->
-      if selectedIdChord.id == -1 then
-        keyboard.customCode
-      else
-        Name.code selectedIdChord.chord
-    ( Nothing, Nothing ) ->
+getCode : Selection -> Keyboard -> String
+getCode selection keyboard =
+  case selection of
+    Selection.Static (Just idChord) ->
+      Name.code idChord.chord
+    Selection.Static Nothing ->
       ""
+    Selection.Dynamic player ->
+      case List.drop (player.unfinishedCount - 1) player.schedule of
+        current :: _ ->
+          Name.code current.chord
+        _ ->
+          ""
+    Selection.Custom ->
+      keyboard.customCode
 
-getChord : Keyboard -> Maybe Chord
-getChord keyboard =
-  case ( Player.active keyboard.player, keyboard.selection ) of
-    ( Just activeIdChord, _ ) ->
-      Just activeIdChord.chord
-    ( Nothing, Just selectedIdChord ) ->
-      if selectedIdChord.id == -1 then
-        Chord.fromCodeExtended keyboard.customCode
-      else
-        Just selectedIdChord.chord
-    ( Nothing, Nothing ) ->
-      Nothing
+getChord : Selection -> Keyboard -> Maybe Chord
+getChord selection keyboard =
+  case selection of
+    Selection.Static maybeIdChord ->
+      Maybe.map .chord maybeIdChord
+    Selection.Dynamic player ->
+      case List.drop (player.unfinishedCount - 1) player.schedule of
+        current :: _ ->
+          Just current.chord
+        _ ->
+          Nothing
+    Selection.Custom ->
+      Chord.fromCodeExtended keyboard.customCode
 
-getOctave : Keyboard -> Int
-getOctave keyboard =
-  case ( Player.active keyboard.player, keyboard.selection ) of
-    ( Just activeIdChord, _ ) ->
-      0
-    ( Nothing, Just selectedIdChord ) ->
-      if selectedIdChord.id == -1 then
-        keyboard.customOctave
-      else
-        0
-    ( Nothing, Nothing ) ->
-      0
+getOctave : Selection -> Keyboard -> Int
+getOctave selection keyboard =
+  if selection == Selection.Custom then
+    keyboard.customOctave
+  else
+    0
 
 type Msg
-  = ShowCustomChord (Bool, Float)
-  | SetCode (String, Float)
+  = SetCode (String, Float)
   | SetOctave (Int, Float)
   | AddPitch (Int, Int, Float)
   | RemovePitch (Int, Int, Float)
   | HarpPlucked Pluck
   | AddWord String
 
-update : Msg -> Keyboard -> (Keyboard, Cmd Msg)
-update msg keyboard =
-  case msg of
-    ShowCustomChord ( showCustomChord, now ) ->
-      ( { keyboard
-        | player = Player.stop now keyboard.player
-        , selection =
-            if showCustomChord then
-              Just { id = -1, chord = { flavor = [], root = 0 } }
-            else
-              Nothing
-        , lastSound = Clean
-        }
-      , if keyboard.lastSound == PlayerSound then
-          AudioChange.perform [ Mute now ]
-        else
-          Cmd.none
-      )
+type alias UpdateResult msg =
+  { selectionPlucked : Bool
+  , selection : Selection
+  , keyboard : Keyboard
+  , sequence : List Chord
+  , cmd : Cmd msg
+  }
 
+update : Msg -> Bool -> Selection -> Keyboard -> UpdateResult msg
+update msg selectionPlucked selection keyboard =
+  case msg of
     SetCode ( code, now ) ->
-      ( { keyboard
-        | player = Player.stop now keyboard.player
-        , selection =
-            if code == "" then
-              Nothing
-            else
-              Just { id = -1, chord = { flavor = [], root = 0 } }
-        , lastSound = Clean
-        , customCode = code
-        , customOctave = getOctave keyboard
-        }
-      , if keyboard.lastSound == PlayerSound then
-          AudioChange.perform [ Mute now ]
-        else
-          Cmd.none
-      )
+      { selectionPlucked = False
+      , selection =
+          if code == "" then
+            Selection.Static Nothing
+          else
+            Selection.Custom
+      , keyboard =
+          { customCode = code
+          , customOctave = getOctave selection keyboard
+          }
+      , sequence = Selection.sequenceAtTime now selection
+      , cmd =
+          case ( selection, selectionPlucked ) of
+            ( Selection.Dynamic _, False ) ->
+              AudioChange.perform [ Mute now ]
+            _ ->
+              Cmd.none
+      }
 
     SetOctave ( octave, now ) ->
-      ( { keyboard
-        | player = Player.stop now keyboard.player
-        , selection = Just { id = -1, chord = { flavor = [], root = 0 } }
-        , lastSound = Clean
-        , customCode = getCode keyboard
-        , customOctave = octave
-        }
-      , if keyboard.lastSound == PlayerSound then
-          AudioChange.perform [ Mute now ]
-        else
-          Cmd.none
-      )
+      { selectionPlucked = False
+      , selection = Selection.Custom
+      , keyboard =
+          { customCode = getCode selection keyboard
+          , customOctave = octave
+          }
+      , sequence = Selection.sequenceAtTime now selection
+      , cmd =
+          case ( selection, selectionPlucked ) of
+            ( Selection.Dynamic _, False ) ->
+              AudioChange.perform [ Mute now ]
+            _ ->
+              Cmd.none
+      }
 
     AddPitch ( lowestPitch, pitch, now ) ->
       let
         pitchSet =
           Chord.toPitchSet
             lowestPitch
-            (getOctave keyboard)
-            (getChord keyboard)
+            (getOctave selection keyboard)
+            (getChord selection keyboard)
       in
       let
         newPitchSet =
@@ -175,73 +155,75 @@ update msg keyboard =
               Debug.todo
                 "Keyboard.update: Pitch set empty after inserting pitch"
       in
-        ( { keyboard
-          | player = Player.stop now keyboard.player
-          , selection = Just { id = -1, chord = { flavor = [], root = 0 } }
-          , lastSound = Clean
-          , customCode = Name.codeExtended newChord
-          , customOctave = newOctave
-          }
-        , let
-            changes =
-              [ AddPianoNote
-                  { v = 1
-                  , t = now
-                  , f = pitchFrequency pitch
-                  }
-              ]
-          in
-            if keyboard.lastSound == Clean then
-              AudioChange.perform changes
-            else
-              AudioChange.perform (Mute now :: changes)
-        )
+        { selectionPlucked = True
+        , selection = Selection.Custom
+        , keyboard =
+            { customCode = Name.codeExtended newChord
+            , customOctave = newOctave
+            }
+        , sequence = Selection.sequenceAtTime now selection
+        , cmd =
+            AudioChange.perform
+              ( ( if selectionPlucked then
+                    []
+                  else
+                    [ Mute now ]
+                ) ++
+                  [ AddPianoNote
+                      { v = 1
+                      , t = now
+                      , f = pitchFrequency pitch
+                      }
+                  ]
+              )
+        }
 
     RemovePitch ( lowestPitch, pitch, now ) ->
       let
         pitchSet =
           Chord.toPitchSet
             lowestPitch
-            (getOctave keyboard)
-            (getChord keyboard)
+            (getOctave selection keyboard)
+            (getChord selection keyboard)
       in
       let
         newPitchSet =
           Set.remove pitch pitchSet
       in
-        ( case Chord.fromPitchSet lowestPitch newPitchSet of
-            Just ( newChord, newOctave ) ->
-              { keyboard
-              | player = Player.stop now keyboard.player
-              , selection = Just { id = -1, chord = { flavor = [], root = 0 } }
-              , lastSound = Clean
-              , customCode = Name.codeExtended newChord
-              , customOctave = newOctave
-              }
-            Nothing ->
-              { keyboard
-              | player = Player.stop now keyboard.player
-              , selection = Nothing
-              , lastSound = Clean
-              , customCode = ""
-              , customOctave = 0
-              }
-        , if keyboard.lastSound == Clean then
+        { selectionPlucked = True
+        , selection =
+            if Set.isEmpty newPitchSet then
+              Selection.Static Nothing
+            else
+              Selection.Custom
+        , keyboard =
+            case Chord.fromPitchSet lowestPitch newPitchSet of
+              Just ( newChord, newOctave ) ->
+                { customCode = Name.codeExtended newChord
+                , customOctave = newOctave
+                }
+              Nothing ->
+                { customCode = ""
+                , customOctave = 0
+                }
+        , sequence = Selection.sequenceAtTime now selection
+        , cmd =
             AudioChange.perform
-              [ NoteOff
-                  { v = 1
-                  , t = now
-                  , f = pitchFrequency pitch
-                  }
+              [ if selectionPlucked then
+                  NoteOff
+                    { v = 1
+                    , t = now
+                    , f = pitchFrequency pitch
+                    }
+                else
+                  Mute now
               ]
-          else
-            AudioChange.perform [ Mute now ]
-        )
+        }
 
     HarpPlucked pluck ->
       let
         changes =
-          (++)
+          List.append
             ( List.map
                 ( NoteOff <<
                     Note 1 pluck.now <<
@@ -257,18 +239,24 @@ update msg keyboard =
                 pluck.pitches
             )
       in
-        ( { keyboard
-          | player = Player.stop pluck.now keyboard.player
-          , lastSound = Clean
-          }
-        , if keyboard.lastSound /= Clean then
-            AudioChange.perform (Mute pluck.now :: changes)
-          else
-            AudioChange.perform changes
-        )
+        { selectionPlucked = True
+        , selection = Selection.stop pluck.now selection
+        , keyboard = keyboard
+        , sequence = []
+        , cmd =
+            if selectionPlucked then
+              AudioChange.perform changes
+            else
+              AudioChange.perform (Mute pluck.now :: changes)
+        }
 
     AddWord _ ->
-      ( keyboard, Cmd.none )
+      { selectionPlucked = selectionPlucked
+      , selection = selection
+      , keyboard = keyboard
+      , sequence = []
+      , cmd = Cmd.none
+      }
 
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
@@ -278,11 +266,11 @@ pitchFrequency : Int -> Float
 pitchFrequency pitch =
   440 * 2 ^ (toFloat (pitch - 69) / 12)
 
-view : String -> Int -> Int -> Keyboard -> Html Msg
-view gridArea tonic lowestPitch keyboard =
+view : String -> Int -> Int -> Selection -> Keyboard -> Html Msg
+view gridArea tonic lowestPitch selection keyboard =
   let
-    maybeChord = getChord keyboard
-    octave = getOctave keyboard
+    maybeChord = getChord selection keyboard
+    octave = getOctave selection keyboard
   in
   let
     maxOctave =
@@ -334,7 +322,7 @@ view gridArea tonic lowestPitch keyboard =
               , Attributes.type_ "text"
               , isAudioTimeInput True
               , onInputWithAudioTime SetCode
-              , Attributes.value (getCode keyboard)
+              , Attributes.value (getCode selection keyboard)
               ]
               []
           , button
