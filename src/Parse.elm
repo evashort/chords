@@ -7,7 +7,6 @@ import Comment
 import Flag
 import Flags
 import Highlight exposing (Highlight)
-import Indent
 import Lowest
 import Paragraph exposing (Paragraph)
 import Replacement exposing (Replacement)
@@ -51,30 +50,26 @@ update code parse =
     lines = Comment.remove (Substring 0 code)
   in
   let
-    unindented = Indent.remove lines
-  in
-  let
     paragraph =
       Paragraph.update
-        (Flag.remove unindented)
+        (Flag.remove lines)
         parse.paragraph
-    bpm = Flag.parse Bpm.flag unindented
-    scale = Flag.parse Scale.flag unindented
-    lowest = Flag.parse Lowest.flag unindented
+    bpm = Flag.parse Bpm.flag lines
+    scale = Flag.parse Scale.flag lines
+    lowest = Flag.parse Lowest.flag lines
   in
     { code = code
     , paragraph = paragraph
     , highlights =
         List.concat
           [ Comment.highlights (Substring 0 code)
-          , Indent.highlights lines
-          , Flags.highlights unindented
+          , Flags.highlights lines
           , Paragraph.highlights scale.tonic paragraph
           ]
     , suggestions =
         Suggestion.sort
           ( List.concat
-              [ Flags.suggestions unindented
+              [ Flags.suggestions lines
               , Paragraph.suggestions scale.tonic paragraph
               ]
           )
@@ -112,25 +107,23 @@ chords parse =
 setBpm : Maybe Float -> String -> Maybe Replacement
 setBpm bpm code =
   let
-    unindented =
-      Indent.remove (Comment.remove (Substring 0 code))
+    lines = Comment.remove (Substring 0 code)
   in
     Maybe.map
       (glue code)
-      (Flag.insert Bpm.flag bpm unindented)
+      (Flag.insert Bpm.flag bpm lines)
 
 setScale : Scale -> String -> Maybe Replacement
 setScale scale code =
   let
-    unindented =
-      Indent.remove (Comment.remove (Substring 0 code))
+    lines = Comment.remove (Substring 0 code)
   in
-    case Flag.insert Scale.flag scale unindented of
+    case Flag.insert Scale.flag scale lines of
       Nothing ->
         Nothing
       Just scaleReplacement ->
         let
-          oldScale = Flag.parse Scale.flag unindented
+          oldScale = Flag.parse Scale.flag lines
         in
         let
           offset = modBy 12 (scale.tonic - oldScale.tonic)
@@ -142,7 +135,7 @@ setScale scale code =
               chordReplacements =
                 Paragraph.mapChords
                   (Chord.transpose offset)
-                  (Flag.remove unindented)
+                  (Flag.remove lines)
             in
               Just
                 ( glue
@@ -156,12 +149,11 @@ setScale scale code =
 setLowest : Maybe Int -> String -> Maybe Replacement
 setLowest lowest code =
   let
-    unindented =
-      Indent.remove (Comment.remove (Substring 0 code))
+    lines = Comment.remove (Substring 0 code)
   in
     Maybe.map
       (glue code)
-      (Flag.insert Lowest.flag lowest unindented)
+      (Flag.insert Lowest.flag lowest lines)
 
 glue : String -> Replacement -> Replacement
 glue source replacement =
