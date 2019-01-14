@@ -17,6 +17,7 @@ import Midi
 import Pane exposing (Pane)
 import Parse exposing (Parse)
 import Pitch
+import PlayBar
 import Player
 import PlayStyle exposing (PlayStyle)
 import Ports
@@ -803,7 +804,7 @@ viewGrid model =
 "lowest ."
 "theater ."
 "buffet buffet"
-"playStyle playStyle"
+"playBar playBar"
 "song song"
 "keyboard keyboard"
 "paneSelector paneSelector"
@@ -871,7 +872,7 @@ viewGrid model =
         []
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
-    , Html.Lazy.lazy2 viewPlayStyle model.storage model.playing
+    , Html.Lazy.lazy2 viewPlayBar model.storage model.selection
     , Html.Lazy.lazy4
         viewSong
         model.tour
@@ -1237,141 +1238,19 @@ viewBuffet tour buffet =
     BuffetMsg
     (Buffet.view (Tour.shadowBuffet tour buffet))
 
-viewPlayStyle : Storage -> Bool -> Html Msg
-viewPlayStyle storage playing =
-  span
-    [ id "playStyle"
-    , style "grid-area" "playStyle"
-    , style "position" "-webkit-sticky"
-    , style "position" "sticky"
-    , style "top" "0px"
-    , style "z-index" "2"
-    , style "justify-self" "start"
-    , style "margin-left" "-8px"
-    , style "padding" "8px"
-    , style "background" "white"
-    , style "border-bottom-right-radius" "5px"
-    , style "box-shadow" "rgba(0, 0, 0, 0.5) 1px 1px 8px -1px"
-    , style "min-height" "2.8em"
-    ]
-    [ span
-        [ style "display" "flex"
-        , style "align-items" "center"
-        ]
-        [ Html.text "Play chords as\u{00A0}"
-        , Html.map
-            (\x -> SetStorage { storage | playStyle = x })
-            ( Radio.view
-                False
-                storage.playStyle
-                [ ( "Strum", PlayStyle.Strum )
-                , ( "Pad", PlayStyle.Pad )
-                , ( "Arpeggio", PlayStyle.Arpeggio )
-                , ( "Strum pattern", PlayStyle.StrumPattern )
-                , ( "Silent", PlayStyle.Silent )
-                ]
-            )
-        , Html.text "\u{00A0}"
-        , button
-            [ class "button"
-            , isAudioTimeButton True
-            , onClickWithAudioTime Stop
-            , disabled (not playing)
-            ]
-            [ span
-                [ style "background" "currentcolor"
-                , style "width" "0.75em"
-                , style "height" "0.75em"
-                , style "display" "inline-block"
-                ]
-                []
-            , Html.text " Stop"
-            ]
-        , Html.text "\u{00A0}Vol.\u{00A0}"
-        , span
-            [ style "position" "relative"
-            ]
-            [ input
-                [ type_ "range"
-                , class "range"
-                , onInput (SetStorage << Storage.setVolume storage)
-                , value (String.fromInt storage.volume)
-                , Attributes.min "0"
-                , Attributes.max "30"
-                , style "width" "8em"
-                , style "display" "block"
-                , style "padding-bottom" "0"
-                ]
-                []
-            , canvas
-                [ style "position" "absolute"
-                , style "left" "6px"
-                , style "width" "calc(100% - 12px)"
-                , style "top" "100%"
-                , style "height" "1em"
-                , Attributes.width 100
-                , Attributes.height 11
-                , id "meter"
-                ]
-                []
-            ]
-        , Html.text "\u{00A0}"
-        , span
-            [ style "min-width" "2ch"
-            ]
-            [ Html.text (String.fromInt storage.volume)
-            ]
-        ]
-    , viewPlaySettings storage
-    ]
+viewPlayBar : Storage -> Selection -> Html Msg
+viewPlayBar storage selection =
+  Html.map
+    interpretPlayBarMsg
+    (PlayBar.view "playBar" storage selection)
 
-viewPlaySettings : Storage -> Html Msg
-viewPlaySettings storage =
-  case storage.playStyle of
-    PlayStyle.Strum ->
-      span
-        [ style "display" "flex"
-        , style "align-items" "center"
-        ]
-        [ Html.text "Strum interval\u{00A0}"
-        , input
-            [ type_ "range"
-            , class "range"
-            , onInput (SetStorage << Storage.setStrumInterval storage)
-            , Attributes.min "10"
-            , Attributes.max "90"
-            , Attributes.step "20"
-            , value (String.fromFloat (1000 * storage.strumInterval))
-            , style "width" "5em"
-            ]
-            []
-        , Html.text
-            ( String.concat
-                [ "\u{00A0}"
-                , String.fromFloat (1000 * storage.strumInterval)
-                , "ms between notes"
-                ]
-            )
-        ]
-    PlayStyle.StrumPattern ->
-      span
-        [ style "display" "block"
-        , style "align-items" "center"
-        ]
-        [ Html.text "Strum pattern\u{00A0}"
-        , Html.map
-            (\x -> SetStorage { storage | strumPattern = x })
-            ( Radio.view
-                False
-                storage.strumPattern
-                [ ( "Basic", StrumPattern.Basic )
-                , ( "Indie", StrumPattern.Indie )
-                , ( "Modern", StrumPattern.Modern )
-                ]
-            )
-        ]
-    _ ->
-      span [] []
+interpretPlayBarMsg : PlayBar.Msg -> Msg
+interpretPlayBarMsg playBarMsg =
+  case playBarMsg of
+    PlayBar.SetStorage storage ->
+      SetStorage storage
+    PlayBar.SelectionMsg selectionMsg ->
+      SelectionMsg selectionMsg
 
 viewSong : Tour -> Bool -> Selection -> Parse -> Html Msg
 viewSong tour playable selection parse =

@@ -1,8 +1,9 @@
-module Search exposing (view)
+module Search exposing (Msg(..), view)
 
 import Chord exposing (Chord)
 import ChordView
 import Chroma
+import Click exposing (Click)
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
@@ -11,8 +12,12 @@ import Selection exposing (Selection)
 import Html exposing (Html, span, button)
 import Html.Attributes exposing (style, classList, id, disabled)
 
-view : Int -> String -> Bool -> Selection -> Html Selection.Msg
-view tonic customCode playable selection =
+type Msg
+  = CustomClicked Float
+  | Clicked Click
+
+view : Int -> String -> Selection -> Html Msg
+view tonic customCode selection =
   let
     maybeChord = Chord.fromCodeExtended customCode
   in
@@ -72,31 +77,24 @@ view tonic customCode playable selection =
               Just idChord ->
                 [ viewSearchResult
                     tonic
-                    playable
                     selection
                     ( "Exact match", idChord )
                 ]
           , List.map
-              (viewSearchResult tonic playable selection)
+              (viewSearchResult tonic selection)
               inversions
           , List.map
-              (viewSearchResult tonic playable selection)
+              (viewSearchResult tonic selection)
               extensions
           , List.map
-              (viewSearchResult tonic playable selection)
+              (viewSearchResult tonic selection)
               subsets
           ]
       )
 
 viewCustomChord : Int -> Bool -> Bool -> Chord -> Html Selection.Msg
 viewCustomChord tonic showCustomChord noCustomChord colorChord =
-  let
-    action =
-      if showCustomChord then
-        Selection.Clear
-      else
-        Selection.SelectCustom
-  in
+  let action = Selection.CustomClicked in
     span
       [ style "position" "relative"
       , style "display" "inline-block"
@@ -169,9 +167,8 @@ viewCustomChord tonic showCustomChord noCustomChord colorChord =
           ]
       ]
 
-viewSearchResult :
-  Int -> Bool -> Selection -> (String, IdChord) -> Html Selection.Msg
-viewSearchResult tonic playable selection ( header, idChord ) =
+viewSearchResult : Int -> Selection -> (String, IdChord) -> Html Msg
+viewSearchResult tonic selection ( header, idChord ) =
   span
     [ style "text-align" "center"
     , style "margin-right" "5px"
@@ -184,5 +181,5 @@ viewSearchResult tonic playable selection ( header, idChord ) =
         , style "display" "inline-block"
         , style "font-size" "150%"
         ]
-        (ChordView.view tonic playable selection idChord)
+        (Html.map Clicked (ChordView.view tonic selection idChord))
     ]

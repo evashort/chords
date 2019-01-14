@@ -1,6 +1,7 @@
 module Song exposing (Song, view)
 
 import ChordView
+import Click exposing (Click)
 import IdChord exposing (IdChord)
 import Selection exposing (Selection)
 
@@ -10,8 +11,8 @@ import Html.Keyed
 
 type alias Song = List (List (Maybe IdChord))
 
-view : String -> Int -> Bool -> Selection -> Song -> Html Selection.Msg
-view gridArea tonic playable selection song =
+view : String -> Int -> Selection -> Song -> Html Click
+view gridArea tonic selection song =
   Html.Keyed.node
     "span"
     [ id gridArea
@@ -36,14 +37,13 @@ view gridArea tonic playable selection song =
         )
     ]
     ( List.concat
-        (List.indexedMap (viewRow tonic playable selection) song)
+        (List.indexedMap (viewRow tonic selection) song)
     )
 
 viewRow :
-  Int -> Bool -> Selection -> Int -> List (Maybe IdChord) ->
-    List (String, Html Selection.Msg)
-viewRow tonic playable selection y row =
-  indexedMaybeMap (viewCell tonic playable selection y) row
+  Int -> Selection -> Int -> List (Maybe IdChord) -> List (String, Html Click)
+viewRow tonic selection y row =
+  indexedMaybeMap (viewCell tonic selection y) row
 
 indexedMaybeMap : (Int -> a -> b) -> List (Maybe a) -> List b
 indexedMaybeMap f xs =
@@ -54,9 +54,8 @@ indexedMaybeMapHelp f i x =
   Maybe.map (f i) x
 
 viewCell :
-  Int -> Bool -> Selection -> Int -> Int -> IdChord ->
-    (String, Html Selection.Msg)
-viewCell tonic playable selection y x idChord =
+  Int -> Selection -> Int -> Int -> IdChord -> (String, Html Click)
+viewCell tonic selection y x idChord =
   ( String.fromInt idChord.id
   , span
       [ style "grid-row-start" (String.fromInt (y + 1))
@@ -65,5 +64,5 @@ viewCell tonic playable selection y x idChord =
       , style "grid-column-end" "span 1"
       , style "position" "relative"
       ]
-      (ChordView.view tonic playable selection idChord)
+      (ChordView.view tonic selection idChord)
   )

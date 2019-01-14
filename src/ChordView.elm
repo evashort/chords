@@ -1,6 +1,7 @@
 module ChordView exposing (view)
 
 import Chord exposing (Chord)
+import Click exposing (Click)
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
@@ -9,25 +10,24 @@ import Selection exposing (Selection)
 
 import Html exposing (Html, span, button)
 import Html.Attributes as Attributes exposing (style, class, classList)
-import Html.Events exposing (onClick)
 import Html.Lazy
 
-view : Int -> Bool -> Selection -> IdChord -> List (Html Selection.Msg)
-view tonic playable selection idChord =
+view : Int -> Selection -> IdChord -> List (Html Click)
+view tonic selection idChord =
   let
     member = Selection.member idChord.id selection
     scheduled = Selection.scheduled idChord.id selection
-    stoppable = Selection.stoppable selection
+    playing = not (Selection.sequenceFinished selection)
   in
     [ Html.Lazy.lazy2
         viewBorder
         scheduled
         (scheduled && not member)
-    , if playable || (member && scheduled && stoppable) then
+    , if playing then
         Html.Lazy.lazy3
           viewButton
           tonic
-          (member && scheduled && stoppable)
+          member
           idChord
       else
         Html.Lazy.lazy3
@@ -70,16 +70,11 @@ viewBorder solid dashed =
     ]
     []
 
-viewButton : Int -> Bool -> IdChord -> Html Selection.Msg
+viewButton : Int -> Bool -> IdChord -> Html Click
 viewButton tonic stoppable idChord =
   button
     [ isAudioTimeButton True
-    , onClickWithAudioTime
-        ( if stoppable then
-            Selection.Select << Tuple.pair idChord
-          else
-            Selection.Play << Tuple.pair idChord
-        )
+    , onClickWithAudioTime (Click idChord)
     , class "chordButton"
     , style "width" "3.2em"
     , style "height" "3.2em"
@@ -123,7 +118,7 @@ viewButton tonic stoppable idChord =
         Name.view idChord.chord
     )
 
-viewSelectButton : Int -> Bool -> IdChord -> Html Selection.Msg
+viewSelectButton : Int -> Bool -> IdChord -> Html Click
 viewSelectButton tonic selected idChord =
   span
     [ style "display" "inline-block"
@@ -137,12 +132,7 @@ viewSelectButton tonic selected idChord =
     ]
     [ button
         [ isAudioTimeButton True
-        , onClickWithAudioTime
-            ( if selected then
-                Selection.Clear
-              else
-                Selection.Select << Tuple.pair idChord
-            )
+        , onClickWithAudioTime (Selection.Clicked << Tuple.pair idChord)
         , class "chordButton"
         , style "width" "2.8em"
         , style "height" "2.8em"

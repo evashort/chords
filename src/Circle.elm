@@ -1,6 +1,7 @@
 module Circle exposing (view)
 
 import Chord exposing (Chord)
+import Click exposing (Click)
 import Colour
 import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import IdChord exposing (IdChord)
@@ -19,8 +20,8 @@ import Svg.Attributes exposing
   , textAnchor
   )
 
-view : Int -> Bool -> Selection -> Html Selection.Msg
-view tonic playable selection =
+view : Int -> Selection -> Html Click
+view tonic selection =
   let
     rInner = 100
     rOuter = 247.5
@@ -56,12 +57,12 @@ view tonic playable selection =
               , scaleShadow
               , List.concat
                   ( List.indexedMap
-                      (viewChord tonic playable selection rMid rOuter)
+                      (viewChord tonic selection rMid rOuter)
                       majorChords
                   )
               , List.concat
                   ( List.indexedMap
-                      (viewChord tonic playable selection rInner rMid)
+                      (viewChord tonic selection rInner rMid)
                       minorChords
                   )
               ]
@@ -138,17 +139,15 @@ areaAverage x y =
   sqrt (0.5 * (x * x + y * y))
 
 viewChord :
-  Int -> Bool -> Selection -> Float -> Float -> Int -> IdChord ->
-    List (Svg Selection.Msg)
-viewChord tonic playable selection rInner rOuter i idChord =
+  Int -> Selection -> Float -> Float -> Int -> IdChord -> List (Svg Click)
+viewChord tonic selection rInner rOuter i idChord =
   let
     member = Selection.member idChord.id selection
     scheduled = Selection.scheduled idChord.id selection
-    stoppable = Selection.stoppable selection
   in
     List.filterMap
       identity
-      [ if scheduled || (member && not playable) then
+      [ if scheduled then
           Just
             ( path
                 [ fill "none"
@@ -167,24 +166,17 @@ viewChord tonic playable selection rInner rOuter i idChord =
             )
         else
           Nothing
-      , let
-          action =
-            if (not playable) || (member && scheduled && stoppable) then
-              Selection.Select << Tuple.pair idChord
-            else
-              Selection.Play << Tuple.pair idChord
-        in
-          Just
-            ( path
-                [ isAudioTimeButton True
-                , onClickWithAudioTime action
-                , fill (Colour.bg tonic idChord.chord)
-                , attribute "tabindex" "0"
-                , style "cursor" "pointer"
-                , d (twelfth 5 rInner rOuter i)
-                ]
-                []
-            )
+      , Just
+          ( path
+              [ isAudioTimeButton True
+              , onClickWithAudioTime (Click idChord)
+              , fill (Colour.bg tonic idChord.chord)
+              , attribute "tabindex" "0"
+              , style "cursor" "pointer"
+              , d (twelfth 5 rInner rOuter i)
+              ]
+              []
+          )
       , Just
           ( path
               [ fill "url(#twelfthShine)"
@@ -214,8 +206,7 @@ viewChordText selection r i idChord =
       let a = 2 * pi * (0.25 - toFloat i / 12) in
         ( polarX r a, polarY r a )
     member = Selection.member idChord.id selection
-    scheduled = Selection.scheduled idChord.id selection
-    stoppable = Selection.stoppable selection
+    playing = not (Selection.sequenceFinished selection)
   in
     Html.span
       [ style "position"  "absolute"
@@ -225,7 +216,7 @@ viewChordText selection r i idChord =
       , style "line-height" "75px"
       , style "color" (Colour.fg idChord.chord)
       ]
-      ( if member && scheduled && stoppable then
+      ( if member && playing then
           [ Html.span
               [ style "width" "1em"
               , style "height" "1em"

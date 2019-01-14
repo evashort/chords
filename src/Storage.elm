@@ -16,6 +16,7 @@ type alias Storage =
   { playStyle : PlayStyle
   , volume : Int
   , strumPattern : StrumPattern
+  , strumOnSelect : Bool
   , strumInterval : Float
   , pane : Pane
   , harmonicMinor : Bool
@@ -30,6 +31,7 @@ default =
   { playStyle = PlayStyle.Arpeggio
   , volume = 30
   , strumPattern = StrumPattern.Indie
+  , strumOnSelect = False
   , strumInterval = 0.01
   , pane = Pane.Search
   , harmonicMinor = False
@@ -50,7 +52,7 @@ encode : Storage -> Encode.Value
 encode storage =
   Encode.object
     [ ( "version"
-      , Encode.string (versionString (Version 1 0 0))
+      , Encode.string (versionString (Version 2 0 0))
       )
     , ( "playStyle"
       , Encode.string (playStyleString storage.playStyle)
@@ -61,6 +63,7 @@ encode storage =
     , ( "strumPattern"
       , Encode.string (strumPatternString storage.strumPattern)
       )
+    , ( "strumOnSelect", Encode.bool storage.strumOnSelect )
     , ( "strumInterval"
       , Encode.float storage.strumInterval
       )
@@ -96,14 +99,16 @@ decoder =
 
 decoderHelp : Version -> Decoder Storage
 decoderHelp version =
-  if version.major > 1 then
+  if version.major > 2 then
     Decode.fail
       ("Incompatible major version: " ++ String.fromInt version.major)
+  else if version.major == 2 then
+    v2_0Decoder
   else
     v1_0Decoder
 
-v1_0Decoder : Decoder Storage
-v1_0Decoder =
+v2_0Decoder : Decoder Storage
+v2_0Decoder =
   Decode.succeed Storage
     |> Pipeline.required
         "playStyle"
@@ -112,9 +117,29 @@ v1_0Decoder =
     |> Pipeline.required
         "strumPattern"
         (parseDecoder "strum pattern" parseStrumPattern)
+    |> Pipeline.required "strumOnSelect" Decode.bool
+    |> Pipeline.required "strumInterval" Decode.float
     |> Pipeline.required
-        "strumInterval"
-        Decode.float
+        "pane"
+        (parseDecoder "pane" parsePane)
+    |> Pipeline.required "harmonicMinor" Decode.bool
+    |> Pipeline.required "addedToneChords" Decode.bool
+    |> Pipeline.required "shortenSequences" Decode.bool
+    |> Pipeline.required "startEmpty" Decode.bool
+    |> Pipeline.required "unsavedWarning" Decode.bool
+
+v1_0Decoder : Decoder Storage
+v1_0Decoder =
+  Decode.succeed Storage
+    |> Pipeline.required
+        "playStyle"
+        (parseDecoder "play style" v1_0ParsePlayStyle)
+    |> Pipeline.required "volume" Decode.int
+    |> Pipeline.required
+        "strumPattern"
+        (parseDecoder "strum pattern" parseStrumPattern)
+    |> Pipeline.hardcoded False
+    |> Pipeline.required "strumInterval" Decode.float
     |> Pipeline.required
         "pane"
         (parseDecoder "pane" parsePane)
@@ -179,8 +204,20 @@ versionRegex =
 parsePlayStyle : String -> Maybe PlayStyle
 parsePlayStyle string =
   case string of
+    "Arpeggio" ->
+      Just PlayStyle.Arpeggio
+    "StrumPattern" ->
+      Just PlayStyle.StrumPattern
+    "Pad" ->
+      Just PlayStyle.Pad
+    _ ->
+      Nothing
+
+v1_0ParsePlayStyle : String -> Maybe PlayStyle
+v1_0ParsePlayStyle string =
+  case string of
     "Strum" ->
-      Just PlayStyle.Strum
+      Just PlayStyle.Arpeggio
     "Pad" ->
       Just PlayStyle.Pad
     "Arpeggio" ->
@@ -188,23 +225,19 @@ parsePlayStyle string =
     "StrumPattern" ->
       Just PlayStyle.StrumPattern
     "Silent" ->
-      Just PlayStyle.Silent
+      Just PlayStyle.Arpeggio
     _ ->
       Nothing
 
 playStyleString : PlayStyle -> String
 playStyleString playStyle =
   case playStyle of
-    PlayStyle.Strum ->
-      "Strum"
     PlayStyle.Pad ->
       "Pad"
     PlayStyle.Arpeggio ->
       "Arpeggio"
     PlayStyle.StrumPattern ->
       "StrumPattern"
-    PlayStyle.Silent ->
-      "Silent"
 
 strumPatternString : StrumPattern -> String
 strumPatternString strumPattern =

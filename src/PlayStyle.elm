@@ -1,8 +1,6 @@
 module PlayStyle exposing (PlayStyle(..))
 
 type PlayStyle
-  = Strum
-  | Pad
-  | Arpeggio
+  = Arpeggio
   | StrumPattern
-  | Silent
+  | Pad

@@ -1,22 +1,18 @@
 module Selection exposing
-  ( Selection(..), Msg(..), member, scheduled, stoppable, setTime, sequence
-  , sequenceFinished, sequenceAtTime, willChange, stop
+  ( Selection(..), member, scheduled, setTime, sequence, sequenceFinished
+  , sequenceAtTime, willChange, canContinue, stop
   )
 
 import Chord exposing (Chord)
+import Cliff
 import IdChord exposing (IdChord)
 import Player exposing (Player)
+import PlayStyle exposing (PlayStyle)
 
 type Selection
   = Static (Maybe IdChord)
   | Dynamic Player
   | Custom
-
-type Msg
-    = Play (IdChord, Float)
-    | Select (IdChord, Float)
-    | SelectCustom Float
-    | Clear Float
 
 member : Int -> Selection -> Bool
 member id selection =
@@ -42,29 +38,6 @@ scheduled id selection =
             .id
             (List.take player.unfinishedCount player.schedule)
         )
-    _ ->
-      False
-
-stoppable : Selection -> Bool
-stoppable selection =
-  case selection of
-    Dynamic player ->
-      case player.schedule of
-        segment :: _ ->
-          if segment.stop == infinity then
-            True
-          else
-            case player.cliff of
-              currentRegion :: _ ->
-                currentRegion.interval > 0
-              _ ->
-                Debug.todo
-                  ( String.append
-                      "Selection.stoppable: Player has schedule but no cliff: "
-                      (Debug.toString player)
-                  )
-        _ ->
-          False
     _ ->
       False
 
@@ -122,6 +95,19 @@ willChange selection =
             current.stop < infinity
       else
         player.unfinishedCount > 0
+    _ ->
+      False
+
+chordClicked : IdChord -> Float -> PlayStyle -> Selection -> Selection
+chordClicked idChord now playStyle selection =
+  case selection of
+    Dynamic player ->
+      if player.unfinishedCount > 0 then
+        Just player
+      else if playStyle == PlayStyle.Pad then
+        False
+      else
+        Cliff.nextHold now player.cliff /= Nothing
     _ ->
       False
 

@@ -2,8 +2,10 @@ module ChordsInKey exposing (Msg(..), view)
 
 import Chord exposing (Chord)
 import ChordView
+import Click exposing (Click)
 import IdChord exposing (IdChord)
 import PlayStyle
+import Selection exposing (Selection)
 import Radio
 import Scale exposing (Scale)
 import Selection exposing (Selection)
@@ -15,7 +17,7 @@ import Html.Events exposing (onCheck)
 
 type Msg
   = SetStorage Storage
-  | SelectionMsg Selection.Msg
+  | Click Click
 
 view : Storage -> Scale -> Selection -> Html Msg
 view storage scale selection =
@@ -51,7 +53,6 @@ view storage scale selection =
         ]
     , viewGrid
         scale
-        (storage.playStyle /= PlayStyle.Silent)
         selection
         [ case ( scale.minor, storage.harmonicMinor ) of
             ( False, False ) ->
@@ -92,8 +93,8 @@ view storage scale selection =
         ]
     ]
 
-viewGrid : Scale -> Bool -> Selection -> List String -> Html Msg
-viewGrid scale playable strum rows =
+viewGrid : Scale -> Selection -> List String -> Html Msg
+viewGrid scale selection rows =
   span
     [ style "display" "inline-grid"
     , style "grid-template-rows" "auto"
@@ -109,7 +110,7 @@ viewGrid scale playable strum rows =
             (List.indexedMap viewDegree (split header))
             ( List.concat
                 ( List.indexedMap
-                    (viewRow scale playable strum)
+                    (viewRow scale selection)
                     rest
                 )
             )
@@ -140,8 +141,8 @@ viewDegree i name =
         ]
     )
 
-viewRow : Scale -> Bool -> Selection -> Int -> String -> List (Html Msg)
-viewRow scale playable strum i row =
+viewRow : Scale -> Selection -> Int -> String -> List (Html Msg)
+viewRow scale selection i row =
   case split row of
     [] ->
       []
@@ -156,7 +157,7 @@ viewRow scale playable strum i row =
         (::)
           (viewCategory i category)
           ( indexedMaybeMap
-              (viewCell scale.tonic playable strum i)
+              (viewCell scale.tonic selection i)
               (List.map Chord.fromCode cells)
           )
 
@@ -186,8 +187,8 @@ viewCategory i name =
         ]
     )
 
-viewCell : Int -> Bool -> Selection -> Int -> Int -> Chord -> Html Msg
-viewCell tonic playable strum y x chord =
+viewCell : Int -> Selection -> Int -> Int -> Chord -> Html Msg
+viewCell tonic selection y x chord =
   let
     idChord =
       case
@@ -209,5 +210,5 @@ viewCell tonic playable strum y x chord =
           , style "position" "relative"
           , style "font-size" "150%"
           ]
-          (ChordView.view tonic playable strum idChord)
+          (ChordView.view tonic selection idChord)
       )
