@@ -1,4 +1,4 @@
-function addPadNote(v, t, f) {
+function addPadNote(t, f) {
   var fader = ac.createGain();
   fader.connect(reverb);
 

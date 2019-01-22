@@ -107,12 +107,6 @@ function muteNoteAt(t, note) {
   }
 }
 
-function muteAt(t) {
-  for (var i = 0; i < notes.length; i++) {
-    muteNoteAt(t, notes[i]);
-  }
-}
-
 function muteFrequencyAt(t, f) {
   for (var i = 0; i < notes.length; i++) {
     if (notes[i].frequency == f) {
@@ -131,18 +125,6 @@ function cancelNoteAt(t, note) {
     delete note.oldExpiration;
     delete note.muteTime;
   }
-}
-
-function cancelAt(t) {
-  for (var i = 0; i < notes.length; i++) {
-    cancelNoteAt(t, notes[i]);
-  }
-}
-
-function addNote(addInstrumentNote, spec) {
-  muteFrequencyAt(spec.t, spec.f);
-
-  notes.push(addInstrumentNote(spec.v, spec.t, spec.f));
 }
 
 function updateAudio() {
@@ -187,23 +169,39 @@ function changeAudio(changes) {
   var wasPlaying = notes.length > 0;
   var wasUpdating = notes.length > 0 || alarms.length > 0;
 
-  for (var i = 0; i < changes.length; i++) {
-    if (changes[i].type == "mute") {
-      muteAt(changes[i].t);
-    } else if (changes[i].type == "cancel") {
-      for (var j = 0; j < notes.length; j++) {
-        cancelAt(changes[i].t, notes[j]);
-      }
-    } else if (changes[i].type == "piano") {
-      addNote(addPianoNote, changes[i]);
-    } else if (changes[i].type == "guitar") {
-      addNote(addGuitarNote, changes[i]);
-    } else if (changes[i].type == "pad") {
-      addNote(addPadNote, changes[i]);
-    } else if (changes[i].type == "noteOff") {
-      muteFrequencyAt(changes[i].t, changes[i].f);
-    } else if (changes[i].type == "alarm") {
-      alarms.push(changes[i].t);
+  for (var changeIndex = 0; changeIndex < changes.length; changeIndex++) {
+    var change = changes[changeIndex];
+    switch(change.type) {
+      case "mute":
+        for (var i = 0; i < notes.length; i++) {
+          muteNoteAt(change.t, notes[i]);
+        }
+        break;
+      case "cancel":
+        for (var i = 0; i < notes.length; i++) {
+          cancelNoteAt(change.t, notes[i]);
+        }
+        break;
+      case "piano":
+        muteFrequencyAt(change.t, change.f);
+        addPianoNote(change.t, change.f);
+        break;
+      case "guitar":
+        muteFrequencyAt(change.t, change.f);
+        addGuitarNote(change.v, change.t, change.f);
+        break;
+      case "pad":
+        muteFrequencyAt(change.t, change.f);
+        addPadNote(change.t, change.f);
+        break;
+      case "noteOff":
+        muteFrequencyAt(change.t, change.f);
+        break;
+      case "alarm":
+        alarms.push(change.t);
+        break;
+      default:
+        throw "Unknown change type " + change.type
     }
   }
 
