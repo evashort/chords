@@ -1,4 +1,4 @@
-module Genre exposing (Genre(..), init, isQuantized)
+module Genre exposing (Genre(..), init, isQuantized, defaultBpm)
 
 import PlayStyle exposing (PlayStyle)
 import StrumPattern exposing (StrumPattern)
@@ -29,3 +29,18 @@ init playStyle strumPattern =
 isQuantized : Genre -> Bool
 isQuantized genre =
   genre /= Pad
+
+defaultBpm : Genre -> Float
+defaultBpm genre =
+  case genre of
+    Arp ->
+      85
+    Basic ->
+      65
+    Indie ->
+      85
+    Modern ->
+      95
+    Pad ->
+      Debug.todo
+        "Genre.defaultBpm: Switching to pad mode should not change tempo"

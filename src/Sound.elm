@@ -1,5 +1,5 @@
 module Sound exposing
-  ( Sound, piano, guitar, pad, rest, up, down, noteOff, mute, cancel, alarm
+  ( Sound, piano, guitar, pad, and, up, down, noteOff, mute, cancel, alarm
   , mapTime, timeInRange, play
   )
 
@@ -42,8 +42,8 @@ pad : Float -> Int -> Sound
 pad time pitch =
   Pad (Note time pitch)
 
-rest : Float -> List Int -> List Sound
-rest time pitches =
+and : Float -> List Int -> List Sound
+and time pitches =
   []
 
 up : Int -> Float -> Float -> List Int -> List Sound

@@ -4,17 +4,20 @@ module Player2 exposing
   , sequence, sequenceAtTime, play
   )
 
+import Arpeggio
 import Chord exposing (Chord)
 import Click exposing (Click)
+import Clip exposing (Clip)
 import Genre exposing (Genre)
 import IdChord exposing (IdChord)
 import Metro exposing (Metro)
 import Sound exposing (Sound)
+import StrumPattern
 
 type alias Player =
   { metro : Metro
   , genre : Genre
-  , genreStart : Int
+  , origin : Int
   , clicks : List Click
   , stopBeat : Float
   , unfinishedCount : Int
@@ -26,7 +29,7 @@ start : Float -> Genre -> Click -> Player
 start bpm genre click =
   { metro = Metro.setBpm bpm click.time []
   , genre = genre
-  , genreStart = 0
+  , origin = 0
   , clicks = [ { click | time = 0 } ]
   , stopBeat =
       if genre == Genre.Pad then
@@ -47,19 +50,24 @@ setBpm bpm now player =
   }
 
 setGenre : Genre -> Float -> Player -> Player
-setGenre genre now player =
-  let genreStart = Metro.nextOpening player.metro now in
-    { player
-    | genre = genre
-    , genreStart = genreStart
-    , stopBeat =
-        if genre == Genre.Pad then
-          infinity
-        else
-          toFloat (genreStart + 4)
-    , startBeat = Metro.getBeat player.metro now
-    , now = now
-    }
+setGenre newGenre now player =
+  if newGenre == Genre.Pad then
+      { player
+      | genre = newGenre
+      , origin = 0
+      , stopBeat = infinity
+      , startBeat = Metro.getBeat player.metro now
+      , now = now
+      }
+  else
+    let newOrigin = Metro.nextOpening player.metro now in
+      { player
+      | genre = newGenre
+      , origin = newOrigin
+      , stopBeat = toFloat (newOrigin + 4)
+      , startBeat = Metro.getBeat player.metro now
+      , now = now
+      }
 
 addClick : Click -> Player -> Maybe Player
 addClick click player =
@@ -77,7 +85,7 @@ addClick click player =
         newClicks =
           Click.add { click | time = startBeat } player.clicks
         newStopBeat =
-          getStopBeat player.genre player.genreStart startBeat
+          getStopBeat player.genre player.origin startBeat
       in
         Just
           { player
@@ -196,12 +204,14 @@ removeDuplicates xs =
 play : Int -> Player -> Cmd msg
 play lowestPitch player =
   Sound.play
-    ( Sound.mapTime
-        (max player.now << Metro.getTime player.metro)
+    ( List.map
+        ( Sound.mapTime
+            (max player.now << Metro.getTime player.metro)
+        )
         ( playHelp
             lowestPitch
             player.genre
-            player.genreStart
+            player.origin
             player.startBeat
             player.clicks
             player.stopBeat
@@ -216,71 +226,105 @@ playHelp lowestPitch genre origin startBeat clicks stopBeat =
     click :: rest ->
       List.append
         ( if click.time > startBeat then
-            (playHelp genre origin start rest click.time)
+            (playHelp lowestPitch genre origin startBeat rest click.time)
           else
             []
         )
         ( List.filter
-            (Sound.timeInRange click.time stopBeat)
-            ( case genre of
-                Genre.Arp ->
-                  let beat = beatFloor origin 2 click.time in
-                    Sound.mapTime
-                      ((+) (toFloat beat))
-                      ( Arp.play
-                          (getHighStart origin beat rest)
-                          (beat < origin)
-                          ((beatCeiling origin 2 stopBeat - beat) // 2)
-                          lowestPitch
-                          click.idChord.chord
-                      )
-                Genre.Basic ->
-                  let beat = beatFloor origin 4 click.time in
-                    Sound.mapTime
-                      ((+) (toFloat beat))
-                      ( StrumPattern.basic
-                          ((beatCeiling origin 4 stopBeat - beat) // 4)
-                          lowestPitch
-                          click.idChord.chord
-                      )
-                Genre.Indie ->
-                  let beat = beatFloor origin 2 click.time in
-                    Sound.mapTime
-                      ((+) (toFloat beat))
-                      ( StrumPattern.indie
-                          ((beatCeiling origin 2 stopBeat - beat) // 2)
-                          lowestPitch
-                          click.idChord.chord
-                      )
-                Genre.Modern ->
-                  let beat = beatFloor origin 4 click.time in
-                    Sound.mapTime
-                      ((+) (toFloat beat))
-                      ( StrumPattern.modern
-                          ((beatCeiling origin 4 stopBeat - beat) // 4)
-                          lowestPitch
-                          click.idChord.chord
-                      )
-                Genre.Pad ->
-                  Sound.mapTime
-                    Arp.pad click.time lowestPitch click.idChord.chord
+            ( Sound.timeInRange
+                (max startBeat click.time)
+                stopBeat
             )
+            (playClick lowestPitch genre stopBeat click rest origin)
         )
 
-getHighStart : Int -> Int -> List Click -> Bool
-getHighStart origin beat rest =
-  if beat <= origin then
-    False
-  else
-    case rest of
-      [] ->
-        False
-      previousClick :: _ ->
-        let
-          previousBeat =
-            max (beatFloor origin 2 previousClick.time) origin
-        in
-          modBy 4 (beat - previousBeat) == 2
+playClick : Int -> Genre -> Float -> Click -> List Click -> Int -> List Sound
+playClick lowestPitch genre stopBeat click rest origin =
+  case genre of
+    Genre.Arp ->
+      let
+        intStart = beatFloor origin 2 click.time
+        intStop = beatCeiling origin 2 click.time
+        startLow = Arpeggio.startLow lowestPitch click.idChord.chord
+        startHigh = Arpeggio.startHigh lowestPitch click.idChord.chord
+      in
+        concatAndTrim
+          click.time
+          stopBeat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((origin - intStart) // 2)
+              startLow -- fill the time before origin
+          , if
+              intStart > origin &&
+                containsTime (toFloat (intStart - 2)) rest
+            then
+              startHigh -- chord was changed less than one measure ago
+            else
+              startLow
+          , Clip.repeat
+              ((intStop - max origin intStart) // 4)
+              (Clip.append startHigh startLow)
+          ]
+    Genre.Basic ->
+      let
+        intStart = beatFloor origin 2 click.time
+        intStop = beatCeiling origin 2 click.time
+      in
+        concatAndTrim
+          click.time
+          stopBeat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((intStop - intStart) // 2)
+              (StrumPattern.basic lowestPitch click.idChord.chord)
+          ]
+    Genre.Indie ->
+      let
+        intStart = beatFloor origin 2 click.time
+        intStop = beatCeiling origin 2 click.time
+      in
+        concatAndTrim
+          click.time
+          stopBeat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((intStop - intStart) // 2)
+              (StrumPattern.indie lowestPitch click.idChord.chord)
+          ]
+    Genre.Modern ->
+      let
+        intStart = beatFloor origin 4 click.time
+        intStop = beatCeiling origin 4 click.time
+      in
+        concatAndTrim
+          click.time
+          stopBeat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((intStop - intStart) // 4)
+              (StrumPattern.modern lowestPitch click.idChord.chord)
+          ]
+    Genre.Pad ->
+      List.map
+        (Sound.pad click.time)
+        (Chord.toPitches lowestPitch click.idChord.chord)
+
+concatAndTrim : Float -> Float -> List Clip -> List Sound
+concatAndTrim trimStart trimStop clips =
+  Sound.mute trimStart ::
+    Clip.trim trimStart trimStop (Clip.concat clips)
+
+containsTime : Float -> List Click -> Bool
+containsTime time clicks =
+  case clicks of
+    [] ->
+      False
+    click :: rest ->
+      if click.time > time then
+        containsTime time rest
+      else
+        click.time == time
 
 beatFloor : Int -> Int -> Float -> Int
 beatFloor origin interval x =
