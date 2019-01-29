@@ -235,10 +235,15 @@ playHelp lowestPitch genre origin startBeat clicks stopBeat =
                 (max startBeat click.time)
                 stopBeat
             )
-            (playClick lowestPitch genre stopBeat click rest origin)
+            ( (::)
+                (Sound.mute click.time)
+                ( .sounds
+                    (playClick lowestPitch genre stopBeat click rest origin)
+                )
+            )
         )
 
-playClick : Int -> Genre -> Float -> Click -> List Click -> Int -> List Sound
+playClick : Int -> Genre -> Float -> Click -> List Click -> Int -> Clip
 playClick lowestPitch genre stopBeat click rest origin =
   case genre of
     Genre.Arp ->
@@ -248,9 +253,7 @@ playClick lowestPitch genre stopBeat click rest origin =
         startLow = Arpeggio.startLow lowestPitch click.idChord.chord
         startHigh = Arpeggio.startHigh lowestPitch click.idChord.chord
       in
-        concatAndTrim
-          click.time
-          stopBeat
+        Clip.concat
           [ Clip.startAt (toFloat intStart)
           , Clip.repeat
               ((origin - intStart) // 2)
@@ -271,9 +274,7 @@ playClick lowestPitch genre stopBeat click rest origin =
         intStart = beatFloor origin 2 click.time
         intStop = beatCeiling origin 2 click.time
       in
-        concatAndTrim
-          click.time
-          stopBeat
+        Clip.concat
           [ Clip.startAt (toFloat intStart)
           , Clip.repeat
               ((intStop - intStart) // 2)
@@ -284,9 +285,7 @@ playClick lowestPitch genre stopBeat click rest origin =
         intStart = beatFloor origin 2 click.time
         intStop = beatCeiling origin 2 click.time
       in
-        concatAndTrim
-          click.time
-          stopBeat
+        Clip.concat
           [ Clip.startAt (toFloat intStart)
           , Clip.repeat
               ((intStop - intStart) // 2)
@@ -297,23 +296,19 @@ playClick lowestPitch genre stopBeat click rest origin =
         intStart = beatFloor origin 4 click.time
         intStop = beatCeiling origin 4 click.time
       in
-        concatAndTrim
-          click.time
-          stopBeat
+        Clip.concat
           [ Clip.startAt (toFloat intStart)
           , Clip.repeat
               ((intStop - intStart) // 4)
               (StrumPattern.modern lowestPitch click.idChord.chord)
           ]
     Genre.Pad ->
-      List.map
-        (Sound.pad click.time)
-        (Chord.toPitches lowestPitch click.idChord.chord)
-
-concatAndTrim : Float -> Float -> List Clip -> List Sound
-concatAndTrim trimStart trimStop clips =
-  Sound.mute trimStart ::
-    Clip.trim trimStart trimStop (Clip.concat clips)
+      { sounds =
+          List.map
+            (Sound.pad click.time)
+            (Chord.toPitches lowestPitch click.idChord.chord)
+      , stop = infinity
+      }
 
 containsTime : Float -> List Click -> Bool
 containsTime time clicks =

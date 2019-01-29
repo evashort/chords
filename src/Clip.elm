@@ -1,4 +1,4 @@
-module Clip exposing (Clip, empty, startAt, append, concat, repeat, trim)
+module Clip exposing (Clip, empty, startAt, append, concat, repeat)
 
 import Sound exposing (Sound)
 
@@ -59,10 +59,4 @@ repeatHelp : Clip -> Int -> List Sound
 repeatHelp clip cycle =
   List.map
     (Sound.mapTime ((+) (clip.stop * toFloat cycle)))
-    clip.sounds
-
-trim : Float -> Float -> Clip -> List Sound
-trim start stop clip =
-  List.filter
-    (Sound.timeInRange start stop)
     clip.sounds
