@@ -1,13 +1,13 @@
 module Main exposing (..)
 
-import Arp
-import AudioChange
 import Buffet exposing (Buffet, LensChange)
 import ChordsInKey
 import Circle
+import Click exposing (Click)
 import CustomEvents exposing
   (onChange, isAudioTimeButton, onClickWithAudioTime)
 import FragmentQuery
+import Genre
 import Highlight exposing (Highlight)
 import History exposing (History)
 import IdChord exposing (IdChord)
@@ -28,6 +28,7 @@ import Search
 import Selection exposing (Selection)
 import Settings
 import Song
+import Sound
 import Storage exposing (Storage)
 import StrumPattern
 import Substring exposing (Substring)
@@ -205,8 +206,9 @@ type Msg
   | BuffetMsg Buffet.Msg
   | SetStorage Storage
   | CurrentTime Float
-  | SelectionMsg Selection.Msg
-  | Stop Float
+  | Play Float
+  | Clicked Click
+  | CustomClicked Float
   | Playing Bool
   | KeyboardMsg Keyboard.Msg
   | AddLine String
@@ -473,93 +475,154 @@ update msg model =
       )
 
     CurrentTime now ->
-      ( case Selection.setTime now model.selection of
-          Nothing ->
+      ( case model.selection of
+          Selection.Dynamic player ->
+            case Player.setTime now player of
+              Nothing ->
+                model
+              Just newPlayer ->
+                { model | selection = Selection.Dynamic newPlayer }
+          _ ->
             model
-          Just newSelection ->
-            { model | selection = newSelection }
       , Cmd.none
       )
 
-    SelectionMsg (Selection.Play (idChord, now)) ->
-      let
-        lowestPitch =
-          Lowest.toPitch model.parse.scale.tonic model.parse.lowest
-        player =
-          case model.selection of
-            Selection.Dynamic p ->
-              p
-            _ ->
-              Player.init
-      in
-      let
-        ( newPlayer, sequence, changes ) =
-          case model.storage.playStyle of
-            PlayStyle.Strum ->
-              Player.strum
-                model.storage.strumInterval
-                lowestPitch
-                idChord
-                now
-                player
-            PlayStyle.Pad ->
-              Player.pad lowestPitch idChord now player
-            PlayStyle.Arpeggio ->
-              let
-                bpm =
-                  Maybe.withDefault Arp.defaultBpm model.parse.bpm
-              in
-                Player.arp
-                  (60 / bpm)
-                  lowestPitch
-                  idChord
-                  now
-                  player
-            PlayStyle.StrumPattern ->
-              let
-                bpm =
-                  Maybe.withDefault
-                    (StrumPattern.defaultBpm model.storage.strumPattern)
-                    model.parse.bpm
-              in
-                Player.strumPattern
-                  model.storage.strumPattern
-                  (60 / bpm)
-                  lowestPitch
-                  idChord
-                  now
-                  player
-            PlayStyle.Silent ->
-              ( player, [], [] )
-      in
-        ( { model
-          | playing = True
-          , selectionPlucked = False
-          , selection = Selection.Dynamic newPlayer
-          , history = History.add sequence model.history
-          }
-        , AudioChange.perform changes
-        )
+    Play now ->
+      case Selection.setTime now model.selection of
+        Selection.Dynamic player ->
+          if Player.playing player then
+            ( { model
+              | selection =
+                  Selection.Dynamic (Player.stop now player)
+              , playing = False
+              , history =
+                  History.add (Player.sequence player) model.history
+              }
+            , Sound.play [ Sound.mute now ]
+            )
+          else
+            let
+              newPlayer =
+                Player.start
+                  ( Maybe.withDefault
+                      (Genre.defaultBpm model.storage)
+                      model.parse.bpm
+                  )
+                  (Genre.fromStorage model.storage)
+                  (Click (Player.currentIdChord player) now)
+              lowest =
+                Lowest.toPitch model.parse.scale.tonic model.parse.lowest
+            in
+              ( { model
+                | selection = Selection.Dynamic newPlayer
+                , selectionPlucked = False
+                , playing = True
+                }
+              , Player.play lowest newPlayer
+              )
+        Selection.Static (Just idChord) ->
+          let
+            newPlayer =
+              Player.start
+                  ( Maybe.withDefault
+                      (Genre.defaultBpm model.storage)
+                      model.parse.bpm
+                  )
+                (Genre.fromStorage model.storage)
+                (Click idChord now)
+            lowest =
+              Lowest.toPitch model.parse.scale.tonic model.parse.lowest
+          in
+            ( { model
+              | selection = Selection.Dynamic newPlayer
+              , selectionPlucked = False
+              , playing = True
+              }
+            , Player.play lowest newPlayer
+            )
+        _ ->
+          ( model, Cmd.none )
 
-    SelectionMsg (Selection.Select (idChord, now)) ->
-      setSelection now (Selection.Static (Just idChord)) model
+    Clicked click ->
+      case Selection.setTime click.time model.selection of
+        Selection.Dynamic player ->
+          if (Player.currentIdChord player).id == click.idChord.id then
+            ( { model
+              | selection = Selection.Static Nothing
+              , playing = False
+              , history =
+                  History.add (Player.sequence player) model.history
+              }
+            , if Player.playing player then
+                Sound.play [ Sound.mute click.time ]
+              else
+                Cmd.none
+            )
+          else
+            case Player.addClick click player of
+              Just newPlayer ->
+                ( { model | selection = Selection.Dynamic newPlayer }
+                , let
+                    lowest =
+                      Lowest.toPitch model.parse.scale.tonic model.parse.lowest
+                  in
+                    Player.play lowest newPlayer
+                )
+              Nothing ->
+                ( { model
+                  | selection = Selection.Static (Just click.idChord)
+                  , history =
+                      History.add (Player.sequence player) model.history
+                  }
+                , Cmd.none
+                )
+        Selection.Static (Just idChord) ->
+          ( { model
+            | selection =
+                if idChord.id == click.idChord.id then
+                  Selection.Static Nothing
+                else
+                  Selection.Static (Just click.idChord)
+            , selectionPlucked = False
+            }
+          , Cmd.none
+          )
+        _ ->
+          ( { model
+            | selection = Selection.Static (Just click.idChord)
+            , selectionPlucked = False
+            }
+          , Cmd.none
+          )
 
-    SelectionMsg (Selection.SelectCustom now) ->
-      setSelection now Selection.Custom model
-
-    SelectionMsg (Selection.Clear now) ->
-      setSelection now (Selection.Static Nothing) model
-
-    Stop now ->
-      ( { model
-        | selection = Selection.stop now model.selection
-        , playing  = False
-        }
-      , Cmd.batch
-          [ AudioChange.perform [ AudioChange.Mute now ]
-          , Ports.clearPlucks ()
-          ]
-      )
+    CustomClicked now ->
+      case Selection.setTime now model.selection of
+        Selection.Dynamic player ->
+          if Player.playing player then
+            ( { model
+              | selection = Selection.Custom
+              , playing = False
+              , history =
+                  History.add (Player.sequence player) model.history
+              }
+            , Sound.play [ Sound.mute now ]
+            )
+          else
+            ( { model
+              | selection = Selection.Custom
+              , selectionPlucked = False
+              , history =
+                  History.add (Player.sequence player) model.history
+              }
+            , Cmd.none
+            )
+        _ ->
+          ( { model
+            | selection = Selection.Custom
+            , selectionPlucked = False
+            }
+          , Cmd.none
+          )
 
     Playing playing ->
       ( if playing /= model.playing then
@@ -729,24 +792,6 @@ codeChanged model parse =
   else
     Cmd.none
 
-setSelection : Float -> Selection -> Model -> (Model, Cmd msg)
-setSelection now newSelection model =
-  ( { model
-    | playing = False
-    , selectionPlucked = False
-    , selection = newSelection
-    , history =
-        History.add
-          (Selection.sequenceAtTime now model.selection)
-          model.history
-    }
-  , case ( model.selection, model.selectionPlucked ) of
-      ( Selection.Dynamic _, False ) ->
-        AudioChange.perform [ AudioChange.Mute now ]
-      _ ->
-        Cmd.none
-  )
-
 -- SUBSCRIPTIONS
 
 subscriptions : Model -> Sub Msg
@@ -833,17 +878,7 @@ viewGrid model =
             (Maybe.withDefault model.customBpm model.parse.bpm)
             model.dragBpm
         )
-        ( case model.storage.playStyle of
-            PlayStyle.Arpeggio ->
-              Just Arp.defaultBpm
-            PlayStyle.StrumPattern ->
-              Just
-                ( StrumPattern.defaultBpm
-                    model.storage.strumPattern
-                )
-            _ ->
-              Nothing
-        )
+        (Just (Genre.defaultBpm model.storage))
         (model.parse.bpm == Nothing)
     , Html.Lazy.lazy2
         viewScale
@@ -873,10 +908,9 @@ viewGrid model =
     , Html.Lazy.lazy2 viewHighlights model.parse model.buffet
     , Html.Lazy.lazy2 viewBuffet model.tour model.buffet
     , Html.Lazy.lazy2 viewPlayBar model.storage model.selection
-    , Html.Lazy.lazy4
+    , Html.Lazy.lazy3
         viewSong
         model.tour
-        (model.storage.playStyle /= PlayStyle.Silent)
         model.selection
         model.parse
     , Html.Lazy.lazy4
@@ -901,10 +935,9 @@ viewGrid model =
               (Tour.paneShadow model.tour)
           of
             Pane.Search ->
-              Html.Lazy.lazy4
+              Html.Lazy.lazy3
                 viewSearch
                 model.parse.scale.tonic
-                (model.storage.playStyle /= PlayStyle.Silent)
                 model.selection
                 model.keyboard
             Pane.ChordsInKey ->
@@ -914,10 +947,9 @@ viewGrid model =
                 model.storage
                 model.selection
             Pane.Circle ->
-              Html.Lazy.lazy3
+              Html.Lazy.lazy2
                 viewCircle
                 model.parse.scale.tonic
-                (model.storage.playStyle /= PlayStyle.Silent)
                 model.selection
             Pane.History ->
               Html.map
@@ -927,7 +959,7 @@ viewGrid model =
                     model.storage
                     model.history
                     (Selection.sequence model.selection)
-                    (Selection.sequenceFinished model.selection)
+                    (not (Selection.playing model.selection))
                 )
             Pane.Settings ->
               Html.Lazy.lazy3
@@ -1249,17 +1281,16 @@ interpretPlayBarMsg playBarMsg =
   case playBarMsg of
     PlayBar.SetStorage storage ->
       SetStorage storage
-    PlayBar.SelectionMsg selectionMsg ->
-      SelectionMsg selectionMsg
+    PlayBar.Play now ->
+      Play now
 
-viewSong : Tour -> Bool -> Selection -> Parse -> Html Msg
-viewSong tour playable selection parse =
+viewSong : Tour -> Selection -> Parse -> Html Msg
+viewSong tour selection parse =
   Html.map
-    SelectionMsg
+    Clicked
     ( Song.view
         "song"
         parse.scale.tonic
-        playable
         selection
         (Tour.padSong tour (Parse.song parse))
     )
@@ -1293,16 +1324,23 @@ viewPaneSelector tour scale storage =
           )
       ]
 
-viewSearch : Int -> Bool -> Selection -> Keyboard -> Html Msg
-viewSearch tonic playable selection keyboard =
+viewSearch : Int -> Selection -> Keyboard -> Html Msg
+viewSearch tonic selection keyboard =
   Html.map
-    SelectionMsg
+    interpretSearchMsg
     ( Search.view
         tonic
         keyboard.customCode
-        playable
         selection
     )
+
+interpretSearchMsg : Search.Msg -> Msg
+interpretSearchMsg searchMsg =
+  case searchMsg of
+    Search.CustomClicked now ->
+      CustomClicked now
+    Search.Clicked click ->
+      Clicked click
 
 viewChordsInKey : Scale -> Storage -> Selection -> Html Msg
 viewChordsInKey scale storage selection =
@@ -1315,14 +1353,14 @@ interpretChordsInKeyMsg chordsInKeyMsg =
   case chordsInKeyMsg of
     ChordsInKey.SetStorage storage ->
       SetStorage storage
-    ChordsInKey.SelectionMsg selectionMsg ->
-      SelectionMsg selectionMsg
+    ChordsInKey.Clicked click ->
+      Clicked click
 
-viewCircle : Int -> Bool -> Selection -> Html Msg
-viewCircle tonic playable selection =
+viewCircle : Int -> Selection -> Html Msg
+viewCircle tonic selection =
   Html.map
-    SelectionMsg
-    (Circle.view tonic playable selection)
+    Clicked
+    (Circle.view tonic selection)
 
 interpretHistoryMsg : History.Msg -> Msg
 interpretHistoryMsg historyMsg =

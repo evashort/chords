@@ -17,7 +17,7 @@ import Html.Events exposing (onCheck)
 
 type Msg
   = SetStorage Storage
-  | Click Click
+  | Clicked Click
 
 view : Storage -> Scale -> Selection -> Html Msg
 view storage scale selection =
@@ -203,7 +203,7 @@ viewCell tonic selection y x chord =
           something
   in
     Html.map
-      SelectionMsg
+      Clicked
       ( span
           [ style "grid-row-start" (String.fromInt (y + 2))
           , style "grid-column-start" (String.fromInt (x + 2))

@@ -1,51 +1,192 @@
 module Player exposing
-  (Player, init, setTime, sequence, stop, pad, strum, arp, strumPattern)
+  ( Player, start, setBpm, setGenre, addClick, setTime, stop
+  , currentIdChord, scheduled, playing, willChange
+  , sequence, sequenceAtTime, play
+  )
 
-import Arp
-import AudioChange exposing (AudioChange(..))
+import Arpeggio
 import Chord exposing (Chord)
-import Cliff exposing (Hold, Region, Cliff)
+import Click exposing (Click)
+import Clip exposing (Clip)
+import Genre exposing (Genre)
 import IdChord exposing (IdChord)
-import Note exposing (Note)
-import StrumPattern exposing (StrumPattern, StrumNote)
+import Metro exposing (Metro)
+import Sound exposing (Sound)
+import StrumPattern
 
 type alias Player =
-  { cliff : Cliff Bool
-  , schedule : List Segment
-  , unfinishedCount : Int -- 0 <= unfinishedCount <= List.length schedule
+  { metro : Metro
+  , genre : Genre
+  , origin : Int
+  , clicks : List Click
+  , stopBeat : Float
+  , unfinishedCount : Int
+  , startBeat : Float
+  , now : Float
   }
 
-type alias Segment =
-  { id : Int
-  , chord : Chord
-  , stop : Float
+start : Float -> Genre -> Click -> Player
+start bpm genre click =
+  { metro = Metro.setBpm bpm click.time []
+  , genre = genre
+  , origin = 0
+  , clicks = [ { click | time = 0 } ]
+  , stopBeat =
+      if genre == Genre.Pad then
+        infinity
+      else
+        4
+  , unfinishedCount = 1
+  , startBeat = 0
+  , now = click.time
   }
 
-init : Player
-init =
-  { cliff = []
-  , schedule = []
-  , unfinishedCount = 0
+setBpm : Float -> Float -> Player -> Player
+setBpm bpm now player =
+  { player
+  | metro = Metro.setBpm bpm now player.metro
+  , startBeat = Metro.getBeat player.metro now
+  , now = now
   }
+
+setGenre : Genre -> Float -> Player -> Player
+setGenre newGenre now player =
+  if newGenre == Genre.Pad then
+      { player
+      | genre = newGenre
+      , origin = 0
+      , stopBeat = infinity
+      , startBeat = Metro.getBeat player.metro now
+      , now = now
+      }
+  else
+    let newOrigin = Metro.nextOpening player.metro now in
+      { player
+      | genre = newGenre
+      , origin = newOrigin
+      , stopBeat = toFloat (newOrigin + 4)
+      , startBeat = Metro.getBeat player.metro now
+      , now = now
+      }
+
+addClick : Click -> Player -> Maybe Player
+addClick click player =
+  let
+    startBeat =
+      if Genre.isQuantized player.genre then
+        toFloat (Metro.nextOpening player.metro click.time)
+      else
+        Metro.getBeat player.metro click.time
+  in
+    if startBeat > player.stopBeat then
+      Nothing
+    else
+      let
+        newClicks =
+          Click.add { click | time = startBeat } player.clicks
+        newStopBeat =
+          getStopBeat player.genre player.origin startBeat
+      in
+        Just
+          { player
+          | clicks = newClicks
+          , stopBeat = newStopBeat
+          , unfinishedCount =
+              countUnfinished newClicks newStopBeat startBeat
+          , startBeat = startBeat
+          , now = click.time
+          }
+
+getStopBeat : Genre -> Int -> Float -> Float
+getStopBeat genre origin startBeat =
+  if genre == Genre.Pad then
+    infinity
+  else if genre == Genre.Modern || genre == Genre.Basic then
+    toFloat (4 + beatCeiling origin 4 startBeat)
+  else
+    toFloat (4 + beatCeiling origin 2 startBeat)
+
+infinity : Float
+infinity = 1 / 0
+
+countUnfinished : List Click -> Float -> Float -> Int
+countUnfinished clicks stopBeat beat =
+  if beat >= stopBeat then
+    0
+  else
+    1 + List.length clicks - Click.countStarted clicks beat
 
 setTime : Float -> Player -> Maybe Player
 setTime now player =
-  let
-    unfinishedCount = countUnfinished now player.schedule
-  in
-    if unfinishedCount == player.unfinishedCount then
-      Nothing
-    else
-      Just { player | unfinishedCount = unfinishedCount }
+  let beat = Metro.getBeat player.metro now in
+    let
+      newUnfinishedCount =
+        countUnfinished player.clicks player.stopBeat beat
+    in
+      if newUnfinishedCount /= player.unfinishedCount then
+        Just
+          { player
+          | unfinishedCount = newUnfinishedCount
+          }
+      else
+        Nothing
+
+stop : Float -> Player -> Player
+stop now player =
+  let beat = Metro.getBeat player.metro now in
+    { player
+    | clicks = Click.keepBefore beat player.clicks
+    , stopBeat = beat
+    , unfinishedCount = 0
+    }
+
+currentIdChord : Player -> IdChord
+currentIdChord player =
+  case List.drop (player.unfinishedCount - 1) player.clicks of
+    [] ->
+      Debug.todo
+        "Player.currentIdChord: Player is empty, which should be impossible"
+    click :: _ ->
+      click.idChord
+
+scheduled : Player -> Int -> Bool
+scheduled player id =
+  List.member
+    id
+    ( List.map
+        (.id << .idChord)
+        (List.take player.unfinishedCount player.clicks)
+    )
+
+playing : Player -> Bool
+playing player =
+  player.unfinishedCount > 0
+
+willChange : Player -> Bool
+willChange player =
+  if player.unfinishedCount <= 0 then
+    False
+  else
+    player.unfinishedCount > 1 || player.stopBeat < infinity
 
 sequence : Player -> List Chord
 sequence player =
-  let
-    startedSegments =
-      List.drop (player.unfinishedCount - 1) player.schedule
-  in
-    removeDuplicates
-      (List.reverse (List.map .chord startedSegments))
+  ( removeDuplicates <<
+      List.reverse <<
+      List.map (.chord << .idChord) <<
+      List.drop (player.unfinishedCount - 1)
+  )
+    player.clicks
+
+sequenceAtTime : Float -> Player -> List Chord
+sequenceAtTime now player =
+  let beat = Metro.getBeat player.metro now in
+    ( removeDuplicates <<
+        List.reverse <<
+        List.map (.chord << .idChord) <<
+        Click.keepBefore beat
+    )
+      player.clicks
 
 removeDuplicates : List a -> List a
 removeDuplicates xs =
@@ -58,225 +199,132 @@ removeDuplicates xs =
     other ->
       other
 
-stop : Float -> Player -> Player
-stop now player =
-  if player.unfinishedCount > 0 then
-    { cliff = []
-    , schedule =
-        stopScheduleAt now player.schedule
-    , unfinishedCount = 0
-    }
-  else
-    player
-
-pad :
-  Int -> IdChord -> Float -> Player -> (Player, List Chord, List AudioChange)
-pad lowestPitch { id, chord } now player =
-  let
-    shouldInit = countUnfinished now player.schedule <= 0
-  in
-    ( addSegment
-        now
-        (Region now 0 [])
-        (Segment id chord infinity)
-        (if shouldInit then init else player)
-    , if shouldInit then
-        sequence { player | unfinishedCount = 0 }
-      else
-        []
-    , (::)
-        (Mute now)
-        ( List.map
-            (AddPadNote << Note.mapTime ((+) now << (*) 0.009))
-            (Arp.pad lowestPitch chord)
+play : Int -> Player -> Cmd msg
+play lowestPitch player =
+  Sound.play
+    ( List.map
+        ( Sound.mapTime
+            (max player.now << Metro.getTime player.metro)
+        )
+        ( playHelp
+            lowestPitch
+            player.genre
+            player.origin
+            player.startBeat
+            player.clicks
+            player.stopBeat
         )
     )
 
-strum :
-  Float -> Int -> IdChord -> Float -> Player ->
-    (Player, List Chord, List AudioChange)
-strum strumInterval lowestPitch { id, chord } now player =
-  let
-    shouldInit = countUnfinished now player.schedule <= 0
-  in
-    ( addSegment
-        now
-        (Region now 0 [])
-        (Segment id chord (now + 2.25))
-        (if shouldInit then init else player)
-    , if shouldInit then
-        sequence { player | unfinishedCount = 0 }
-      else
-        []
-    , (++)
-        [ Mute now
-        , AddAlarm (now + 2.25)
-        ]
-        ( List.map
-            ( AddGuitarNote <<
-                Note.mapTime ((+) now << (*) strumInterval)
-            )
-            (Arp.strum lowestPitch chord)
-        )
-    )
-
-arp :
-  Float -> Int -> IdChord -> Float -> Player ->
-    (Player, List Chord, List AudioChange)
-arp beatInterval lowestPitch { id, chord } now player =
-  let
-    nextHold = Cliff.nextHold now player.cliff
-  in
-  let
-    shouldInit =
-      nextHold == Nothing &&
-        countUnfinished now player.schedule <= 0
-    ( startTime, highStart ) =
-      Maybe.withDefault ( now, False ) nextHold
-  in
-    ( addSegment
-        now
-        ( Region
-            startTime
-            (2 * beatInterval)
-            [ Hold 1 True, Hold 2 False ]
-        )
-        (Segment id chord (startTime + 4 * beatInterval))
-        (if shouldInit then init else player)
-    , if shouldInit then
-        sequence { player | unfinishedCount = 0 }
-      else
-        []
-    , (++)
-        [ Mute startTime
-        , AddAlarm startTime
-        , AddAlarm (startTime + 4 * beatInterval)
-        ]
-        ( List.map
-            ( AddPianoNote <<
-                Note.mapTime
-                  ((+) startTime << (*) beatInterval)
-            )
-            ( if highStart then
-                Arp.continuation lowestPitch chord
-              else
-                Arp.intro lowestPitch chord
-            )
-        )
-    )
-
-strumPattern :
-  StrumPattern -> Float -> Int -> IdChord -> Float -> Player ->
-    (Player, List Chord, List AudioChange)
-strumPattern pattern beatInterval lowestPitch { id, chord } now player =
-  let
-    nextHold = Cliff.nextHold now player.cliff
-  in
-  let
-    shouldInit =
-      nextHold == Nothing &&
-        countUnfinished now player.schedule <= 0
-    ( startTime, highStart ) =
-      Maybe.withDefault ( now, False ) nextHold
-  in
-  let
-    beatCount =
-      case pattern of
-        StrumPattern.Basic ->
-          8
-        StrumPattern.Indie ->
-          4
-        StrumPattern.Modern ->
-          if highStart then 6 else 4
-    holds =
-      case pattern of
-        StrumPattern.Basic ->
-          [ Hold 2 False, Hold 4 False ]
-        StrumPattern.Indie ->
-          [ Hold 1 False, Hold 2 False ]
-        StrumPattern.Modern ->
-          if highStart then
-            [ Hold 1 False, Hold 2 True, Hold 3 False ]
+playHelp : Int -> Genre -> Int -> Float -> List Click -> Float -> List Sound
+playHelp lowestPitch genre origin startBeat clicks stopBeat =
+  case clicks of
+    [] ->
+      []
+    click :: rest ->
+      List.append
+        ( if click.time > startBeat then
+            (playHelp lowestPitch genre origin startBeat rest click.time)
           else
-            [ Hold 1 True, Hold 2 False ]
-  in
-    ( addSegment
-        now
-        (Region startTime (2 * beatInterval) holds)
-        ( Segment
-            id
-            chord
-            (startTime + beatCount * beatInterval)
+            []
         )
-        (if shouldInit then init else player)
-    , if shouldInit then
-        sequence { player | unfinishedCount = 0 }
-      else
-        []
-    , (++)
-        [ Mute startTime
-        , AddAlarm startTime
-        , AddAlarm (startTime + beatCount * beatInterval)
-        ]
-        ( List.map
-            ( AddGuitarNote <<
-                processStrumNote startTime beatInterval
+        ( List.filter
+            ( Sound.timeInRange
+                (max startBeat click.time)
+                stopBeat
             )
-            (StrumPattern.notes pattern highStart lowestPitch chord)
+            ( (::)
+                (Sound.mute click.time)
+                ( .sounds
+                    (playClick lowestPitch genre stopBeat click rest origin)
+                )
+            )
         )
-    )
 
-processStrumNote : Float -> Float -> StrumNote -> Note
-processStrumNote startTime beatInterval strumNote =
-  { v = strumNote.v
-  , t =
-      startTime +
-        beatInterval * strumNote.t +
-        0.009 * toFloat strumNote.strumIndex
-  , f = strumNote.f
-  }
+playClick : Int -> Genre -> Float -> Click -> List Click -> Int -> Clip
+playClick lowestPitch genre stopBeat click rest origin =
+  case genre of
+    Genre.Arp ->
+      let
+        intStart = beatFloor origin 2 click.time
+        intStop = beatCeiling origin 2 click.time
+        startLow = Arpeggio.startLow lowestPitch click.idChord.chord
+        startHigh = Arpeggio.startHigh lowestPitch click.idChord.chord
+      in
+        Clip.concat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((origin - intStart) // 2)
+              startLow -- fill the time before origin
+          , if
+              intStart > origin &&
+                containsTime (toFloat (intStart - 2)) rest
+            then
+              startHigh -- chord was changed less than one measure ago
+            else
+              startLow
+          , Clip.repeat
+              ((intStop - max origin intStart) // 4)
+              (Clip.append startHigh startLow)
+          ]
+    Genre.Basic ->
+      let
+        intStart = beatFloor origin 2 click.time
+        intStop = beatCeiling origin 2 click.time
+      in
+        Clip.concat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((intStop - intStart) // 2)
+              (StrumPattern.basic lowestPitch click.idChord.chord)
+          ]
+    Genre.Indie ->
+      let
+        intStart = beatFloor origin 2 click.time
+        intStop = beatCeiling origin 2 click.time
+      in
+        Clip.concat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((intStop - intStart) // 2)
+              (StrumPattern.indie lowestPitch click.idChord.chord)
+          ]
+    Genre.Modern ->
+      let
+        intStart = beatFloor origin 4 click.time
+        intStop = beatCeiling origin 4 click.time
+      in
+        Clip.concat
+          [ Clip.startAt (toFloat intStart)
+          , Clip.repeat
+              ((intStop - intStart) // 4)
+              (StrumPattern.modern lowestPitch click.idChord.chord)
+          ]
+    Genre.Pad ->
+      { sounds =
+          List.map
+            (Sound.pad click.time)
+            (Chord.toPitches lowestPitch click.idChord.chord)
+      , stop = infinity
+      }
 
-addSegment : Float -> Region Bool -> Segment -> Player -> Player
-addSegment now region segment player =
-  let
-    newSchedule =
-      segment ::
-        stopScheduleAt region.origin player.schedule
-  in
-    { cliff = Cliff.addRegion region player.cliff
-    , schedule = newSchedule
-    , unfinishedCount = countUnfinished now newSchedule
-    }
-
-stopScheduleAt : Float -> List Segment -> List Segment
-stopScheduleAt t schedule =
-  case schedule of
+containsTime : Float -> List Click -> Bool
+containsTime time clicks =
+  case clicks of
     [] ->
-      schedule
-    [ segment ] ->
-      if segment.stop > t then
-        [ { segment | stop = t } ]
+      False
+    click :: rest ->
+      if click.time > time then
+        containsTime time rest
       else
-        schedule
-    segment :: previous :: rest ->
-      if previous.stop < t then
-        if segment.stop > t then
-          { segment | stop = t } :: previous :: rest
-        else
-          schedule
-      else
-        stopScheduleAt t (previous :: rest)
+        click.time == time
 
-countUnfinished : Float -> List Segment -> Int
-countUnfinished now schedule =
-  case schedule of
-    [] ->
-      0
-    segment :: rest ->
-      if segment.stop > now then
-        1 + countUnfinished now rest
-      else
-        0
+beatFloor : Int -> Int -> Float -> Int
+beatFloor origin interval x =
+  let i = floor x - origin in
+    origin + i - modBy interval i
 
-infinity : Float
-infinity = 1/0
+beatCeiling : Int -> Int -> Float -> Int
+beatCeiling origin interval x =
+  let i = ceiling x - origin in
+    origin + i + modBy interval (interval - i)

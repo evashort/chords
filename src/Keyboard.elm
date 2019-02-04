@@ -1,6 +1,5 @@
 module Keyboard exposing (Keyboard, init, Msg(..), UpdateResult, update, view)
 
-import AudioChange exposing (AudioChange(..))
 import Chord exposing (Chord)
 import Colour
 import CustomEvents exposing
@@ -15,8 +14,10 @@ import IdChord exposing (IdChord)
 import Name
 import Note exposing (Note)
 import Path
+import Player
 import Ports exposing (Pluck)
 import Selection exposing (Selection)
+import Sound
 
 import Html exposing (Html, span, text, input, button)
 import Html.Attributes as Attributes exposing (attribute, style, class, id)
@@ -45,11 +46,7 @@ getCode selection keyboard =
     Selection.Static Nothing ->
       ""
     Selection.Dynamic player ->
-      case List.drop (player.unfinishedCount - 1) player.schedule of
-        current :: _ ->
-          Name.code current.chord
-        _ ->
-          ""
+      Name.code (Player.currentIdChord player).chord
     Selection.Custom ->
       keyboard.customCode
 
@@ -59,11 +56,7 @@ getChord selection keyboard =
     Selection.Static maybeIdChord ->
       Maybe.map .chord maybeIdChord
     Selection.Dynamic player ->
-      case List.drop (player.unfinishedCount - 1) player.schedule of
-        current :: _ ->
-          Just current.chord
-        _ ->
-          Nothing
+      Just (Player.currentIdChord player).chord
     Selection.Custom ->
       Chord.fromCodeExtended keyboard.customCode
 
@@ -108,7 +101,7 @@ update msg selectionPlucked selection keyboard =
       , cmd =
           case ( selection, selectionPlucked ) of
             ( Selection.Dynamic _, False ) ->
-              AudioChange.perform [ Mute now ]
+              Sound.play [ Sound.mute now ]
             _ ->
               Cmd.none
       }
@@ -124,7 +117,7 @@ update msg selectionPlucked selection keyboard =
       , cmd =
           case ( selection, selectionPlucked ) of
             ( Selection.Dynamic _, False ) ->
-              AudioChange.perform [ Mute now ]
+              Sound.play [ Sound.mute now ]
             _ ->
               Cmd.none
       }
@@ -163,18 +156,13 @@ update msg selectionPlucked selection keyboard =
             }
         , sequence = Selection.sequenceAtTime now selection
         , cmd =
-            AudioChange.perform
+            Sound.play
               ( ( if selectionPlucked then
                     []
                   else
-                    [ Mute now ]
+                    [ Sound.mute now ]
                 ) ++
-                  [ AddPianoNote
-                      { v = 1
-                      , t = now
-                      , f = pitchFrequency pitch
-                      }
-                  ]
+                  [ Sound.piano now pitch ]
               )
         }
 
@@ -208,15 +196,11 @@ update msg selectionPlucked selection keyboard =
                 }
         , sequence = Selection.sequenceAtTime now selection
         , cmd =
-            AudioChange.perform
+            Sound.play
               [ if selectionPlucked then
-                  NoteOff
-                    { v = 1
-                    , t = now
-                    , f = pitchFrequency pitch
-                    }
+                  Sound.noteOff now pitch
                 else
-                  Mute now
+                  Sound.mute now
               ]
         }
 
@@ -224,20 +208,8 @@ update msg selectionPlucked selection keyboard =
       let
         changes =
           List.append
-            ( List.map
-                ( NoteOff <<
-                    Note 1 pluck.now <<
-                      pitchFrequency
-                )
-                pluck.mutes
-            )
-            ( List.map
-                ( AddGuitarNote <<
-                    Note 1 pluck.now <<
-                      pitchFrequency
-                )
-                pluck.pitches
-            )
+            (List.map (Sound.noteOff pluck.now) pluck.mutes)
+            (List.map (Sound.guitar pluck.now) pluck.pitches)
       in
         { selectionPlucked = True
         , selection = Selection.stop pluck.now selection
@@ -245,9 +217,9 @@ update msg selectionPlucked selection keyboard =
         , sequence = []
         , cmd =
             if selectionPlucked then
-              AudioChange.perform changes
+              Sound.play changes
             else
-              AudioChange.perform (Mute pluck.now :: changes)
+              Sound.play (Sound.mute pluck.now :: changes)
         }
 
     AddWord _ ->
@@ -261,10 +233,6 @@ update msg selectionPlucked selection keyboard =
 inRange : Int -> Int -> Int -> Bool
 inRange low high x =
   low <= x && x <= high
-
-pitchFrequency : Int -> Float
-pitchFrequency pitch =
-  440 * 2 ^ (toFloat (pitch - 69) / 12)
 
 view : String -> Int -> Int -> Selection -> Keyboard -> Html Msg
 view gridArea tonic lowestPitch selection keyboard =

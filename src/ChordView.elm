@@ -15,9 +15,9 @@ import Html.Lazy
 view : Int -> Selection -> IdChord -> List (Html Click)
 view tonic selection idChord =
   let
-    member = Selection.member idChord.id selection
-    scheduled = Selection.scheduled idChord.id selection
-    playing = not (Selection.sequenceFinished selection)
+    member = Selection.member selection idChord.id
+    scheduled = Selection.scheduled selection idChord.id
+    playing = Selection.playing selection
   in
     [ Html.Lazy.lazy2
         viewBorder
@@ -132,7 +132,7 @@ viewSelectButton tonic selected idChord =
     ]
     [ button
         [ isAudioTimeButton True
-        , onClickWithAudioTime (Selection.Clicked << Tuple.pair idChord)
+        , onClickWithAudioTime (Click idChord)
         , class "chordButton"
         , style "width" "2.8em"
         , style "height" "2.8em"

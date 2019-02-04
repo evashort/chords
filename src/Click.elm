@@ -1,4 +1,4 @@
-module Click exposing (Click, add, keepBefore, countStarted)
+module Click exposing (Click, add, keepBefore, countStarted, dropAfter)
 
 import IdChord exposing (IdChord)
 

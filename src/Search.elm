@@ -92,9 +92,9 @@ view tonic customCode selection =
           ]
       )
 
-viewCustomChord : Int -> Bool -> Bool -> Chord -> Html Selection.Msg
+viewCustomChord : Int -> Bool -> Bool -> Chord -> Html Msg
 viewCustomChord tonic showCustomChord noCustomChord colorChord =
-  let action = Selection.CustomClicked in
+  let action = CustomClicked in
     span
       [ style "position" "relative"
       , style "display" "inline-block"
@@ -176,10 +176,13 @@ viewSearchResult tonic selection ( header, idChord ) =
     ]
     [ Html.text header
     , Html.br [] []
-    , span
-        [ style "position" "relative"
-        , style "display" "inline-block"
-        , style "font-size" "150%"
-        ]
-        (Html.map Clicked (ChordView.view tonic selection idChord))
+    , Html.map
+        Clicked
+        ( span
+          [ style "position" "relative"
+          , style "display" "inline-block"
+          , style "font-size" "150%"
+          ]
+          (ChordView.view tonic selection idChord)
+        )
     ]

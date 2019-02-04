@@ -142,8 +142,8 @@ viewChord :
   Int -> Selection -> Float -> Float -> Int -> IdChord -> List (Svg Click)
 viewChord tonic selection rInner rOuter i idChord =
   let
-    member = Selection.member idChord.id selection
-    scheduled = Selection.scheduled idChord.id selection
+    member = Selection.member selection idChord.id
+    scheduled = Selection.scheduled selection idChord.id
   in
     List.filterMap
       identity
@@ -205,8 +205,8 @@ viewChordText selection r i idChord =
     ( x, y ) =
       let a = 2 * pi * (0.25 - toFloat i / 12) in
         ( polarX r a, polarY r a )
-    member = Selection.member idChord.id selection
-    playing = not (Selection.sequenceFinished selection)
+    member = Selection.member selection idChord.id
+    playing = Selection.playing selection
   in
     Html.span
       [ style "position"  "absolute"

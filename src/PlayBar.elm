@@ -1,5 +1,6 @@
 module PlayBar exposing (Msg(..), view)
 
+import CustomEvents exposing (isAudioTimeButton, onClickWithAudioTime)
 import PlayStyle
 import Radio
 import Selection exposing (Selection)
@@ -15,7 +16,7 @@ import Svg.Attributes as SA
 
 type Msg
   = SetStorage Storage
-  | SelectionMsg Selection.Msg
+  | Play Float
 
 view : String -> Storage -> Selection -> Html Msg
 view gridArea storage selection =
@@ -35,6 +36,8 @@ view gridArea storage selection =
     ]
     [ button
         [ style "vertical-align" "middle"
+        , isAudioTimeButton True
+        , onClickWithAudioTime Play
         ]
         [ text "Play"
         ]

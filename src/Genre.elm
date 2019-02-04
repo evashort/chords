@@ -1,6 +1,7 @@
-module Genre exposing (Genre(..), init, isQuantized, defaultBpm)
+module Genre exposing (Genre(..), fromStorage, isQuantized, defaultBpm)
 
 import PlayStyle exposing (PlayStyle)
+import Storage exposing (Storage)
 import StrumPattern exposing (StrumPattern)
 
 type Genre
@@ -10,13 +11,13 @@ type Genre
   | Modern
   | Pad
 
-init : PlayStyle -> StrumPattern -> Genre
-init playStyle strumPattern =
-  case playStyle of
+fromStorage : Storage -> Genre
+fromStorage storage =
+  case storage.playStyle of
     PlayStyle.Arpeggio ->
       Arp
     PlayStyle.StrumPattern ->
-      case strumPattern of
+      case storage.strumPattern of
         StrumPattern.Basic ->
           Basic
         StrumPattern.Indie ->
@@ -30,17 +31,12 @@ isQuantized : Genre -> Bool
 isQuantized genre =
   genre /= Pad
 
-defaultBpm : Genre -> Float
-defaultBpm genre =
-  case genre of
-    Arp ->
-      85
+defaultBpm : Storage -> Float
+defaultBpm storage =
+  case fromStorage storage of
     Basic ->
       65
-    Indie ->
-      85
     Modern ->
       95
-    Pad ->
-      Debug.todo
-        "Genre.defaultBpm: Switching to pad mode should not change tempo"
+    _ ->
+      85
