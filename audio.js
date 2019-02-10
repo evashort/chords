@@ -184,15 +184,15 @@ function changeAudio(changes) {
         break;
       case "piano":
         muteFrequencyAt(change.t, change.f);
-        addPianoNote(change.t, change.f);
+        notes.push(addPianoNote(change.t, change.f));
         break;
       case "guitar":
         muteFrequencyAt(change.t, change.f);
-        addGuitarNote(change.v, change.t, change.f);
+        notes.push(addGuitarNote(change.v, change.t, change.f));
         break;
       case "pad":
         muteFrequencyAt(change.t, change.f);
-        addPadNote(change.t, change.f);
+        notes.push(addPadNote(change.t, change.f));
         break;
       case "noteOff":
         muteFrequencyAt(change.t, change.f);

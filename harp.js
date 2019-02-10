@@ -266,12 +266,6 @@ function harpReleased() {
   paintStaticHarp();
 }
 
-function clearPlucks() {
-  plucks = {};
-
-  paintStaticHarp();
-}
-
 window.addEventListener("mousemove", harpDragged);
 
 window.addEventListener("mouseup", harpReleased);

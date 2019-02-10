@@ -206,13 +206,20 @@ play lowestPitch player =
         ( Sound.mapTime
             (max player.now << Metro.getTime player.metro)
         )
-        ( playHelp
-            lowestPitch
-            player.genre
-            player.origin
-            player.startBeat
-            player.clicks
-            player.stopBeat
+        ( List.append
+            ( playHelp
+                lowestPitch
+                player.genre
+                player.origin
+                player.startBeat
+                player.clicks
+                player.stopBeat
+            )
+            ( if isInfinite player.stopBeat then
+                []
+              else
+                [ Sound.alarm player.stopBeat ]
+            )
         )
     )
 
@@ -247,7 +254,7 @@ playClick lowestPitch genre stopBeat click rest origin =
     Genre.Arp ->
       let
         intStart = beatFloor origin 2 click.time
-        intStop = beatCeiling origin 2 click.time
+        intStop = beatCeiling origin 2 stopBeat
         startLow = Arpeggio.startLow lowestPitch click.idChord.chord
         startHigh = Arpeggio.startHigh lowestPitch click.idChord.chord
       in
@@ -270,7 +277,7 @@ playClick lowestPitch genre stopBeat click rest origin =
     Genre.Basic ->
       let
         intStart = beatFloor origin 2 click.time
-        intStop = beatCeiling origin 2 click.time
+        intStop = beatCeiling origin 2 stopBeat
       in
         Clip.concat
           [ Clip.startAt (toFloat intStart)
@@ -281,7 +288,7 @@ playClick lowestPitch genre stopBeat click rest origin =
     Genre.Indie ->
       let
         intStart = beatFloor origin 2 click.time
-        intStop = beatCeiling origin 2 click.time
+        intStop = beatCeiling origin 2 stopBeat
       in
         Clip.concat
           [ Clip.startAt (toFloat intStart)
@@ -292,7 +299,7 @@ playClick lowestPitch genre stopBeat click rest origin =
     Genre.Modern ->
       let
         intStart = beatFloor origin 4 click.time
-        intStop = beatCeiling origin 4 click.time
+        intStop = beatCeiling origin 4 stopBeat
       in
         Clip.concat
           [ Clip.startAt (toFloat intStart)

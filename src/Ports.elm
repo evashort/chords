@@ -3,7 +3,7 @@ port module Ports exposing
   , initMeter
   , initTheater, focusTheater, replace, undoAndReplace, hardUndo
   , text
-  , initHarp, clearPlucks, harpPlucked, Pluck
+  , initHarp, harpPlucked, Pluck
   , saveStorage, deleteStorage
   , download, File
   , scrollIntoView, escape
@@ -28,7 +28,6 @@ port hardUndo : () -> Cmd msg
 port text : (String -> msg) -> Sub msg
 
 port initHarp : () -> Cmd msg
-port clearPlucks : () -> Cmd msg
 port harpPlucked : (Pluck -> msg) -> Sub msg
 type alias Pluck =
   { now : Float
