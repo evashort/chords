@@ -5,7 +5,9 @@ import ChordsInKey
 import Circle
 import Click exposing (Click)
 import CustomEvents exposing
-  (onChange, isAudioTimeButton, onClickWithAudioTime)
+  ( onChange, isAudioTimeButton, onClickWithAudioTime
+  , isAudioTimeInput, onInputWithAudioTime
+  )
 import FragmentQuery
 import Genre
 import Highlight exposing (Highlight)
@@ -192,7 +194,7 @@ type Msg
   | SetTitle String
   | Save
   | Download
-  | DragBpm String
+  | DragBpm (String, Float)
   | SetBpm String
   | UseDefaultBpm Bool
   | SetTonic String
@@ -298,15 +300,27 @@ update msg model =
           }
       )
 
-    DragBpm bpmString ->
-      ( case String.toFloat bpmString of
-          Just bpm ->
-            { model | dragBpm = Just bpm }
-          Nothing ->
-            Debug.todo
-              ("Main.update: Bad BPM while dragging: " ++ bpmString)
-      , Cmd.none
-      )
+    DragBpm ( bpmString, now ) ->
+      case String.toFloat bpmString of
+        Just bpm ->
+          case model.selection of
+            Selection.Dynamic player ->
+              let
+                newPlayer = Player.setBpm bpm now player
+                lowest =
+                  Lowest.toPitch model.parse.scale.tonic model.parse.lowest
+              in
+                ( { model
+                  | dragBpm = Just bpm
+                  , selection = Selection.Dynamic newPlayer
+                  }
+                , Player.play lowest newPlayer
+                )
+            _ ->
+              ( { model | dragBpm = Just bpm }, Cmd.none )
+        Nothing ->
+          Debug.todo
+            ("Main.update: Bad BPM while dragging: " ++ bpmString)
 
     SetBpm bpmString ->
       case String.toFloat bpmString of
@@ -1078,8 +1092,9 @@ viewBpm hasBackup bpm maybeDefaultBpm useDefault =
     , input
         [ type_ "range"
         , class "range"
+        , isAudioTimeInput True
         , disabled useDefault
-        , onInput DragBpm
+        , onInputWithAudioTime DragBpm
         , onChange SetBpm
         , value (String.fromFloat bpm)
         , Attributes.size 3

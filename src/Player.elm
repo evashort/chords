@@ -202,23 +202,26 @@ removeDuplicates xs =
 play : Int -> Player -> Cmd msg
 play lowestPitch player =
   Sound.play
-    ( List.map
-        ( Sound.mapTime
-            (max player.now << Metro.getTime player.metro)
-        )
-        ( List.append
-            ( playHelp
-                lowestPitch
-                player.genre
-                player.origin
-                player.startBeat
-                player.clicks
-                player.stopBeat
+    ( (::)
+        (Sound.cancel player.now)
+        ( List.map
+            ( Sound.mapTime
+                (max player.now << Metro.getTime player.metro)
             )
-            ( if isInfinite player.stopBeat then
-                []
-              else
-                [ Sound.alarm player.stopBeat ]
+            ( List.append
+                ( playHelp
+                    lowestPitch
+                    player.genre
+                    player.origin
+                    player.startBeat
+                    player.clicks
+                    player.stopBeat
+                )
+                ( if isInfinite player.stopBeat then
+                    []
+                  else
+                    [ Sound.alarm player.stopBeat ]
+                )
             )
         )
     )
