@@ -10,9 +10,8 @@ import Json.Encode as Encode
 
 type Sound
   = Piano Note
-  | Guitar Note
+  | Guitar GuitarNote
   | Pad Note
-  | Strum StrumNote
   | NoteOff Note
   | Mute Float
   | Cancel Float
@@ -23,7 +22,7 @@ type alias Note =
   , pitch : Int
   }
 
-type alias StrumNote =
+type alias GuitarNote =
   { time : Float
   , offset : Float
   , pitch : Int
@@ -36,7 +35,7 @@ piano time pitch =
 
 guitar : Float -> Int -> Sound
 guitar time pitch =
-  Guitar (Note time pitch)
+  Guitar (GuitarNote time 0 pitch 1)
 
 pad : Float -> Int -> Sound
 pad time pitch =
@@ -70,11 +69,11 @@ down intVelocity missedStrings time pitches =
             ((*) strumInterval << toFloat)
             (List.range 0 (noteCount - 1))
       in
-        List.map3 (strum time) offsets pitches velocities
+        List.map3 (strumNote time) offsets pitches velocities
 
-strum : Float -> Float -> Int -> Float -> Sound
-strum time offset pitch velocity =
-  Strum (StrumNote time offset pitch velocity)
+strumNote : Float -> Float -> Int -> Float -> Sound
+strumNote time offset pitch velocity =
+  Guitar (GuitarNote time offset pitch velocity)
 
 strumInterval : Float
 strumInterval = 0.009
@@ -97,12 +96,10 @@ mapTime f sound =
   case sound of
     Piano { time, pitch } ->
       Piano (Note (f time) pitch)
-    Guitar { time, pitch } ->
-      Guitar (Note (f time) pitch)
+    Guitar { time, offset, pitch, velocity } ->
+      Guitar (GuitarNote (f time) offset pitch velocity)
     Pad { time, pitch } ->
       Pad (Note (f time) pitch)
-    Strum { time, offset, pitch, velocity } ->
-      Strum (StrumNote (f time) offset pitch velocity)
     NoteOff { time, pitch } ->
       NoteOff (Note (f time) pitch)
     Mute time ->
@@ -121,9 +118,8 @@ getTime : Sound -> Float
 getTime sound =
   case sound of
     Piano { time, pitch } -> time
-    Guitar { time, pitch } -> time
+    Guitar { time, offset, pitch, velocity } -> time
     Pad { time, pitch } -> time
-    Strum { time, offset, pitch, velocity } -> time
     NoteOff { time, pitch } -> time
     Mute time -> time
     Cancel time -> time
@@ -141,24 +137,18 @@ toJson sound =
         , ( "t", Encode.float time )
         , ( "f", Encode.float (pitchFrequency pitch) )
         ]
-    Guitar { time, pitch } ->
+    Guitar { time, offset, pitch, velocity } ->
       Encode.object
         [ ( "type", Encode.string "guitar" )
-        , ( "v", Encode.float 1 )
+        , ( "v", Encode.float velocity )
         , ( "t", Encode.float time )
+        , ( "offset", Encode.float offset )
         , ( "f", Encode.float (pitchFrequency pitch) )
         ]
     Pad { time, pitch } ->
       Encode.object
         [ ( "type", Encode.string "pad" )
         , ( "t", Encode.float time )
-        , ( "f", Encode.float (pitchFrequency pitch) )
-        ]
-    Strum { time, offset, pitch, velocity } ->
-      Encode.object
-        [ ( "type", Encode.string "guitar" )
-        , ( "v", Encode.float velocity )
-        , ( "t", Encode.float (time + offset) )
         , ( "f", Encode.float (pitchFrequency pitch) )
         ]
     NoteOff { time, pitch } ->

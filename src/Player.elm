@@ -43,11 +43,12 @@ start bpm genre click =
 
 setBpm : Float -> Float -> Player -> Player
 setBpm bpm now player =
-  { player
-  | metro = Metro.setBpm bpm now player.metro
-  , startBeat = Metro.getBeat player.metro now
-  , now = now
-  }
+  let startTime = now + 0.1 in
+    { player
+    | metro = Metro.setBpm bpm startTime player.metro
+    , startBeat = Metro.getBeat player.metro startTime
+    , now = now
+    }
 
 setGenre : Genre -> Float -> Player -> Player
 setGenre newGenre now player =
@@ -202,27 +203,26 @@ removeDuplicates xs =
 play : Int -> Player -> Cmd msg
 play lowestPitch player =
   Sound.play
-    ( (::)
-        (Sound.cancel player.now)
-        ( List.map
-            ( Sound.mapTime
-                (max player.now << Metro.getTime player.metro)
-            )
-            ( List.append
-                ( playHelp
-                    lowestPitch
-                    player.genre
-                    player.origin
-                    player.startBeat
-                    player.clicks
-                    player.stopBeat
-                )
-                ( if isInfinite player.stopBeat then
-                    []
-                  else
-                    [ Sound.alarm player.stopBeat ]
-                )
-            )
+    ( List.map
+        ( Sound.mapTime
+            (max player.now << Metro.getTime player.metro)
+        )
+        ( List.concat
+            [ [ Sound.cancel player.startBeat ]
+            , ( playHelp
+                  lowestPitch
+                  player.genre
+                  player.origin
+                  player.startBeat
+                  player.clicks
+                  player.stopBeat
+              )
+            , ( if isInfinite player.stopBeat then
+                  []
+                else
+                  [ Sound.alarm player.stopBeat ]
+              )
+            ]
         )
     )
 

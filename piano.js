@@ -1,4 +1,7 @@
-function addPianoNote(t, f) {
+function addPianoNote(change) {
+  var t = change.t
+  var f = change.f
+
   var fader = ac.createGain();
   fader.connect(reverb);
 

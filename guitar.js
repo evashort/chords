@@ -1,4 +1,8 @@
-function addGuitarNote(v, t, f) {
+function addGuitarNote(change) {
+  var v = change.v
+  var t = change.t + change.offset
+  var f = change.f
+
   var fader = ac.createGain();
   fader.connect(reverb);
 
@@ -38,7 +42,7 @@ function addGuitarNote(v, t, f) {
   var note = {
     fader: fader,
     oscillators: [saw],
-    start: t,
+    start: change.t,
     expiration: peakTime + 6,
     frequency: f
   }
