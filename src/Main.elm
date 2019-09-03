@@ -991,7 +991,7 @@ viewBrand tour =
               ]
               []
           , a
-              [ href "https://github.com/evanshort73/chords"
+              [ href "https://github.com/evashort/chords"
               ]
               [ Html.text "View on GitHub"
               ]

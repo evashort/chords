@@ -4,7 +4,7 @@ Text-based chord progression editor
 Type chord names in a textbox to create a sequence of play buttons that you
 can use like an instrument.
 
-Try it in your browser: http://evanshort.name/chords/
+Try it in your browser: https://evashort.com/chords/
 
 chordsite.slack.com is the Slack channel for discussing this project.
 
@@ -88,7 +88,7 @@ required by
 
 1. Use npm to install elm-live: https://github.com/architectcodes/elm-live
 
-In [`.vscode/tasks.json`](https://github.com/evanshort73/chords/blob/master/.vscode/tasks.json), there is a build command to start elm-live from within VS Code. To run it, click *Run Build Task...* in the *Tasks* menu. You only have to do this once at the beginning of each session. Once elm-live is running, it will recompile the project every time you save a file. Your changes should appear immediately at the URL displayed by elm-live, most likely http://localhost:8000/
+In [`.vscode/tasks.json`](https://github.com/evashort/chords/blob/master/.vscode/tasks.json), there is a build command to start elm-live from within VS Code. To run it, click *Run Build Task...* in the *Tasks* menu. You only have to do this once at the beginning of each session. Once elm-live is running, it will recompile the project every time you save a file. Your changes should appear immediately at the URL displayed by elm-live, most likely http://localhost:8000/
 
 ## Implementation details
 On the JS side, I use the Web Audio API to create a new chain of audio nodes
@@ -102,11 +102,11 @@ On the Elm side, when you click a chord play button, I generate a list of
 through a port to JS. So the entire arpeggio is sent to the Web Audio API as
 soon as you click the button. In order for Elm to schedule the notes at the
 right time, I had to write a native module called
-[`AudioTime`](https://github.com/evanshort73/chords/blob/master/src/AudioTime.elm)
+[`AudioTime`](https://github.com/evashort/chords/blob/master/src/AudioTime.elm)
 to access the audio clock.
 
 Elm also sets "alarms", which are times when the UI needs to be updated. The
-loop in [`audio.js`](https://github.com/evanshort73/chords/blob/master/audio.js)
+loop in [`audio.js`](https://github.com/evashort/chords/blob/master/audio.js)
 notifies Elm when an alarm has passed.
 
 In order to programmatically replace text in the textarea without erasing the
@@ -116,9 +116,9 @@ we assume that the user is trying to undo the programmatic change and we
 restore the old textarea. Same goes for redo. In Chrome and Edge, pressing
 ctrl+z can also affect the hidden textareas so we have to detect and
 counteract that. This is all handled on the JS side in
-[`theater.js`](https://github.com/evanshort73/chords/blob/master/theater.js),
+[`theater.js`](https://github.com/evashort/chords/blob/master/theater.js),
 with an Elm interface in
-[`Theater.elm`](https://github.com/evanshort73/chords/blob/master/src/Theater.elm).
+[`Theater.elm`](https://github.com/evashort/chords/blob/master/src/Theater.elm).
 
 ## Design principles
 
